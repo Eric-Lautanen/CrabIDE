@@ -5,9 +5,9 @@
 
 use crabide_core::{
     event::{
-        CodeAction, CompletionItem, CompletionKind, Diagnostic, DiagnosticRelated,
+        CodeAction, CodeLens, CompletionItem, CompletionKind, Diagnostic, DiagnosticRelated,
         DiagnosticSeverity, DiagnosticTag, DocumentEdit, InlayHint, InlayHintKind, Location,
-        WorkspaceEdit,
+        SemanticToken, WorkspaceEdit,
     },
     types::{DocumentUri, Position, Range, TextEdit},
 };
@@ -298,5 +298,56 @@ fn marked_string_to_str(ms: lsp_types::MarkedString) -> String {
     match ms {
         lsp_types::MarkedString::String(s) => s,
         lsp_types::MarkedString::LanguageString(ls) => ls.value,
+    }
+}
+
+// SemanticTokens
+
+/// Decode LSP delta-encoded semantic tokens into absolute-position tokens.
+///
+/// LSP semantic tokens are delta-encoded: each token's line/character is
+/// relative to the previous token. This function decodes them into absolute
+/// positions and converts to our `SemanticToken` type.
+pub fn decode_semantic_tokens(st: lsp_types::SemanticTokens) -> Vec<SemanticToken> {
+    let mut tokens = Vec::new();
+    let mut prev_line = 0u32;
+    let mut prev_char = 0u32;
+
+    for t in st.data {
+        let line = prev_line + t.delta_line;
+        let character = if t.delta_line == 0 {
+            prev_char + t.delta_start
+        } else {
+            t.delta_start
+        };
+        prev_line = line;
+        prev_char = character;
+
+        let start = Position::new(line, character);
+        // Length is in UTF-16 code units; we approximate as character count
+        // for the end position. Full UTF-16 handling happens in the UI layer.
+        let end = Position::new(line, character + t.length);
+
+        tokens.push(SemanticToken {
+            range: Range::new(start, end),
+            token_type: t.token_type,
+            token_modifiers: t.token_modifiers_bitset,
+        });
+    }
+
+    tokens
+}
+
+// CodeLens
+
+pub fn from_lsp_code_lens(cl: lsp_types::CodeLens) -> CodeLens {
+    CodeLens {
+        range: from_lsp_range(cl.range),
+        title: cl
+            .command
+            .as_ref()
+            .map(|c| c.title.clone())
+            .unwrap_or_default(),
+        command: cl.command.map(|c| c.command),
     }
 }

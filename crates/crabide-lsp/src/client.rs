@@ -28,9 +28,10 @@ use crabide_core::{
 use crate::{
     config::LspServerConfig,
     convert::{
-        self, from_lsp_code_action_or_command, from_lsp_completion_item, from_lsp_diagnostic,
-        from_lsp_inlay_hint, from_lsp_location, from_lsp_location_link, from_lsp_workspace_edit,
-        hover_to_string, to_lsp_range, to_lsp_uri,
+        self, decode_semantic_tokens, from_lsp_code_action_or_command, from_lsp_code_lens,
+        from_lsp_completion_item, from_lsp_diagnostic, from_lsp_inlay_hint, from_lsp_location,
+        from_lsp_location_link, from_lsp_workspace_edit, hover_to_string, to_lsp_range,
+        to_lsp_uri,
     },
     transport::{JsonRpcMessage, LspTransport},
 };
@@ -151,7 +152,14 @@ impl LspClient {
                         "isPreferredSupport": true
                     },
                     "rename": { "prepareSupport": false },
-                    "publishDiagnostics": { "relatedInformation": true, "tagSupport": { "valueSet": [1, 2] } }
+                    "publishDiagnostics": { "relatedInformation": true, "tagSupport": { "valueSet": [1, 2] } },
+            "semanticTokens": {
+                "full": true,
+                "delta": false,
+                "tokenTypes": ["namespace","type","class","enum","interface","struct","typeParameter","parameter","variable","property","enumMember","event","function","method","macro","keyword","modifier","comment","string","number","regexp","operator","decorator"],
+                "tokenModifiers": ["declaration","definition","readonly","static","deprecated","abstract","async","modification","documentation","defaultLibrary"]
+            },
+            "codeLens": {}
                 }
             }
         });
@@ -635,6 +643,58 @@ impl LspClient {
         });
     }
 
+    /// Request semantic tokens for a document (full). Result arrives as
+    /// `LspEvent::SemanticTokensUpdated`.
+    pub fn semantic_tokens_full(&self, uri: DocumentUri) {
+        let client = self.clone();
+        tokio::spawn(async move {
+            let params = json!({
+                "textDocument": { "uri": to_lsp_uri(&uri).as_str() }
+            });
+            match client
+                .inner
+                .transport
+                .request("textDocument/semanticTokens/full", params)
+                .await
+            {
+                Ok(result) => {
+                    let tokens = parse_semantic_tokens(result);
+                    let _ = client
+                        .inner
+                        .event_tx
+                        .send(LspEvent::SemanticTokensUpdated { uri, tokens }.into());
+                }
+                Err(e) => log::warn!("semanticTokens/full failed: {e}"),
+            }
+        });
+    }
+
+    /// Request code lens for a document. Result arrives as
+    /// `LspEvent::CodeLensUpdated`.
+    pub fn code_lens(&self, uri: DocumentUri) {
+        let client = self.clone();
+        tokio::spawn(async move {
+            let params = json!({
+                "textDocument": { "uri": to_lsp_uri(&uri).as_str() }
+            });
+            match client
+                .inner
+                .transport
+                .request("textDocument/codeLens", params)
+                .await
+            {
+                Ok(result) => {
+                    let items = parse_code_lens(result);
+                    let _ = client
+                        .inner
+                        .event_tx
+                        .send(LspEvent::CodeLensUpdated { uri, items }.into());
+                }
+                Err(e) => log::warn!("codeLens failed: {e}"),
+            }
+        });
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// Shared helper for definition/implementation location requests.
@@ -795,6 +855,32 @@ fn parse_text_edits_as_workspace_edit(
             crabide_core::event::WorkspaceEdit {
                 document_changes: Vec::new(),
             }
+        }
+    }
+}
+
+fn parse_semantic_tokens(result: Value) -> Vec<crabide_core::event::SemanticToken> {
+    if result.is_null() {
+        return Vec::new();
+    }
+    match serde_json::from_value::<lsp_types::SemanticTokens>(result) {
+        Ok(st) => decode_semantic_tokens(st),
+        Err(e) => {
+            log::warn!("semanticTokens parse error: {e}");
+            Vec::new()
+        }
+    }
+}
+
+fn parse_code_lens(result: Value) -> Vec<crabide_core::event::CodeLens> {
+    if result.is_null() {
+        return Vec::new();
+    }
+    match serde_json::from_value::<Vec<lsp_types::CodeLens>>(result) {
+        Ok(items) => items.into_iter().map(from_lsp_code_lens).collect(),
+        Err(e) => {
+            log::warn!("codeLens parse error: {e}");
+            Vec::new()
         }
     }
 }
