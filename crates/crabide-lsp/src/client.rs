@@ -11,6 +11,8 @@
 //!
 //! - The UI thread never blocks it drains the crossbeam channel per frame.
 
+use std::collections::HashMap;
+
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
     Arc,
@@ -59,6 +61,8 @@ struct LspClientInner {
     sync_kind: AtomicU8,
     /// Server capabilities from the initialize response (raw Value for flexibility).
     capabilities: RwLock<Option<Value>>,
+    /// Per-document version counter (incremented on each change).
+    doc_versions: RwLock<HashMap<DocumentUri, u32>>,
 }
 
 impl LspClient {
@@ -75,6 +79,7 @@ impl LspClient {
                 initialized: AtomicBool::new(false),
                 sync_kind: AtomicU8::new(SYNC_FULL),
                 capabilities: RwLock::new(None),
+                doc_versions: RwLock::new(HashMap::new()),
             }),
         }
     }
@@ -84,6 +89,16 @@ impl LspClient {
     }
     pub fn is_initialized(&self) -> bool {
         self.inner.initialized.load(Ordering::Acquire)
+    }
+
+    /// Get the current version counter for a document (0 if not tracked).
+    pub fn doc_version(&self, uri: &DocumentUri) -> u32 {
+        self.inner
+            .doc_versions
+            .read()
+            .get(uri)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Get a clone of the underlying transport for graceful shutdown.
@@ -323,6 +338,7 @@ impl LspClient {
 
     /// Notify the server that a document was opened.
     pub fn did_open(&self, uri: &DocumentUri, language: &Language, version: u32, text: &str) {
+        self.inner.doc_versions.write().insert(uri.clone(), version);
         let params = json!({
             "textDocument": {
                 "uri": to_lsp_uri(uri).as_str(),
@@ -339,7 +355,14 @@ impl LspClient {
     /// Notify the server of document changes.
     ///
     /// Uses full-document sync or incremental depending on negotiated capability.
-    pub fn did_change(&self, uri: &DocumentUri, version: u32, edits: &[TextEdit], full_text: &str) {
+    /// The version is auto-incremented from the tracked per-document counter.
+    pub fn did_change(&self, uri: &DocumentUri, edits: &[TextEdit], full_text: &str) {
+        let version = {
+            let mut versions = self.inner.doc_versions.write();
+            let v = versions.entry(uri.clone()).or_insert(0);
+            *v += 1;
+            *v
+        };
         let content_changes: Value = if self.inner.sync_kind.load(Ordering::Relaxed)
             == SYNC_INCREMENTAL
         {
@@ -347,7 +370,7 @@ impl LspClient {
                 json!({
                     "range": {
                         "start": { "line": e.range.start.line, "character": e.range.start.character },
-                        "end":   { "line": e.range.end.line,   "character": e.range.end.character }
+                        "end": { "line": e.range.end.line, "character": e.range.end.character }
                     },
                     "text": e.new_text
                 })
@@ -392,6 +415,7 @@ impl LspClient {
 
     /// Notify the server that a document was closed.
     pub fn did_close(&self, uri: &DocumentUri) {
+        self.inner.doc_versions.write().remove(uri);
         let params = json!({ "textDocument": { "uri": to_lsp_uri(uri).as_str() } });
         if let Err(e) = self.inner.transport.notify("textDocument/didClose", params) {
             log::error!("didClose failed: {e}");
