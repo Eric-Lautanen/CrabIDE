@@ -30,8 +30,7 @@ use crate::{
     convert::{
         self, decode_semantic_tokens, from_lsp_code_action_or_command, from_lsp_code_lens,
         from_lsp_completion_item, from_lsp_diagnostic, from_lsp_inlay_hint, from_lsp_location,
-        from_lsp_location_link, from_lsp_workspace_edit, hover_to_string, to_lsp_range,
-        to_lsp_uri,
+        from_lsp_location_link, from_lsp_workspace_edit, hover_to_string, to_lsp_range, to_lsp_uri,
     },
     transport::{JsonRpcMessage, LspTransport},
 };
@@ -126,9 +125,9 @@ impl LspClient {
                 },
                 "textDocument": {
                     "synchronization": {
-                        "willSave": false,
-                        "willSaveWaitUntil": false,
-                        "didSave": true
+                        "willSave": true,
+        "willSaveWaitUntil": true,
+                "didSave": true
                     },
                     "completion": {
                         "completionItem": {
@@ -140,8 +139,10 @@ impl LspClient {
                         "contentFormat": ["plaintext", "markdown"]
                     },
                     "definition": {},
-                    "references": {},
-                    "implementation": {},
+                                    "typeDefinition": {},
+                                    "declaration": {},
+                                    "references": {},
+                                    "implementation": {},
                     "inlayHint": {},
                     "codeAction": {
                         "codeActionLiteralSupport": {
@@ -275,6 +276,23 @@ impl LspClient {
             "client/registerCapability" => {
                 log::debug!("LSP server requested client/registerCapability; ignoring");
             }
+            "telemetry/event" => {
+                log::trace!("LSP telemetry/event: {params}");
+            }
+            "textDocument/willSave" => {
+                // Client→server notification; we send it, don't expect it back.
+                log::trace!("LSP willSave notification received (unexpected)");
+            }
+            "textDocument/willSaveWaitUntil" => {
+                // Server→client request: respond with empty edits.
+                log::debug!("LSP willSaveWaitUntil request; returning empty edits");
+                if let Some(id) = params.get("id") {
+                    let _ = self.inner.transport.notify(
+                        "textDocument/willSaveWaitUntil",
+                        serde_json::json!({ "id": id, "result": null }),
+                    );
+                }
+            }
             _ => {
                 log::trace!("LSP unhandled notification: {method}");
             }
@@ -356,6 +374,19 @@ impl LspClient {
         let params = json!({ "textDocument": { "uri": to_lsp_uri(uri).as_str() } });
         if let Err(e) = self.inner.transport.notify("textDocument/didSave", params) {
             log::error!("didSave failed: {e}");
+        }
+    }
+
+    /// Notify the server that a document is about to be saved.
+    /// If the server supports `willSaveWaitUntil`, it may respond with edits
+    /// to apply before the save is finalized.
+    pub fn will_save(&self, uri: &DocumentUri) {
+        let params = json!({
+            "textDocument": { "uri": to_lsp_uri(uri).as_str() },
+            "reason": 1 // Manual = 1
+        });
+        if let Err(e) = self.inner.transport.notify("textDocument/willSave", params) {
+            log::error!("willSave failed: {e}");
         }
     }
 
@@ -468,6 +499,16 @@ impl LspClient {
     /// Request go-to-implementation. Result arrives as `LspEvent::LocationsReady`.
     pub fn implementation(&self, uri: DocumentUri, position: Position, request_id: u32) {
         self.location_request("textDocument/implementation", uri, position, request_id);
+    }
+
+    /// Request go-to-type-definition. Result arrives as `LspEvent::LocationsReady`.
+    pub fn type_definition(&self, uri: DocumentUri, position: Position, request_id: u32) {
+        self.location_request("textDocument/typeDefinition", uri, position, request_id);
+    }
+
+    /// Request go-to-declaration. Result arrives as `LspEvent::LocationsReady`.
+    pub fn declaration(&self, uri: DocumentUri, position: Position, request_id: u32) {
+        self.location_request("textDocument/declaration", uri, position, request_id);
     }
 
     /// Request inlay hints for a document range. Result arrives as `LspEvent::InlayHintsUpdated`.
