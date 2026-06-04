@@ -167,6 +167,9 @@ streaming-iterator = "0.1"
 
 rfd = "0.17" # Native file/folder open dialogs (rfd = Rust File Dialog)
 
+# Ctrl+C handler
+ctrlc = "3"
+
 # Optional / Feature-Gated
 # NOTE: `optional` is NOT a valid field in [workspace.dependencies].
 # Each consuming crate declares `optional = true` in its own [dependencies] block.

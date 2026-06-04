@@ -94,6 +94,9 @@ pub struct crabideApp {
 
     /// Extension registry client (search / download stub via ureq).
     registry: RegistryClient,
+
+    /// Shared flag set by Ctrl+C handler; checked each frame to trigger graceful shutdown.
+    shutdown_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
 
 impl crabideApp {
@@ -172,6 +175,7 @@ impl crabideApp {
             dap_client: None,
             extension_host,
             registry,
+            shutdown_flag: None,
         };
         for path in initial_paths {
             app.open_path(path);
@@ -2801,12 +2805,25 @@ impl crabideApp {
         let pos = tab.cursors.primary().pos();
         tab.bracket_match = compute_bracket_match(&tab.lines, pos);
     }
+
+    /// Set the shared shutdown flag (set by Ctrl+C handler).
+    pub fn set_shutdown_flag(&mut self, flag: Arc<std::sync::atomic::AtomicBool>) {
+        self.shutdown_flag = Some(flag);
+    }
 }
 
-// ── eframe::App ───────────────────────────────────────────────────────────────
+// eframe::App
 
 impl eframe::App for crabideApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Check Ctrl+C shutdown flag.
+        if let Some(ref flag) = self.shutdown_flag {
+            if flag.load(std::sync::atomic::Ordering::Relaxed) {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                return;
+            }
+        }
+
         let ctx = ui.ctx().clone();
         self.poll_events();
         self.drain_git_pending();

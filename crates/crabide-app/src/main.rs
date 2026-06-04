@@ -35,17 +35,83 @@ use anyhow::Result;
 use eframe::NativeOptions;
 use env_logger::Env;
 
-// ── Global allocator ──────────────────────────────────────────────────────────
+// Global allocator
 // mimalloc aggressively returns idle pages to the OS on Windows, which
 // dramatically reduces idle RSS compared to the default CRT heap.
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+/// Parsed CLI arguments.
+struct CliArgs {
+    /// Files or directories to open on startup.
+    paths: Vec<std::path::PathBuf>,
+    /// Print version and exit.
+    version: bool,
+    /// Override the log level.
+    log_level: Option<String>,
+}
+
+fn parse_args() -> CliArgs {
+    let mut args = CliArgs {
+        paths: Vec::new(),
+        version: false,
+        log_level: None,
+    };
+    let mut iter = std::env::args().skip(1).peekable();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                eprintln!("Usage: crabide [OPTIONS] [PATHS...]");
+                eprintln!();
+                eprintln!("Options:");
+                eprintln!("  -h, --help           Show this help message");
+                eprintln!("  -V, --version        Print version and exit");
+                eprintln!("  -l, --log <LEVEL>    Set log level (trace|debug|info|warn|error)");
+                eprintln!();
+                eprintln!("Paths: files or directories to open on startup");
+                std::process::exit(0);
+            }
+            "-V" | "--version" => {
+                args.version = true;
+            }
+            "-l" | "--log" => {
+                if let Some(level) = iter.next() {
+                    args.log_level = Some(level);
+                } else {
+                    eprintln!("error: --log requires a level argument");
+                    std::process::exit(1);
+                }
+            }
+            s if s.starts_with('-') => {
+                eprintln!("error: unknown option {s}");
+                eprintln!("Use --help for usage information");
+                std::process::exit(1);
+            }
+            path => {
+                args.paths.push(std::path::PathBuf::from(path));
+            }
+        }
+    }
+    args
+}
+
 fn main() -> Result<()> {
-    // ── Logging ───────────────────────────────────────────────────────────────
+    // Parse CLI arguments
+    let cli = parse_args();
+
+    if cli.version {
+        println!("crabide {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    // Logging
     // Default log level: `warn` in release, `debug` in dev builds.
-    // Override: crabide_LOG=trace cargo run
-    env_logger::Builder::from_env(Env::default().filter_or("crabide_LOG", default_log_level()))
+    // Override: crabide_LOG=trace cargo run, or --log trace
+    let log_level = cli
+        .log_level
+        .as_deref()
+        .unwrap_or_else(|| default_log_level());
+    env_logger::Builder::from_env(Env::default().filter_or("crabide_LOG", log_level))
         .format_timestamp_millis()
         .init();
 
@@ -55,15 +121,22 @@ fn main() -> Result<()> {
         std::env::consts::OS
     );
 
-    // ── Parse CLI args ────────────────────────────────────────────────────────
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let initial_paths: Vec<std::path::PathBuf> = args
-        .iter()
-        .map(std::path::PathBuf::from)
-        .filter(|p| p.exists())
-        .collect();
+    // Ctrl+C signal handler for graceful shutdown.
+    // Sets a flag that the app checks each frame; eframe will close the window
+    // on the next update cycle.
+    let shutdown_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag_clone = shutdown_flag.clone();
+    ctrlc::set_handler(move || {
+        log::info!("Ctrl+C received; initiating graceful shutdown");
+        flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+    })
+    .unwrap_or_else(|e| log::warn!("Failed to set Ctrl+C handler: {e}"));
 
-    // ── Tokio runtime ─────────────────────────────────────────────────────────
+    // Filter initial paths to those that exist on disk.
+    let initial_paths: Vec<std::path::PathBuf> =
+        cli.paths.into_iter().filter(|p| p.exists()).collect();
+
+    // Tokio runtime
     // Multi-threaded runtime for all background I/O (LSP, DAP, VFS, git, etc.)
     // This is a separate runtime from the UI thread. We start it here and pass
     // a handle into the app so background tasks can be spawned from the UI.
@@ -80,9 +153,9 @@ fn main() -> Result<()> {
 
     let rt_handle = rt.handle().clone();
 
-    // ── eframe / egui (glow / OpenGL renderer) ────────────────────────────────
+    // eframe / egui (glow / OpenGL renderer)
     // glow replaces the wgpu renderer. OpenGL is sufficient for 2D text+UI and
-    // avoids the D3D12/Vulkan/Metal GPU heap (~20–50 MB) that wgpu allocates
+    // avoids the D3D12/Vulkan/Metal GPU heap (~2050 MB) that wgpu allocates
     // even for a blank window. The entire wgpu dep subtree is dropped.
     let native_options = NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -94,17 +167,21 @@ fn main() -> Result<()> {
         ..Default::default()
     };
 
-    // Run the event loop — this blocks until the window is closed.
+    // Run the event loop this blocks until the window is closed.
     // eframe calls `crabideApp::update()` every frame.
     eframe::run_native(
         "crabide",
         native_options,
-        Box::new(move |cc| Ok(Box::new(app::crabideApp::new(cc, rt_handle, initial_paths)))),
+        Box::new(move |cc| {
+            let mut app = Box::new(app::crabideApp::new(cc, rt_handle, initial_paths));
+            app.set_shutdown_flag(shutdown_flag);
+            Ok(app)
+        }),
     )
     .map_err(|e| anyhow::anyhow!("eframe error: {e}"))?;
 
     // Graceful shutdown: wait for all background tasks to finish.
-    log::info!("Shutting down background runtime…");
+    log::info!("Shutting down background runtime");
     rt.shutdown_timeout(std::time::Duration::from_secs(5));
     log::info!("crabide exited cleanly");
 
@@ -122,7 +199,7 @@ fn default_log_level() -> &'static str {
 /// Returns a default application icon.
 /// Replace with actual icon bytes before shipping a release build.
 fn load_icon() -> egui::IconData {
-    // A 2×2 amber pixel icon — placeholder until real icon assets are added.
+    // A 2×2 amber pixel icon placeholder until real icon assets are added.
     // Format: RGBA, row-major.
     egui::IconData {
         rgba: vec![
