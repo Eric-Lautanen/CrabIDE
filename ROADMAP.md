@@ -142,8 +142,8 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Add request timeout or `request_with_timeout()` to transport
 
 **Feature additions:**
-- [ ] Add `textDocument/semanticTokens/full` request method + event handling
-- [ ] Add `textDocument/codeLens` request method + event handling
+- [x] Add `textDocument/semanticTokens/full` request method + event handling
+- [x] Add `textDocument/codeLens` request method + event handling
 - [ ] Add notification handlers for: `willSave`/`willSaveWaitUntil`, `telemetry/event`, `textDocument/typeDefinition`
 - [ ] Add per-document version tracking in `LspClient`
 - [ ] Add `with_env()` builder method to `LspServerConfig`
