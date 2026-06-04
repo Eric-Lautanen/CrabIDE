@@ -144,9 +144,9 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 **Feature additions:**
 - [x] Add `textDocument/semanticTokens/full` request method + event handling
 - [x] Add `textDocument/codeLens` request method + event handling
-- [ ] Add notification handlers for: `willSave`/`willSaveWaitUntil`, `telemetry/event`, `textDocument/typeDefinition`
-- [ ] Add per-document version tracking in `LspClient`
-- [ ] Add `with_env()` builder method to `LspServerConfig`
+- [x] Add notification handlers for: `willSave`/`willSaveWaitUntil`, `telemetry/event`, `textDocument/typeDefinition`
+- [x] Add per-document version tracking in `LspClient`
+- [x] Add `with_env()` builder method to `LspServerConfig`
 - [x] Fix `From<Arc<LspClient>> for ServerEntry` panic use proper placeholder instead
 
 **Wiring in crabide-app:**
