@@ -158,6 +158,9 @@ impl HighlightEngine {
             }
         }
 
+        // Sort spans by start position so the UI can render them in order.
+        spans.sort_by_key(|s| s.range.start);
+
         spans
     }
 }

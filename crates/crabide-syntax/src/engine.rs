@@ -115,13 +115,18 @@ impl SyntaxEngine {
         }
     }
 
-    /// Re-parse a document, reusing the previous tree as an incremental hint.
+    /// Re-parse a document with an incremental edit.
     ///
-    /// For correct incremental parsing, callers should call
-    /// `tree.edit(&input_edit)` before calling this. For now we pass the old
-    /// tree without edits, which still allows tree-sitter to reuse unchanged
-    /// subtrees as a best-effort optimisation.
-    pub fn reparse_document(&self, id: BufferId, source: &str, new_version: u32) {
+    /// Callers should provide the `InputEdit` describing the change so
+    /// tree-sitter can reuse unchanged subtrees. If `input_edit` is `None`,
+    /// the old tree is used as a hint without edit information (best-effort).
+    pub fn reparse_document(
+        &self,
+        id: BufferId,
+        source: &str,
+        new_version: u32,
+        input_edit: Option<tree_sitter::InputEdit>,
+    ) {
         // Retrieve the old tree and language.
         let (old_tree, language, entry) = {
             let cached = match self.cache.get(&id) {
@@ -143,6 +148,12 @@ impl SyntaxEngine {
                 return;
             }
         };
+
+        // Apply the edit to the old tree if provided.
+        let mut old_tree = old_tree;
+        if let Some(edit) = input_edit {
+            old_tree.edit(&edit);
+        }
 
         let source_bytes: Arc<[u8]> = Arc::from(source.as_bytes());
         if let Some(tree) = parser.parse(source_bytes.as_ref(), Some(&old_tree)) {
