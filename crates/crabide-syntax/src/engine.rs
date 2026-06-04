@@ -25,6 +25,7 @@ use crate::{
     fold::{self, FoldingRange},
     grammar::{GrammarEntry, GrammarRegistry},
     highlight::{HighlightEngine, HighlightSpan},
+    indent::{IndentEngine, LineIndent},
     outline::{self, SymbolOutline},
 };
 
@@ -49,6 +50,7 @@ pub struct SyntaxEngine {
     registry: &'static GrammarRegistry,
     cache: DashMap<BufferId, ParsedDoc>,
     highlighter: HighlightEngine,
+    indenter: IndentEngine,
 }
 
 impl SyntaxEngine {
@@ -58,19 +60,20 @@ impl SyntaxEngine {
             registry: crate::grammar::grammar_registry(),
             cache: DashMap::new(),
             highlighter: HighlightEngine::new(),
+            indenter: IndentEngine::new(),
         }
     }
 
-    /// Create a new engine backed by a specific registry (useful for tests).
     pub fn with_registry(registry: &'static GrammarRegistry) -> Self {
         Self {
             registry,
             cache: DashMap::new(),
             highlighter: HighlightEngine::new(),
+            indenter: IndentEngine::new(),
         }
     }
 
-    // ── Parse ─────────────────────────────────────────────────────────────────
+    // Parse
 
     /// Parse (or re-parse) a document from scratch.
     ///
@@ -207,6 +210,22 @@ impl SyntaxEngine {
             None => return Vec::new(),
         };
         outline::extract_outline(&cached.tree, &cached.source, &cached.language)
+    }
+
+    /// Compute indentation advice for every line in a document. Returns `[]`
+    /// if not parsed or no indent query is registered for the language.
+    pub fn indents(&self, id: BufferId) -> Vec<LineIndent> {
+        let cached = match self.cache.get(&id) {
+            Some(c) => c,
+            None => return Vec::new(),
+        };
+        let entry = match self.registry.get(&cached.language) {
+            Some(e) => e,
+            None => return Vec::new(),
+        };
+        let source = std::str::from_utf8(&cached.source).unwrap_or("");
+        self.indenter
+            .compute_indents(&cached.language, &entry, source, &cached.tree)
     }
 
     /// Return the current parse version for a document, or `None` if not parsed.

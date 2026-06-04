@@ -36,6 +36,7 @@ pub mod engine;
 pub mod fold;
 pub mod grammar;
 pub mod highlight;
+pub mod indent;
 pub mod outline;
 pub mod queries;
 
@@ -45,6 +46,7 @@ pub use engine::SyntaxEngine;
 pub use fold::{FoldKind, FoldingRange};
 pub use grammar::{grammar_registry, GrammarEntry, GrammarRegistry, REGISTRY};
 pub use highlight::{scope_to_vscode, HighlightEngine, HighlightSpan};
+pub use indent::{IndentEngine, LineIndent};
 pub use outline::{SymbolKind, SymbolOutline};
 pub use queries::highlights_query_for;
 
