@@ -45,14 +45,18 @@ pub struct FuzzyMatch {
 /// Fast fuzzy file-path finder backed by nucleo.
 ///
 /// Build the index once with [`update_index`], then call [`search`] on every
-/// query keystroke.
+/// query keystroke. The nucleo `Matcher` is cached across calls for efficiency.
 pub struct FuzzyFileFinder {
     index: Vec<PathBuf>,
+    matcher: Matcher,
 }
 
 impl FuzzyFileFinder {
     pub fn new() -> Self {
-        Self { index: Vec::new() }
+        Self {
+            index: Vec::new(),
+            matcher: Matcher::new(Config::DEFAULT),
+        }
     }
 
     /// Replace the file index with a fresh set of paths.
@@ -75,7 +79,7 @@ impl FuzzyFileFinder {
     /// When `query` is empty, returns the first `limit` files in index order.
     /// Otherwise scores every path with nucleo and returns the top `limit`
     /// hits sorted by descending score.
-    pub fn search(&self, query: &str, limit: usize) -> Vec<FuzzyMatch> {
+    pub fn search(&mut self, query: &str, limit: usize) -> Vec<FuzzyMatch> {
         if self.index.is_empty() {
             return Vec::new();
         }
@@ -94,7 +98,6 @@ impl FuzzyFileFinder {
         }
 
         let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
-        let mut matcher = Matcher::new(Config::DEFAULT);
 
         let mut scored: Vec<FuzzyMatch> = self
             .index
@@ -102,7 +105,7 @@ impl FuzzyFileFinder {
             .filter_map(|p| {
                 let display = p.to_string_lossy().into_owned();
                 let hay = Utf32String::from(display.as_str());
-                let score = pattern.score(hay.slice(..), &mut matcher)?;
+                let score = pattern.score(hay.slice(..), &mut self.matcher)?;
                 Some(FuzzyMatch {
                     path: p.clone(),
                     display,
