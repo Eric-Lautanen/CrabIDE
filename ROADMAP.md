@@ -131,7 +131,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 
 ## Phase 3 — LSP Client ◐
 
-### crabide-lsp — PARTIAL (~85%)
+### crabide-lsp — PARTIAL (~90%)
 
 **Critical fixes:**
 - [ ] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
@@ -148,15 +148,25 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Add per-document version tracking in `LspClient`
 - [x] Add `with_env()` builder method to `LspServerConfig`
 - [x] Fix `From<Arc<LspClient>> for ServerEntry` panic use proper placeholder instead
+- [x] Add `type_definition()` and `declaration()` request methods to LspClient
+- [x] Add `will_save()` notification method to LspClient
+- [x] Enable willSave/willSaveWaitUntil capabilities in initialize params
+- [x] Add typeDefinition/declaration capabilities in initialize params
 
 **Wiring in crabide-app:**
-- [ ] Wire GotoDefinition / References / Implementation / Declaration / TypeDefinition → LSP
-- [ ] Wire FormatDocument / FormatSelection / OrganizeImports → LSP
-- [ ] Wire RenameSymbol → LSP
-- [ ] Wire ShowHover → LSP with hover popup UI
-- [ ] Wire TriggerCompletion → LSP with completion popup UI
+- [x] Wire GotoDefinition / References / Implementation / Declaration / TypeDefinition → LSP
+- [x] Wire FormatDocument / FormatSelection → LSP
+- [x] Wire RenameSymbol → LSP
+- [x] Wire ShowHover → LSP
+- [x] Wire TriggerCompletion → LSP
+- [x] Wire ApplyCodeAction → LSP
 - [ ] Wire ShowSignatureHelp → LSP
-- [ ] Wire ApplyCodeAction → LSP
+- [ ] Add hover popup UI rendering
+- [ ] Add completion popup UI rendering
+- [ ] Add code actions popup UI rendering
+- [ ] Add `apply_workspace_edit()` helper in crabide-app
+- [ ] Add UI state fields for hover/completion/code_actions (hover_text, completion_items, completion_visible, code_actions, code_actions_visible)
+- [ ] Add inlay_hints/semantic_tokens/code_lens fields to EditorTab
 
 ---
 
