@@ -1,0 +1,38 @@
+[package]
+name        = "crabide-git"
+description = "Git integration via libgit2 — status, diff, blame, branches"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace = true
+
+# All git operations run on a dedicated Tokio thread to never block the UI.
+tokio.workspace      = true
+thiserror.workspace  = true
+anyhow.workspace     = true
+log.workspace        = true
+
+# Command channel to background worker thread
+crossbeam-channel.workspace = true
+
+# For parallel status scanning
+rayon.workspace = true
+
+# libgit2 — optional. vendored-openssl avoids needing system OpenSSL on CI/Windows.
+# git2 statically links libgit2 + OpenSSL (~15-20 MB of code). Only included when
+# the user actually uses source-control features. Gate with --features git-support.
+[dependencies.git2]
+workspace = true
+optional  = true
+
+[features]
+# Pull in libgit2 + vendored OpenSSL only when git features are wanted.
+git-support = ["dep:git2"]
+

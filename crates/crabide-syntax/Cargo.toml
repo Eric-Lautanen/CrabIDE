@@ -1,0 +1,33 @@
+[package]
+name        = "crabide-syntax"
+description = "Tree-sitter integration: incremental parsing, highlighting, folding, symbols"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace   = true
+crabide-buffer.workspace = true
+
+tree-sitter.workspace = true
+
+thiserror.workspace  = true
+anyhow.workspace     = true
+log.workspace        = true
+parking_lot.workspace = true
+dashmap.workspace    = true
+once_cell.workspace  = true
+smol_str.workspace   = true
+serde.workspace      = true
+crossbeam-channel.workspace = true
+libloading.workspace         = true
+streaming-iterator.workspace = true
+
+# Rayon for parallel highlighting across large files
+rayon.workspace = true
+

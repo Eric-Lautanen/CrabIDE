@@ -1,0 +1,59 @@
+# Rust
+/target/
+**/target/
+**/*.rs.bk
+*.rlib
+Cargo.lock
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.exp
+*.lib
+*.pdb
+*.d
+*.o
+*.obj
+
+# Debug / Profiling
+*.profraw
+*.profdata
+coverage/
+lcov.info
+
+# Wasm / WIT generated
+**/wit-generated/
+*.wasm
+
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Misc
+*.bak
+*.tmp
+*.orig

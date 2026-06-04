@@ -1,0 +1,31 @@
+[package]
+name        = "crabide-workspace"
+description = "Workspace and document lifecycle management"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace    = true
+crabide-buffer.workspace  = true
+crabide-vfs.workspace     = true
+crabide-config.workspace  = true
+crabide-lsp.workspace     = true
+crabide-syntax.workspace  = true
+
+tokio.workspace             = true
+serde.workspace             = true
+serde_json.workspace        = true
+thiserror.workspace         = true
+anyhow.workspace            = true
+log.workspace               = true
+parking_lot.workspace       = true
+dashmap.workspace           = true
+uuid.workspace              = true
+crossbeam-channel.workspace = true
+

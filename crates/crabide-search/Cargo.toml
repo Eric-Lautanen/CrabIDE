@@ -1,0 +1,23 @@
+[package]
+name        = "crabide-search"
+description = "Fuzzy search (nucleo) and workspace grep"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace = true
+
+nucleo.workspace    = true
+regex.workspace     = true
+regex-lite.workspace = true
+rayon.workspace     = true
+thiserror.workspace = true
+anyhow.workspace    = true
+log.workspace       = true
+

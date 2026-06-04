@@ -1,0 +1,39 @@
+[package]
+name        = "crabide-vfs"
+description = "Virtual filesystem: local, remote SSH, Dev Containers"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace = true
+
+# File watching
+notify.workspace                = true
+notify-debouncer-full.workspace = true
+
+tokio.workspace             = true
+thiserror.workspace         = true
+anyhow.workspace            = true
+log.workspace               = true
+url.workspace               = true
+crossbeam-channel.workspace = true
+async-trait.workspace       = true
+
+[features]
+remote-ssh     = ["dep:russh"]
+dev-containers = ["dep:bollard"]
+
+[dependencies.russh]
+workspace = true
+optional  = true
+
+[dependencies.bollard]
+workspace = true
+optional  = true
+

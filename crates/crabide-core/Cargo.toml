@@ -1,0 +1,43 @@
+[package]
+name        = "crabide-core"
+description = "Foundational types, traits, errors, and event bus for crabide Editor"
+readme      = "README.md"
+workspace   = "../.."
+
+# Inherit all metadata from workspace
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+# Error handling
+thiserror.workspace = true
+anyhow.workspace    = true
+
+# Serialization — needed for config/LSP type interop
+serde.workspace      = true
+serde_json.workspace = true
+toml.workspace       = true
+url.workspace        = true
+uuid.workspace       = true
+
+# Concurrency
+parking_lot.workspace       = true
+crossbeam-channel.workspace = true
+once_cell.workspace         = true
+
+# String types
+smol_str.workspace = true
+
+# Bitflags — used for terminal CellAttrs in event types
+bitflags.workspace = true
+
+# Async trait — used for VirtualFileSystem trait
+async-trait.workspace = true
+
+# Logging
+log.workspace = true
+

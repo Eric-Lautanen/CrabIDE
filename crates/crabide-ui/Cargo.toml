@@ -1,0 +1,29 @@
+[package]
+name        = "crabide-ui"
+description = "All egui widgets, panels, and UI state for crabide Editor"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace      = true
+crabide-buffer.workspace    = true
+crabide-syntax.workspace    = true
+crabide-config.workspace    = true
+crabide-search.workspace    = true
+crabide-dap.workspace        = true
+crabide-extensions.workspace = true
+
+egui.workspace       = true
+egui_tiles.workspace = true
+
+nucleo.workspace   = true
+indexmap.workspace = true
+log.workspace      = true
+regex.workspace    = true
+

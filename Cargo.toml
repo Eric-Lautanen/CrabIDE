@@ -1,0 +1,199 @@
+[workspace]
+resolver = "2"
+members = [
+"crates/crabide-app",
+"crates/crabide-core",
+"crates/crabide-buffer",
+"crates/crabide-syntax",
+"crates/crabide-lsp",
+"crates/crabide-dap",
+"crates/crabide-terminal",
+"crates/crabide-git",
+"crates/crabide-extensions",
+"crates/crabide-vfs",
+"crates/crabide-config",
+"crates/crabide-search",
+"crates/crabide-workspace",
+    "crates/crabide-ui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+authors = ["crabide Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/crabide-editor/crabide"
+homepage = "https://crabide-editor.dev"
+documentation = "https://docs.crabide-editor.dev"
+
+# WORKSPACE DEPENDENCY VERSIONS
+# All versions are declared once here. Individual crates reference them with
+# { workspace = true }. Never duplicate a version in a sub-crate Cargo.toml.
+
+[workspace.dependencies]
+
+# Internal crates
+crabide-core = { path = "crates/crabide-core" }
+crabide-buffer = { path = "crates/crabide-buffer" }
+crabide-syntax = { path = "crates/crabide-syntax" }
+crabide-lsp = { path = "crates/crabide-lsp" }
+crabide-dap = { path = "crates/crabide-dap" }
+crabide-terminal = { path = "crates/crabide-terminal" }
+crabide-git = { path = "crates/crabide-git" }
+crabide-extensions = { path = "crates/crabide-extensions" }
+crabide-vfs = { path = "crates/crabide-vfs" }
+crabide-config = { path = "crates/crabide-config" }
+crabide-search = { path = "crates/crabide-search" }
+crabide-workspace = { path = "crates/crabide-workspace" }
+crabide-ui = { path = "crates/crabide-ui" }
+
+# Core UI
+# egui 0.34.3 (May 2026) verified crates.io
+# Must keep default_fonts enabled or text rendering is broken (no built-in fonts).
+# glow (OpenGL) renderer chosen over wgpu:
+# - Eliminates D3D12/Vulkan/Metal GPU heap allocations (~20-50 MB)
+# - Single lightweight OpenGL context instead of full wgpu instance
+# - Sufficient for 2D text+UI; no 3D workloads in a code editor
+egui = { version = "0.34", features = ["default_fonts"] }
+eframe = { version = "0.34", default-features = false, features = ["glow", "default_fonts"] }
+egui_tiles = "0.15" # 0.15.0 verified crates.io (requires egui 0.34)
+
+# Text Buffer
+# ropey chosen over jumprope: O(1) Arc clone (critical for undo history) and
+# line/char/byte index APIs. JumpRope has no line APIs unusable for an editor.
+# Using 1.6.1 stable; 2.0 is still beta.
+ropey = "1.6"
+
+# Diff & Search
+similar = "3" # Myers/Patience diff 3.1.1 verified
+nucleo = "0.5" # Fuzzy finder from Helix editor 0.5.0 released 2024
+regex = "1.12" # Full regex for user find/replace
+regex-lite = "0.1" # Lightweight regex for internal pattern matching
+
+# Syntax Parsing
+tree-sitter = "0.26"
+tree-sitter-rust = "0.24"
+tree-sitter-python = "0.25"
+tree-sitter-javascript = "0.25"
+tree-sitter-json = "0.24"
+tree-sitter-c = "0.24"
+tree-sitter-go = "0.25"
+
+# LSP / DAP Types
+# Pure protocol type definitions. Zero runtime overhead (serde structs only).
+# DAP types are defined in-house (crabide-dap/src/types.rs) avoids depending
+# on a less-established crate for a spec we can trivially define ourselves.
+lsp-types = "0.97"
+
+# Terminal
+# portable-pty for PTY creation. vte for VT100/VT220 *parsing only*.
+# We build our own grid state on top of vte events (~800 LOC) rather than
+# pulling in alacritty_terminal which drags in winit, glutin, and OpenGL deps.
+portable-pty = "0.9"
+vte = "0.15"
+
+# Git
+git2 = { version = "0.21", default-features = false, features = ["vendored-openssl"] }
+
+# Extension Runtime
+# wasmtime 45.x (May 2026). Use only cranelift JIT; skip pooling allocator
+# and memory_protection_keys to trim binary size for v0.1. Re-enable later.
+# Note: wasmtime v42+ has Error/Result built-in no longer needs anyhow.
+wasmtime = { version = "45", default-features = false, features = ["cranelift", "component-model", "runtime"] }
+wit-bindgen = { version = "0.57", default-features = false, features = ["macros"] }
+
+# File Watching
+notify = "8" # 8.x is the stable series; 9.x is pre-release
+notify-debouncer-full = "0.7" # Matches notify 8.x
+
+# Async & Concurrency
+# Tokio: specify only the features we actually use. "full" pulls test-util and
+# other extras that add compile time without benefit.
+tokio = { version = "1", features = [
+"rt-multi-thread",
+"io-util",
+"process",
+"sync",
+"time",
+"net",
+"fs",
+"macros",
+] }
+rayon = "1.12"
+crossbeam-channel = "0.5" # MPMC channels; rayon already requires it
+
+# Config & Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+
+# HTTP
+# ureq 3 chosen over reqwest: ~15 fewer transitive deps. Our HTTP use case is
+# extension registry GET/POST no need for async hyper/h2/rustls chain.
+ureq = { version = "3", features = ["json"] }
+
+# Error Handling
+# thiserror 2.x (confirmed via egui-wgpu 0.34 dependency on thiserror ^2.0.17)
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+# log + env_logger replaces tracing for desktop use. 10× smaller compile graph.
+# Add tracing back if we need async span profiling later.
+log = "0.4"
+env_logger = "0.11"
+
+# Allocator
+# mimalloc: Microsoft's high-performance allocator. On Windows it aggressively
+# returns idle memory to the OS (unlike the default CRT allocator which retains
+# freed pages), which dramatically reduces idle RSS.
+mimalloc = { version = "0.1", default-features = false }
+
+# Utilities
+url = { version = "2", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+parking_lot = "0.12" # Faster Mutex/RwLock than std
+dashmap = "6" # Concurrent hashmap for caches; 6.x is now stable
+once_cell = "1" # Lazy statics without macro magic
+smol_str = { version = "0.3", features = ["serde"] } # serde feature required for Serialize/Deserialize
+indexmap = { version = "2", features = ["serde"] }
+
+# Bitflags & Async
+bitflags = "2"
+async-trait = "0.1"
+libloading = "0.9"
+streaming-iterator = "0.1"
+
+rfd = "0.17" # Native file/folder open dialogs (rfd = Rust File Dialog)
+
+# Optional / Feature-Gated
+# NOTE: `optional` is NOT a valid field in [workspace.dependencies].
+# Each consuming crate declares `optional = true` in its own [dependencies] block.
+wry = "0.55" # WebView for extension panels
+russh = "0.61" # SSH remote development
+bollard = "0.21" # Docker / Dev Containers
+
+# WORKSPACE-WIDE FEATURE FLAGS
+# Each crate opts into these via Cargo feature propagation.
+# The default build has ZERO webview, SSH, or Docker dependencies.
+
+[profile.dev]
+opt-level = 1 # Minimal optimization for faster incremental builds
+debug = true
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+opt-level = 2 # Optimize deps even in dev prevents egui slowdowns
+
+[profile.release]
+opt-level = 3
+lto = "thin" # Thin LTO: good size/speed balance
+codegen-units = 1
+strip = "debuginfo"
+panic = "abort" # Smaller binary we don't unwind across C FFI
+
+[profile.release-dbg]
+inherits = "release"
+strip = "none"
+debug = true # Release binary with debug info for profiling

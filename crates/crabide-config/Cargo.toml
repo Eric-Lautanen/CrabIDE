@@ -1,0 +1,29 @@
+[package]
+name        = "crabide-config"
+description = "Settings, keybindings, and theme engine"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace = true
+
+serde.workspace               = true
+serde_json.workspace          = true
+toml.workspace                = true
+thiserror.workspace           = true
+anyhow.workspace              = true
+log.workspace                 = true
+once_cell.workspace           = true
+parking_lot.workspace         = true
+indexmap.workspace            = true
+crossbeam-channel.workspace     = true
+notify.workspace                = true
+notify-debouncer-full.workspace = true
+bitflags.workspace              = true
+

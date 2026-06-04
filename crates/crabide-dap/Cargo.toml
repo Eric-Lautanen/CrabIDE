@@ -1,0 +1,28 @@
+[package]
+name        = "crabide-dap"
+description = "Debug Adapter Protocol client with in-house type definitions"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace = true
+
+# DAP types are defined in-house (src/types.rs).
+# This avoids depending on `dap-types` crate which has unclear maintenance status.
+# The DAP spec is well-documented JSON — straightforward to define ourselves.
+
+tokio.workspace             = true
+serde.workspace             = true
+serde_json.workspace        = true
+thiserror.workspace         = true
+anyhow.workspace            = true
+log.workspace               = true
+dashmap.workspace           = true
+crossbeam-channel.workspace = true
+

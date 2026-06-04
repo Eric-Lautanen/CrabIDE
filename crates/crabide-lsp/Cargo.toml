@@ -1,0 +1,40 @@
+[package]
+name        = "crabide-lsp"
+description = "LSP client with custom JSON-RPC transport (no tower dependency)"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace   = true
+crabide-buffer.workspace = true
+
+# LSP protocol type definitions — pure serde structs, zero runtime overhead.
+# We use these for request/response types but implement the transport ourselves.
+lsp-types.workspace = true
+
+# Async runtime for LSP server process I/O
+tokio.workspace = true
+
+# JSON serialization for the JSON-RPC framing
+serde.workspace     = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace    = true
+
+# Logging
+log.workspace = true
+
+# Concurrency — for the pending request map and event channel
+dashmap.workspace         = true
+parking_lot.workspace     = true
+crossbeam-channel.workspace = true
+
+

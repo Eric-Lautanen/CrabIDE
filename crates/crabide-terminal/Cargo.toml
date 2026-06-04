@@ -1,0 +1,40 @@
+[package]
+name        = "crabide-terminal"
+description = "Built-in terminal: PTY management and custom VT grid state on top of vte"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace = true
+
+# Cross-platform PTY creation (ConPTY on Windows, posix_openpt on Unix).
+# This is genuinely complex — not worth custom building.
+portable-pty.workspace = true
+
+# VT100/VT220 *parser only* — the state machine that turns escape sequences
+# into typed events. We build our own grid state on top (~800 LOC) rather
+# than pulling alacritty_terminal which drags in winit, glutin, and OpenGL.
+vte.workspace = true
+
+# Async for PTY I/O pumping
+tokio.workspace = true
+
+# Channel to send events back to the UI
+crossbeam-channel.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace    = true
+
+# Logging
+log.workspace = true
+
+# Bitflags for cell attributes — use workspace version for consistency
+bitflags.workspace = true
+

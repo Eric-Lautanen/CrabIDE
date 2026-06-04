@@ -1,0 +1,367 @@
+# crabide Roadmap
+
+Build order follows dependency direction. Each phase builds on the phases before it.
+
+**Legend:** ✓ = done (verified), ◐ = partial, ○ = not started
+
+## Autonomous Coding Best Practices
+
+These rules exist because no human reviews intermediate steps. The agent must produce correct, review-ready code on the first pass across potentially hundreds of changes.
+
+### Every Stop Must Compile Clean
+
+After every compilable stop in any crate, run ALL of the following and fix every issue before continuing:
+
+```powershell
+cargo check --workspace 2>&1
+cargo clippy --workspace 2>&1
+cargo fmt --all 2>&1
+```
+
+- `cargo check` — zero warnings (deny all warnings in CI)
+- `cargo clippy` — fix every lint, do not suppress
+- `cargo fmt` — run before every commit
+- **Never** add `#[allow(...)]`, `#[allow(dead_code)]`, or any suppression — fix the root cause
+- **Never** leave `todo!()`, `unimplemented!()`, `dbg!()`, or `eprintln!()` in production code
+- **Never** commit unused dependencies or dead code
+
+### Incremental Correctness
+
+- **One conceptual step per stop.** If a task requires adding a type, wiring it through a trait, and consuming it in the UI, that's 3+ stops. Do not batch them into one giant edit.
+- **Commit early, commit often.** After every verified green build of a coherent unit, `git add -A && git commit -m "feature: what was done"`. This creates safe rollback points and a readable history.
+- **If a commit would be >200 lines changed, split it.** Large diffs hide bugs.
+- **Rebase locally to keep history linear** — no merge bubbles.
+
+### Integration Awareness
+
+- **Cross-crate changes must be validated together.** If you touch `crabide-config` and `crabide-ui` in the same logical change, build the full workspace (`cargo check --workspace`) before committing.
+- **After wiring new event types**, verify the drain site in `crabide-app/src/app.rs` handles them (not just the `_ => {}` catch-all).
+- **After adding a method to a trait** in `crabide-core`, update every implementation in dependent crates. The compile error will tell you where — fix all of them before moving on.
+
+### Safe Edit Practices
+
+- **Read the file first.** Never edit a file you haven't read in this session — you'll miss imports, naming conventions, and existing patterns.
+- **Mimic existing patterns.** If neighboring code uses `thiserror` and `anyhow`, don't introduce a custom error enum. If the existing code uses `parking_lot::RwLock`, don't switch to `std::sync::RwLock`.
+- **Prefer small, targeted edits over rewrites.** Changing 3 lines in 2 files is better than rewriting one file and deleting another.
+- **When in doubt about architecture, ask.** Open a question instead of guessing the design intent.
+
+### State Management
+
+- **Never commit secrets, keys, or tokens.**
+- **Never force-push to shared branches.**
+- **Keep CI green.** If a stop breaks the build, fix it immediately or revert.
+- **Document non-obvious decisions** in commit messages (e.g., "use RwLock over Mutex because reads dominate 10:1").
+
+---
+
+## Phase 1 — Foundation ✓
+
+### crabide-core — COMPLETE
+Core domain model, error hierarchy (24 variants), event bus (6 domains, 50+ variants), 3 core traits.
+
+**Tidy-up:**
+- [ ] Add `Display` impls on event types for debug logging
+- [ ] Add `From<url::ParseError>` / `From<StripPrefixError>` impls
+- [ ] Add `DocumentId` Serialize/Deserialize + Display
+- [ ] Add missing LSP shared types: `DocumentSymbol`, `SignatureHelp`, `FoldingRange`, `SelectionRange`, `InlineCompletion`
+- [ ] Rename `PositionOutOfBounds.col` → `character` for consistency
+
+### crabide-config — COMPLETE
+TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), VS Code theme parser, 2 built-in themes, ConfigManager with file watcher.
+
+**Gaps:**
+- [ ] Implement `KeybindingEngine::when` condition evaluation context system
+- [ ] Add per-language settings overlay (`[language.rust] tab_size = 4`)
+- [ ] Complete `all_actions()` with all ~50 missing Action variants
+- [ ] Remove dead `once_cell` dependency
+- [ ] Add action registry API for extensions to register custom actions
+- [ ] Add `keybindings.json` (VS Code format) import compatibility
+
+### crabide-vfs — DONE
+`LocalVfs` with full `VirtualFileSystem` impl, debounced `VfsWatcher`, URI↔path helpers.
+
+**Gaps:**
+- [ ] Add VFS resolver/factory that selects impl by URI scheme
+- [ ] Add atomic writes (write to temp, rename)
+- [ ] Add MemoryVfs for testing
+- [ ] Add read-only VFS wrapper
+
+### crabide-buffer — COMPLETE
+`Document` (ropey, BOM, line endings), `EditHistory` (500-entry, groups, checkpoints, undo/redo), `CursorSet` (multi-cursor, sorted, dedup), `SnippetEngine` (full VS Code syntax parser).
+
+**Gaps:**
+- [ ] Fix `Transform` node expansion — currently applies to `""` instead of referenced tabstop's text
+- [ ] Cache compiled regex in `apply_transform` (creates new `Regex` per call)
+- [ ] Add `CursorSet::remove()` / `iter()` methods
+- [ ] Add `Document::clear()` / `reload()` methods
+- [ ] No unit tests in crate
+
+---
+
+## Phase 2 — Syntax Highlighting ✓
+
+### crabide-syntax — COMPLETE
+Grammar registry (static + dynamic loading), highlight queries for 10 languages, highlight engine, outline for 8 languages, folding range extraction, SyntaxEngine with per-doc cache.
+
+**Gaps:**
+- [ ] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
+- [ ] Implement indentation query runner (`GrammarEntry` stores `indents_query`, unused)
+- [ ] Implement locals/scope-aware queries (`locals_query` stored, unused)
+- [ ] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
+- [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
+- [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
+- [ ] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
+- [ ] Add custom fold marker support (`// #region` / `// #endregion`)
+- [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
+- [ ] No unit tests in crate
+
+---
+
+## Phase 3 — LSP Client ◐
+
+### crabide-lsp — PARTIAL (~75%)
+
+**Critical fixes:**
+- [ ] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
+- [ ] Fix graceful shutdown: expose `LspTransport` from `LspClient` so `shutdown`/`exit` can actually be sent
+- [ ] Remove `#[allow(dead_code)]` from stubs throughout the crate (violates project convention)
+- [ ] Add server→client request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
+- [ ] Fix `format()` / `format_range()` — they reuse `RenameReady` event variant; add dedicated `FormattingReady`
+- [ ] Add request timeout or `request_with_timeout()` to transport
+
+**Feature additions:**
+- [ ] Add `textDocument/semanticTokens/full` request method + event handling
+- [ ] Add `textDocument/codeLens` request method + event handling
+- [ ] Add notification handlers for: `willSave`/`willSaveWaitUntil`, `telemetry/event`, `textDocument/typeDefinition`
+- [ ] Add per-document version tracking in `LspClient`
+- [ ] Add `with_env()` builder method to `LspServerConfig`
+- [ ] Fix `From<Arc<LspClient>> for ServerEntry` panic — use proper placeholder instead
+
+**Wiring in crabide-app:**
+- [ ] Wire GotoDefinition / References / Implementation / Declaration / TypeDefinition → LSP
+- [ ] Wire FormatDocument / FormatSelection / OrganizeImports → LSP
+- [ ] Wire RenameSymbol → LSP
+- [ ] Wire ShowHover → LSP with hover popup UI
+- [ ] Wire TriggerCompletion → LSP with completion popup UI
+- [ ] Wire ShowSignatureHelp → LSP
+- [ ] Wire ApplyCodeAction → LSP
+
+---
+
+## Phase 4 — UI & Editor Core ◐
+
+### crabide-ui — PARTIAL (~65%)
+Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, status bar, keyboard routing, command palette, find/replace — all implemented. Terminal panel, git panel, problems panel, extensions panel, debug panel, debug toolbar, workspace search — all implemented.
+
+**Missing features:**
+- [ ] **Code folding gutter UI**: fold markers + expand/collapse controls
+- [ ] **Breadcrumbs**: path bar above editor showing symbol hierarchy
+- [ ] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
+- [ ] **Minimap**: scrollable code overview in sidebar
+- [ ] **Split editor**: side-by-side file comparison / multi-pane layouts
+- [ ] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
+- [ ] **Drag-and-drop tab reordering** in tab bar
+- [ ] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
+- [ ] **Peek view**: inline definition/reference preview (like VS Code peek)
+- [ ] **Output panel**: wire `ToggleOutputPanel` to actual panel
+- [ ] **Settings UI panel**: visual editor for `settings.toml`
+- [ ] **Keybindings editor UI**
+- [ ] **Theme picker UI**
+- [ ] **Welcome screen**: interactive cards (not just decorative)
+- [ ] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)
+- [ ] **Column select mode**: wire Shift+Alt+drag
+
+### crabide-buffer → crabide-ui wiring
+- [ ] Wire `SnippetEngine` tabstop UI: active tabstop highlight, Tab/Shift+Tab cycling
+- [ ] Fix `SnippetEngine::expand()` Transform node to reference actual tabstop text
+- [ ] Add incremental placeholder update during typing
+
+---
+
+## Phase 5 — Search ✓
+
+### crabide-search — COMPLETE
+Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
+
+**Gaps:**
+- [ ] Wire auto-reindex on VFS file change events
+- [ ] Add cancellation support for grep (AbortHandle)
+- [ ] Add incremental search (debounce + streaming results)
+- [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
+- [ ] Remove dead `regex-lite` dependency
+- [ ] Cache `nucleo::Matcher` instance across search calls
+- [ ] Implement Go-to-symbol (Ctrl+Shift+O) — uses crabide-syntax outline
+
+---
+
+## Phase 6 — Git ✓
+
+### crabide-git — COMPLETE
+Status, diff hunks, blame, stage/unstage, commit, branch, discard.
+
+**Gaps:**
+- [ ] Add fetch / pull / push / merge / rebase
+- [ ] Add branch listing (local + remote)
+- [ ] Add branch deletion
+- [ ] Add stash (push, pop, list, drop)
+- [ ] Add log / history / graph view
+- [ ] Add tag management
+- [ ] Add remote management (add, remove, list)
+- [ ] Add submodule support
+- [ ] Add diff for staged changes (index vs HEAD)
+- [ ] Add conflict resolution helpers
+- [ ] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)
+
+---
+
+## Phase 7 — Terminal ◐
+
+### crabide-terminal — PARTIAL (~85%)
+Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY spawn/read/write/resize, manager with profiles.
+
+**Gaps:**
+- [ ] Implement OSC 8 hyperlinks (parse `\e]8;...;url\a...\e]8;;\a` → clickable links)
+- [ ] Implement DECSTBM (scroll regions) — needed for `less`/`vim`/`tmux`
+- [ ] Implement Insert/Delete Line (CSI L / CSI M)
+- [ ] Implement Insert/Delete Character (CSI @ / CSI P)
+- [ ] Implement mouse reporting (DECSET 1000/1002/1003)
+- [ ] Implement bracketed paste mode (DECSET 2004)
+- [ ] Implement cursor visibility toggle (DECSET 25)
+- [ ] Implement content reflow on terminal resize
+- [ ] Add configurable color scheme / theme to TerminalProfile
+- [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
+- [ ] Implement OSC 133 shell integration markers (prompt start/end)
+- [ ] No unit tests in crate
+
+---
+
+## Phase 8 — DAP Debugger ◐
+
+### crabide-dap — PARTIAL (~60%)
+All DAP types defined, Content-Length transport complete, DapClient with launch/breakpoints/continue/step/stack/variables.
+
+**Critical fixes:**
+- [ ] Fix `resolve_adapter()` stub — add adapter-type registry (python→debugpy, node→js-debug, lldb→codelldb, etc.)
+- [ ] Add request timeout to `DapTransport::request()`
+- [ ] Properly discard capabilities from initialize response (currently `Ok(_)` ignored)
+
+**Feature additions:**
+- [ ] Implement `attach` workflow (connect to running process)
+- [ ] Implement `evaluate` request (debug console REPL)
+- [ ] Implement `setVariable` / `setExpression` (write variable values)
+- [ ] Implement `gotoTargets` / `goto` (run to cursor)
+- [ ] Implement `threads` request (list all threads)
+- [ ] Implement `exceptionInfo` request (exception details on stop)
+- [ ] Implement function breakpoints (`setFunctionBreakpoints`)
+- [ ] Implement exception breakpoints (`setExceptionBreakpoints`)
+- [ ] Implement data breakpoints / watchpoints
+- [ ] Implement `runInTerminal` reverse-request handler
+- [ ] Implement progress events (ProgressStart/Update/End)
+- [ ] Implement `InvalidatedEvent` handler
+- [ ] Implement `completions` request (tab-completion in debug console)
+- [ ] Implement cancellation support (`CancelParams`)
+- [ ] Add backpressure to writer (unbounded channel → bounded + semaphore)
+
+---
+
+## Phase 9 — Extensions ✓
+
+### crabide-extensions — COMPLETE
+NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, hot-reload, WASM extension loader with full WIT binding.
+
+**Gaps (wasm_ext.rs stubs):**
+- [ ] Implement `editor::Host::get_document_slice()` — enable cross-document access for WASM extensions
+- [ ] Implement `editor::Host::apply_edits()` — enable WASM extensions to modify documents
+- [ ] Implement `editor::Host::insert_at_cursor()` 
+- [ ] Implement `editor::Host::get_cursor_position()` / `set_cursor_position()`
+- [ ] Implement `editor::Host::get_selection_text()`
+- [ ] Implement `workspace::Host::get_workspace_roots()`
+- [ ] Implement `workspace::Host::find_files()`
+- [ ] Implement `commands::Host::execute_command()` / `show_quick_pick()` / `show_input_box()`
+- [ ] Implement `status_bar::Host::set_visible()`
+- [ ] Implement `terminal::Host::list_terminals()`
+- [ ] Implement `panels::Host::is_panel_visible()`
+- [ ] Implement registry download (actual ureq HTTP download with checksum verification)
+- [ ] Implement `ExtensionHost::install_registry()` — actual download + verify + install flow
+- [ ] Add capability enforcement (check `ExtensionCapabilities` before granting resource access)
+- [ ] Add WASM engine resource limits (memory cap, fuel metering, execution timeout)
+- [ ] Add marketplace URL configuration
+
+---
+
+## Phase 10 — Polish & Release ◐
+
+### crabide-app — PARTIAL (~50%)
+
+**Remaining items:**
+- [ ] Real application icon — replace 2x2 pixel placeholder in `assets/`
+- [ ] CLI argument parsing (clap/structopt instead of manual `args().skip(1)`)
+- [ ] `Ctrl+C` signal handler for graceful shutdown
+- [ ] Window state persistence (size, position, maximized state)
+- [ ] Session restore (reopen files from last session)
+
+### Phase 12 items:
+- [ ] Settings UI panel (visual editor for settings.toml)
+- [ ] Keybindings editor UI
+- [ ] Theme picker UI
+- [ ] Welcome / splash screen (interactive)
+- [ ] Update checker (ureq → GitHub releases)
+- [ ] Crash reporter (panic hook → file)
+- [ ] Windows installer (NSIS or WiX)
+- [ ] macOS `.app` bundle + code signing + notarization
+- [ ] Linux `.AppImage` + `.deb` / `.rpm`
+- [ ] CI release artifacts (`.github/workflows/ci.yml` already scaffolded)
+- [ ] Performance pass: egui frame time, LSP round-trip latency, heap profiling
+- [ ] README, docs site
+
+---
+
+## Git Commit Pipeline
+
+Every task in the roadmap is completed through the following automated pipeline:
+
+1. **Read** — understand the codebase area
+2. **Edit** — implement the change (one conceptual step per stop)
+3. **Verify** — `cargo check --workspace && cargo clippy --workspace && cargo fmt --all`
+4. **Stage** — `git add -A`
+5. **Commit** — `git commit -m "TYPE: concise summary"`
+
+Commit message types:
+| Prefix | When |
+|---|---|
+| `feat` | New feature or capability |
+| `fix` | Bug fix |
+| `perf` | Performance improvement |
+| `refactor` | Code restructuring with no behavior change |
+| `test` | Adding or updating tests |
+| `docs` | Documentation only |
+| `chore` | Build, CI, dependencies, tooling |
+| `roadmap` | Roadmap file updates |
+
+Commit rules:
+- **Subject ≤ 72 chars.** No trailing period.
+- **One commit per conceptual step.** If it takes 5 stops to implement a feature, that's 5 commits.
+- **Never batch unrelated changes.** A refactor and a feature go in separate commits.
+- **Every commit compiles.** `cargo check --workspace` passes before every commit.
+- **Commit messages use imperative mood:** "add", "fix", "wire", "remove", not "added", "fixed".
+
+Example commit sequence for a hypothetical feature:
+```
+feat: add SshVfs stub with feature gate
+feat: implement SshVfs::read_file with russh channel
+feat: wire SshVfs into VfsResolver by URI scheme
+fix: handle SshVfs auth failure gracefully
+test: add integration test for SshVfs round-trip
+```
+
+---
+
+## Cross-cutting Concerns
+
+These aren't tied to any single phase:
+
+- [ ] **Dead dependency cleanup**: Remove unused deps across all crates (`regex-lite` in search, `once_cell` in config, `tokio`/`rayon`/`thiserror`/`anyhow` in git, `crossbeam-channel`/`serde` in syntax, `uuid` in workspace)
+- [ ] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (currently in LSP, DAP stubs)
+- [ ] **Unit test coverage**: No crate has any unit tests, integration tests, or doc tests — minimum coverage targets: 30% by v0.1
+- [ ] **`docs/` directory**: Currently empty
+- [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)

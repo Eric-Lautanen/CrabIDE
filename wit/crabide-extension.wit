@@ -1,0 +1,282 @@
+// crabide-extension.wit
+// WebAssembly Interface Types definition for the crabide editor extension API.
+//
+// Extensions interact with the editor exclusively through this interface.
+// The host (crabide) implements the `imports`; extensions implement the `exports`.
+//
+// Version: 0.1.0
+
+package crabide:extension@0.1.0;
+
+// ── Shared types ──────────────────────────────────────────────────────────────
+
+interface types {
+    /// A zero-based line/character position.
+    record position {
+        line: u32,
+        character: u32,
+    }
+
+    /// A half-open [start, end) range in a document.
+    record range {
+        start: position,
+        end: position,
+    }
+
+    /// A URI identifying a document (file:// or untitled://).
+    type uri = string;
+
+    /// A diagnostic message.
+    record diagnostic {
+        range: range,
+        severity: diagnostic-severity,
+        code: option<string>,
+        source: option<string>,
+        message: string,
+    }
+
+    enum diagnostic-severity {
+        error,
+        warning,
+        information,
+        hint,
+    }
+
+    /// A text replacement operation.
+    record text-edit {
+        range: range,
+        new-text: string,
+    }
+
+    /// The result of a command invocation.
+    variant command-result {
+        ok,
+        error(string),
+    }
+
+    /// Extension metadata returned by get-manifest.
+    record extension-manifest {
+        id: string,
+        name: string,
+        description: string,
+        version: string,
+        author: string,
+    }
+
+    /// A gutter decoration marker on a specific line.
+    record gutter-marker {
+        line: u32,
+        icon: string,
+        tooltip: option<string>,
+        severity: option<diagnostic-severity>,
+        /// Command to execute when the marker is clicked.
+        command: option<string>,
+    }
+
+    /// A hover information result.
+    record hover-result {
+        range: range,
+        /// Markdown or plain text content.
+        contents: string,
+    }
+
+    /// A single completion item.
+    record completion-item {
+        label: string,
+        detail: option<string>,
+        insert-text: string,
+        kind: completion-kind,
+    }
+
+    enum completion-kind {
+        text,
+        method,
+        function,
+        ctor,
+        field,
+        variable,
+        class,
+        iface,
+        module,
+        property,
+        keyword,
+        snippet,
+        color,
+        file,
+        reference,
+        folder,
+        constant,
+        struct,
+        operator,
+        type-parameter,
+    }
+}
+
+// ── Host imports ──────────────────────────────────────────────────────────────
+
+/// Editor document access.
+interface editor {
+    use types.{uri, range, position, text-edit};
+
+    get-active-document-text: func() -> option<string>;
+    get-active-document-uri: func() -> option<uri>;
+    get-active-document-language-id: func() -> option<string>;
+    get-document-slice: func(uri: uri, r: range) -> option<string>;
+    apply-edits: func(uri: uri, edits: list<text-edit>) -> result<_, string>;
+    insert-at-cursor: func(text: string) -> result<_, string>;
+    get-cursor-position: func() -> option<position>;
+    set-cursor-position: func(pos: position) -> result<_, string>;
+    get-selection-text: func() -> string;
+    get-line-count: func() -> option<u32>;
+}
+
+/// Workspace / filesystem access.
+interface workspace {
+    use types.{uri};
+
+    get-workspace-roots: func() -> list<uri>;
+    read-file: func(uri: uri) -> result<list<u8>, string>;
+    write-file: func(uri: uri, content: list<u8>) -> result<_, string>;
+    file-exists: func(uri: uri) -> bool;
+    list-dir: func(uri: uri) -> result<list<uri>, string>;
+    find-files: func(pattern: string) -> list<uri>;
+}
+
+/// Command registration and UI interactions.
+interface commands {
+    execute-command: func(name: string, args: list<string>) -> result<string, string>;
+    show-quick-pick: func(title: string, items: list<string>) -> option<u32>;
+    show-information: func(message: string);
+    show-error: func(message: string);
+    show-input-box: func(prompt: string, placeholder: option<string>) -> option<string>;
+}
+
+/// Diagnostics publication.
+interface diagnostics {
+    use types.{uri, diagnostic};
+
+    publish: func(uri: uri, diags: list<diagnostic>);
+    clear: func(uri: uri);
+    clear-all: func();
+}
+
+/// Status bar slot owned by this extension.
+interface status-bar {
+    set-text: func(text: string);
+    set-tooltip: func(tooltip: string);
+    set-visible: func(visible: bool);
+}
+
+/// Terminal interaction — requires `terminal` capability.
+interface terminal {
+    send-to-terminal: func(terminal-id: u32, data: list<u8>);
+    open-terminal: func(title: string, command: option<string>) -> u32;
+    list-terminals: func() -> list<u32>;
+}
+
+/// Gutter decoration API.
+interface gutter {
+    use types.{uri, gutter-marker};
+
+    set-markers: func(uri: uri, markers: list<gutter-marker>);
+    clear-markers: func(uri: uri);
+}
+
+/// Extension panel and sidebar visibility control.
+interface panels {
+    show-panel: func(panel-id: string);
+    hide-panel: func(panel-id: string);
+    is-panel-visible: func(panel-id: string) -> bool;
+}
+
+// ── Extension exports ─────────────────────────────────────────────────────────
+
+/// Every extension must export this interface.
+interface extension {
+    use types.{extension-manifest};
+
+    /// Return extension metadata.
+    get-manifest: func() -> extension-manifest;
+    /// Called once when the extension is first loaded.
+    activate: func() -> result<_, string>;
+    /// Called when the extension is about to be unloaded.
+    deactivate: func();
+}
+
+/// Extensions that handle document lifecycle events.
+interface document-events {
+    use types.{uri};
+
+    on-document-open: func(uri: uri, language-id: string);
+    on-document-change: func(uri: uri);
+    on-document-save: func(uri: uri);
+    on-document-close: func(uri: uri);
+}
+
+/// Extensions that contribute commands.
+interface command-handler {
+    use types.{command-result};
+
+    execute: func(command: string, args: list<string>) -> command-result;
+}
+
+/// Extensions that react to cursor/selection changes.
+interface cursor-events {
+    use types.{uri, position, range};
+
+    on-cursor-move: func(uri: uri, pos: position);
+    on-selection-change: func(uri: uri, sel: range);
+}
+
+/// Extensions that contribute gutter markers.
+interface gutter-provider {
+    use types.{uri, gutter-marker};
+
+    provide-markers: func(uri: uri) -> list<gutter-marker>;
+}
+
+/// Extensions that provide hover information.
+interface hover-provider {
+    use types.{uri, position, hover-result};
+
+    provide-hover: func(uri: uri, pos: position) -> option<hover-result>;
+}
+
+/// Extensions that provide code completions.
+interface completion-provider {
+    use types.{uri, position, completion-item};
+
+    provide-completions: func(uri: uri, pos: position) -> list<completion-item>;
+}
+
+/// Extensions that observe terminal output.
+interface terminal-listener {
+    on-terminal-output: func(terminal-id: u32, data: list<u8>);
+}
+
+// ── World definition ──────────────────────────────────────────────────────────
+
+/// The world all crabide extensions inhabit.
+///
+/// All host capability interfaces are imported so extensions can use any of them.
+/// All extension export interfaces are required; implement stubs for ones you
+/// don't need — the crabide extension template provides these stubs automatically.
+world crabide-extension {
+    import editor;
+    import workspace;
+    import commands;
+    import diagnostics;
+    import status-bar;
+    import terminal;
+    import gutter;
+    import panels;
+
+    export extension;
+    export document-events;
+    export command-handler;
+    export cursor-events;
+    export gutter-provider;
+    export hover-provider;
+    export completion-provider;
+    export terminal-listener;
+}

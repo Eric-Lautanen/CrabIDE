@@ -1,0 +1,75 @@
+[package]
+name        = "crabide"
+description = "crabide Editor — a resource-efficient cross-platform code editor"
+workspace   = "../.."
+default-run = "crabide"
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[[bin]]
+name = "crabide"
+path = "src/main.rs"
+
+[dependencies]
+# All internal crates
+crabide-core.workspace       = true
+crabide-buffer.workspace     = true
+crabide-syntax.workspace     = true
+crabide-lsp.workspace        = true
+crabide-dap.workspace        = true
+crabide-terminal.workspace   = true
+crabide-git.workspace        = true
+crabide-extensions.workspace = true
+crabide-vfs.workspace        = true
+crabide-config.workspace     = true
+crabide-search.workspace     = true
+crabide-workspace.workspace  = true
+crabide-ui.workspace         = true
+
+# UI framework
+egui.workspace   = true
+eframe.workspace = true
+
+# Allocator — aggressively returns idle pages to OS on Windows
+mimalloc.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+# Logging
+log.workspace        = true
+env_logger.workspace = true
+
+# Concurrency
+crossbeam-channel.workspace = true
+
+# Native file dialogs
+rfd.workspace = true
+
+# Tree-sitter grammar crates (registered at startup for syntax highlighting)
+tree-sitter-rust.workspace       = true
+tree-sitter-python.workspace     = true
+tree-sitter-javascript.workspace = true
+tree-sitter-json.workspace       = true
+tree-sitter-c.workspace          = true
+tree-sitter-go.workspace         = true
+
+[features]
+default         = ["git-support"]
+# libgit2 + vendored OpenSSL (~15-20 MB code). Included by default; can be
+# stripped for ultra-minimal builds with --no-default-features.
+git-support     = ["crabide-git/git-support"]
+# Enable the WASM/cranelift extension host (adds ~50 MB RSS; off by default).
+wasm-extensions = ["crabide-extensions/wasm-extensions"]
+webview         = ["crabide-extensions/webview"]
+remote-ssh      = ["crabide-vfs/remote-ssh"]
+dev-containers  = ["crabide-vfs/dev-containers"]
+vscode-compat   = []

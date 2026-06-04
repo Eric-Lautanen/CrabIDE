@@ -1,0 +1,52 @@
+[package]
+name        = "crabide-extensions"
+description = "WASM extension host using wasmtime + WIT component model"
+workspace   = "../.."
+
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+authors.workspace      = true
+license.workspace      = true
+repository.workspace   = true
+
+[dependencies]
+crabide-core.workspace    = true
+crabide-buffer.workspace  = true
+crabide-lsp.workspace     = true
+
+# Extension registry HTTP
+ureq.workspace = true
+
+tokio.workspace      = true
+serde.workspace      = true
+serde_json.workspace = true
+thiserror.workspace  = true
+anyhow.workspace     = true
+log.workspace        = true
+dashmap.workspace    = true
+
+notify.workspace                = true
+notify-debouncer-full.workspace = true
+crossbeam-channel.workspace     = true
+indexmap.workspace              = true
+
+# WASM runtime — opt-in only; cranelift's static ISA tables add ~50 MB of RSS
+# even when no extensions are loaded.  Enable with --features wasm-extensions.
+[dependencies.wasmtime]
+workspace = true
+optional  = true
+
+[dependencies.wit-bindgen]
+workspace = true
+optional  = true
+
+[features]
+# Pull in the wasmtime/cranelift JIT only when the caller explicitly requests it.
+wasm-extensions = ["dep:wasmtime", "dep:wit-bindgen"]
+# WebView panels for extensions (separate from wasmtime)
+webview = ["dep:wry"]
+
+[dependencies.wry]
+workspace = true
+optional  = true

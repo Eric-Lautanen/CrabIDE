@@ -1,0 +1,41 @@
+# .cargo/config.toml
+# Workspace-wide Cargo configuration for crabide Editor.
+
+[build]
+# Use mold linker on Linux for significantly faster incremental link times.
+# mold is 5-10x faster than GNU ld. Falls back gracefully if not installed.
+# Install: apt install mold  /  pacman -S mold
+rustflags = []
+
+[target.x86_64-unknown-linux-gnu]
+linker    = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.aarch64-unknown-linux-gnu]
+linker    = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# macOS: use lld via zld for faster linking
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+
+[target.aarch64-apple-darwin]
+# Apple Silicon — system linker is already fast enough
+rustflags = []
+
+# Windows: default linker is fine; optionally use lld-link for speed
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/NODEFAULTLIB:libcmt"]
+
+[alias]
+# Convenience aliases for common workflows
+xtask   = "run --package xtask --"
+check-all = "check --workspace --all-targets --all-features"
+test-all  = "test --workspace --all-features"
+clippy-all = "clippy --workspace --all-targets --all-features -- -D warnings"
+
+[env]
+# Ensure tree-sitter grammar compilation finds the right C compiler
+# CC is set per-platform in CI; this is just a sensible default
+TREE_SITTER_DIR = { value = "grammars", relative = true }
+
