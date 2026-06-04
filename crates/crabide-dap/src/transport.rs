@@ -78,6 +78,16 @@ impl DapTransport {
     /// Returns `Ok(Some(body))` on success, `Ok(None)` if the response had no
     /// body, or `Err` if the adapter returned an error or the transport closed.
     pub async fn request(&self, command: &str, arguments: Value) -> Result<Option<Value>> {
+        self.request_with_timeout(command, arguments, None).await
+    }
+
+    /// Send a DAP request with an optional timeout.
+    pub async fn request_with_timeout(
+        &self,
+        command: &str,
+        arguments: Value,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Option<Value>> {
         let seq = self.inner.seq.fetch_add(1, Ordering::Relaxed);
         let msg = DapMessage::request(seq, command, arguments);
 
@@ -88,8 +98,18 @@ impl DapTransport {
 
         self.send_raw(&msg)?;
 
-        rx.await
-            .map_err(|_| anyhow!("DAP transport closed while awaiting response to {command}"))?
+        let result = if let Some(dur) = timeout {
+            tokio::time::timeout(dur, rx)
+                .await
+                .map_err(|_| anyhow!("DAP request {command} timed out after {:?}", dur))?
+                .map_err(|_| anyhow!("DAP transport closed while awaiting response to {command}"))?
+        } else {
+            rx.await
+                .map_err(|_| anyhow!("DAP transport closed while awaiting response to {command}"))?
+        };
+
+        self.inner.pending.remove(&seq);
+        result
     }
 
     /// Send a DAP notification (fire-and-forget; no response expected).

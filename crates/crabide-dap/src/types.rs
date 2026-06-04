@@ -367,6 +367,10 @@ pub struct LaunchConfig {
     pub adapter_command: String,
     /// Additional arguments for the debug adapter itself.
     pub adapter_args: Vec<String>,
+    /// Adapter type name for auto-resolution (e.g. "python", "lldb", "gdb").
+    pub adapter_type: Option<String>,
+    /// Port for debug adapter communication (used by some adapters).
+    pub port: Option<u16>,
     /// Adapter-specific extra fields passed verbatim to the launch request.
     pub extra: HashMap<String, serde_json::Value>,
 }
@@ -383,6 +387,8 @@ impl Default for LaunchConfig {
             stop_on_entry: false,
             adapter_command: String::new(),
             adapter_args: Vec::new(),
+            adapter_type: None,
+            port: None,
             extra: HashMap::new(),
         }
     }
@@ -469,6 +475,8 @@ fn parse_one_config(v: &serde_json::Value) -> Option<LaunchConfig> {
         stop_on_entry,
         adapter_command,
         adapter_args: Vec::new(),
+        adapter_type: obj.get("type").and_then(|v| v.as_str()).map(String::from),
+        port: obj.get("port").and_then(|v| v.as_u64()).map(|p| p as u16),
         extra,
     })
 }

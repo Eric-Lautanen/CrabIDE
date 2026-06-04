@@ -102,8 +102,16 @@ impl DapClient {
             let args = InitializeRequestArguments::default();
             let args_val = serde_json::to_value(args).unwrap_or(json!({}));
             match transport.request("initialize", args_val).await {
-                Ok(_) => {
+                Ok(Some(body)) => {
+                    // Discard capabilities; we don't use them yet but log them.
+                    if let Some(caps) = body.get("capabilities") {
+                        log::debug!("DAP: adapter capabilities: {}", caps);
+                    }
                     log::info!("DAP: initialize OK");
+                    let _ = event_tx.send(EditorEvent::Dap(DapEvent::Initialized));
+                }
+                Ok(None) => {
+                    log::info!("DAP: initialize OK (no body)");
                     let _ = event_tx.send(EditorEvent::Dap(DapEvent::Initialized));
                 }
                 Err(e) => {
@@ -525,5 +533,29 @@ pub fn resolve_adapter(config: &LaunchConfig) -> (String, Vec<String>) {
     if !config.adapter_command.is_empty() {
         return (config.adapter_command.clone(), config.adapter_args.clone());
     }
-    (config.adapter_command.clone(), config.adapter_args.clone())
+
+    // Try to resolve by adapter type name.
+    match config.adapter_type.as_deref() {
+        Some("python" | "debugpy") => (
+            "debugpy".to_owned(),
+            vec![
+                "--listen".to_owned(),
+                format!("{}", config.port.unwrap_or(0)),
+            ],
+        ),
+        Some("node" | "node-debug" | "js-debug") => (
+            "js-debug-dap".to_owned(),
+            vec![format!("{}", config.port.unwrap_or(0))],
+        ),
+        Some("lldb" | "lldb-code" | "lldb-vscode") => ("lldb-dap".to_owned(), vec![]),
+        Some("gdb") => ("gdb".to_owned(), vec!["--interpreter=dap".to_owned()]),
+        Some("codelldb") => ("codelldb".to_owned(), vec![]),
+        _ => {
+            log::warn!(
+                "DAP: unknown adapter_type {:?}; using adapter_command as-is",
+                config.adapter_type
+            );
+            (config.adapter_command.clone(), config.adapter_args.clone())
+        }
+    }
 }
