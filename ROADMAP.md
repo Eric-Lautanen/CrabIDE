@@ -2,7 +2,7 @@
 
 Build order follows dependency direction. Each phase builds on the phases before it.
 
-**Legend:** ✓ = done (verified), ◐ = partial, ○ = not started
+**Legend:** ✅ = done (verified), 🔶 = partial, ❌ = not started
 
 ## Crate & Dependency Minimization
 
@@ -62,6 +62,7 @@ cargo fmt --all 2>&1
 - **Never force-push to shared branches.**
 - **Keep CI green.** If a stop breaks the build, fix it immediately or revert.
 - **Document non-obvious decisions** in commit messages (e.g., "use RwLock over Mutex because reads dominate 10:1").
+- **Keep ROADMAP.md in sync.** After every commit that completes a roadmap item, update the corresponding checkbox from `[ ]` to `[x]`. If a commit adds a new gap or feature not yet tracked, add it as a `[ ]` entry. The roadmap is the single source of truth for progress — stale checkboxes defeat its purpose.
 
 ---
 
@@ -71,11 +72,11 @@ cargo fmt --all 2>&1
 Core domain model, error hierarchy (24 variants), event bus (6 domains, 50+ variants), 3 core traits.
 
 **Tidy-up:**
-- [ ] Add `Display` impls on event types for debug logging
-- [ ] Add `From<url::ParseError>` / `From<StripPrefixError>` impls
-- [ ] Add `DocumentId` Serialize/Deserialize + Display
-- [ ] Add missing LSP shared types: `DocumentSymbol`, `SignatureHelp`, `FoldingRange`, `SelectionRange`, `InlineCompletion`
-- [ ] Rename `PositionOutOfBounds.col` → `character` for consistency
+- [x] Add `Display` impls on event types for debug logging
+- [x] Add `From<url::ParseError>` / `From<StripPrefixError>` impls
+- [x] Add `DocumentId` Serialize/Deserialize + Display
+- [x] Add missing LSP shared types: `DocumentSymbol`, `SignatureHelp`, `FoldingRange`, `SelectionRange`, `InlineCompletion`
+- [x] Rename `PositionOutOfBounds.col` `character` for consistency
 
 ### crabide-config — COMPLETE
 TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), VS Code theme parser, 2 built-in themes, ConfigManager with file watcher.
@@ -84,7 +85,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 - [ ] Implement `KeybindingEngine::when` condition evaluation context system
 - [ ] Add per-language settings overlay (`[language.rust] tab_size = 4`)
 - [ ] Complete `all_actions()` with all ~50 missing Action variants
-- [ ] Remove dead `once_cell` dependency
+- [x] Remove dead `once_cell` dependency
 - [ ] Add action registry API for extensions to register custom actions
 - [ ] Add `keybindings.json` (VS Code format) import compatibility
 
@@ -92,19 +93,19 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 `LocalVfs` with full `VirtualFileSystem` impl, debounced `VfsWatcher`, URI↔path helpers.
 
 **Gaps:**
-- [ ] Add VFS resolver/factory that selects impl by URI scheme
-- [ ] Add atomic writes (write to temp, rename)
-- [ ] Add MemoryVfs for testing
-- [ ] Add read-only VFS wrapper
+- [x] Add VFS resolver/factory that selects impl by URI scheme
+- [x] Add atomic writes (write to temp, rename)
+- [x] Add MemoryVfs for testing
+- [x] Add read-only VFS wrapper
 
 ### crabide-buffer — COMPLETE
 `Document` (ropey, BOM, line endings), `EditHistory` (500-entry, groups, checkpoints, undo/redo), `CursorSet` (multi-cursor, sorted, dedup), `SnippetEngine` (full VS Code syntax parser).
 
 **Gaps:**
-- [ ] Fix `Transform` node expansion — currently applies to `""` instead of referenced tabstop's text
-- [ ] Cache compiled regex in `apply_transform` (creates new `Regex` per call)
-- [ ] Add `CursorSet::remove()` / `iter()` methods
-- [ ] Add `Document::clear()` / `reload()` methods
+- [x] Fix `Transform` node expansion currently applies to `""` instead of referenced tabstop's text
+- [x] Cache compiled regex in `apply_transform` (creates new `Regex` per call)
+- [x] Add `CursorSet::remove()` / `iter()` methods
+- [x] Add `Document::clear()` / `reload()` methods
 - [ ] No unit tests in crate
 
 ---
@@ -115,13 +116,13 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 Grammar registry (static + dynamic loading), highlight queries for 10 languages, highlight engine, outline for 8 languages, folding range extraction, SyntaxEngine with per-doc cache.
 
 **Gaps:**
-- [ ] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
+- [x] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
 - [ ] Implement indentation query runner (`GrammarEntry` stores `indents_query`, unused)
 - [ ] Implement locals/scope-aware queries (`locals_query` stored, unused)
 - [ ] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
 - [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
 - [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
-- [ ] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
+- [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
 - [ ] Add custom fold marker support (`// #region` / `// #endregion`)
 - [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
 - [ ] No unit tests in crate
@@ -130,15 +131,15 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 
 ## Phase 3 — LSP Client ◐
 
-### crabide-lsp — PARTIAL (~75%)
+### crabide-lsp — PARTIAL (~85%)
 
 **Critical fixes:**
 - [ ] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
-- [ ] Fix graceful shutdown: expose `LspTransport` from `LspClient` so `shutdown`/`exit` can actually be sent
-- [ ] Remove `#[allow(dead_code)]` from stubs throughout the crate (violates project convention)
-- [ ] Add server→client request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
-- [ ] Fix `format()` / `format_range()` — they reuse `RenameReady` event variant; add dedicated `FormattingReady`
-- [ ] Add request timeout or `request_with_timeout()` to transport
+- [x] Fix graceful shutdown: expose `LspTransport` from `LspClient` so `shutdown`/`exit` can actually be sent
+- [x] Remove `#[allow(dead_code)]` from stubs throughout the crate (violates project convention)
+- [x] Add serverclient request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
+- [x] Fix `format()` / `format_range()` they reuse `RenameReady` event variant; add dedicated `FormattingReady`
+- [x] Add request timeout or `request_with_timeout()` to transport
 
 **Feature additions:**
 - [ ] Add `textDocument/semanticTokens/full` request method + event handling
@@ -146,7 +147,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [ ] Add notification handlers for: `willSave`/`willSaveWaitUntil`, `telemetry/event`, `textDocument/typeDefinition`
 - [ ] Add per-document version tracking in `LspClient`
 - [ ] Add `with_env()` builder method to `LspServerConfig`
-- [ ] Fix `From<Arc<LspClient>> for ServerEntry` panic — use proper placeholder instead
+- [x] Fix `From<Arc<LspClient>> for ServerEntry` panic use proper placeholder instead
 
 **Wiring in crabide-app:**
 - [ ] Wire GotoDefinition / References / Implementation / Declaration / TypeDefinition → LSP
@@ -199,9 +200,9 @@ Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 - [ ] Add cancellation support for grep (AbortHandle)
 - [ ] Add incremental search (debounce + streaming results)
 - [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
-- [ ] Remove dead `regex-lite` dependency
-- [ ] Cache `nucleo::Matcher` instance across search calls
-- [ ] Implement Go-to-symbol (Ctrl+Shift+O) — uses crabide-syntax outline
+- [x] Remove dead `regex-lite` dependency
+- [x] Cache `nucleo::Matcher` instance across search calls
+- [ ] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
 
 ---
 
@@ -221,7 +222,7 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 - [ ] Add submodule support
 - [ ] Add diff for staged changes (index vs HEAD)
 - [ ] Add conflict resolution helpers
-- [ ] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)
+- [x] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)
 
 ---
 
@@ -248,13 +249,13 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 
 ## Phase 8 — DAP Debugger ◐
 
-### crabide-dap — PARTIAL (~60%)
+### crabide-dap — PARTIAL (~70%)
 All DAP types defined, Content-Length transport complete, DapClient with launch/breakpoints/continue/step/stack/variables.
 
 **Critical fixes:**
-- [ ] Fix `resolve_adapter()` stub — add adapter-type registry (python→debugpy, node→js-debug, lldb→codelldb, etc.)
-- [ ] Add request timeout to `DapTransport::request()`
-- [ ] Properly discard capabilities from initialize response (currently `Ok(_)` ignored)
+- [x] Fix `resolve_adapter()` stub add adapter-type registry (pythondebugpy, nodejs-debug, lldbcodelldb, etc.)
+- [x] Add request timeout to `DapTransport::request()`
+- [x] Properly discard capabilities from initialize response (currently `Ok(_)` ignored)
 
 **Feature additions:**
 - [ ] Implement `attach` workflow (connect to running process)
@@ -302,12 +303,12 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 
 ## Phase 10 — Polish & Release ◐
 
-### crabide-app — PARTIAL (~50%)
+### crabide-app — PARTIAL (~60%)
 
 **Remaining items:**
-- [ ] Real application icon — replace 2x2 pixel placeholder in `assets/`
-- [ ] CLI argument parsing (clap/structopt instead of manual `args().skip(1)`)
-- [ ] `Ctrl+C` signal handler for graceful shutdown
+- [ ] Real application icon replace 2x2 pixel placeholder in `assets/`
+- [x] CLI argument parsing (clap/structopt instead of manual `args().skip(1)`)
+- [x] `Ctrl+C` signal handler for graceful shutdown
 - [ ] Window state persistence (size, position, maximized state)
 - [ ] Session restore (reopen files from last session)
 
@@ -331,11 +332,12 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 
 Every task in the roadmap is completed through the following automated pipeline:
 
-1. **Read** — understand the codebase area
-2. **Edit** — implement the change (one conceptual step per stop)
-3. **Verify** — `cargo check --workspace && cargo clippy --workspace && cargo fmt --all`
-4. **Stage** — `git add -A`
-5. **Commit** — `git commit -m "TYPE: concise summary"`
+1. **Read** understand the codebase area
+2. **Edit** implement the change (one conceptual step per stop)
+3. **Verify** `cargo check --workspace && cargo clippy --workspace && cargo fmt --all`
+4. **Update ROADMAP.md** mark completed items `[x]`, add new items `[ ]` if needed
+5. **Stage** `git add -A`
+6. **Commit** `git commit -m "TYPE: concise summary"`
 
 Commit message types:
 | Prefix | When |
@@ -371,8 +373,8 @@ test: add integration test for SshVfs round-trip
 
 These aren't tied to any single phase:
 
-- [ ] **Dead dependency cleanup**: Remove unused deps across all crates (`regex-lite` in search, `once_cell` in config, `tokio`/`rayon`/`thiserror`/`anyhow` in git, `crossbeam-channel`/`serde` in syntax, `uuid` in workspace)
-- [ ] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (currently in LSP, DAP stubs)
+- [x] **Dead dependency cleanup**: Remove unused deps across all crates (`regex-lite` in search, `once_cell` in config, `tokio`/`rayon`/`thiserror`/`anyhow` in git, `crossbeam-channel`/`serde` in syntax, `uuid` in workspace)
+- [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (currently in LSP, DAP stubs)
 - [ ] **Unit test coverage**: No crate has any unit tests, integration tests, or doc tests — minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)

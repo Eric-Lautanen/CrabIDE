@@ -1,14 +1,14 @@
 # RESUME.md
 
 ## Session Summary
-Executed major portions of the crabide roadmap across Phases 1-8, plus cross-cutting cleanup.
+Executed major portions of the crabide roadmap across Phases 1-10, plus cross-cutting cleanup. 11 commits total, all passing `cargo check --workspace`, `cargo clippy --workspace`, and `cargo fmt --all` with zero warnings.
 
-## What was done (10 commits)
+## What was done (11 commits)
 
 ### Cross-cutting
 - **Removed dead dependencies** across 5 crates: `once_cell` (config, syntax), `regex-lite` (search), `tokio`/`rayon`/`thiserror`/`anyhow` (git), `serde`/`crossbeam-channel` (syntax), `uuid`/`serde`/`serde_json`/`thiserror`/`anyhow`/`crossbeam-channel` (workspace)
 - Replaced `once_cell::sync::Lazy` with `std::sync::OnceLock` in syntax grammar registry
-- **Removed `#![allow(dead_code)]`** from 4 LSP files (client.rs, config.rs, convert.rs, server_mgr.rs), fixed the one actual dead code item (`SYNC_NONE` constant)
+- **Removed `#![allow(dead_code)]`** from 4 LSP files, fixed the one actual dead code item (`SYNC_NONE` constant)
 - Fixed pre-existing UI bugs: duplicate extension panel builder chains, `ctx` vs `ui` borrow conflicts, deprecated egui API calls
 
 ### Phase 1 - Core
@@ -50,12 +50,17 @@ Executed major portions of the crabide roadmap across Phases 1-8, plus cross-cut
 - Added `DapTransport::request_with_timeout()` with optional Duration
 - Properly discard capabilities from initialize response (log them instead of ignoring)
 
+### Phase 10 - App
+- Added CLI arg parsing with `--help`, `--version`, `--log <LEVEL>` flags (no external crate needed)
+- Added Ctrl+C signal handler for graceful shutdown (sets atomic flag checked each frame)
+
 ## What remains
 - Phase 9 extensions: Implement WASM host stubs, capability enforcement, resource limits
-- Phase 10 app: CLI arg parsing, Ctrl+C handler, window state persistence
 - Many more items in each phase (see ROADMAP.md for full list)
 - Unit tests across all crates (currently 0% coverage)
 - Dep rationale comments on all `[dependencies]` entries
+- Window state persistence (size, position, maximized state)
+- Session restore (reopen files from last session)
 
 ## Build status
 All green: `cargo check --workspace`, `cargo clippy --workspace`, `cargo fmt --all` pass with zero warnings.
