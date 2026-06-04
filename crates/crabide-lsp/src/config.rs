@@ -65,4 +65,14 @@ impl LspServerConfig {
         self.initialization_options = Some(opts);
         self
     }
+
+    /// Add extra environment variables for the server process.
+    pub fn with_env(
+        mut self,
+        env: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
+    ) -> Self {
+        self.env
+            .extend(env.into_iter().map(|(k, v)| (k.into(), v.into())));
+        self
+    }
 }
