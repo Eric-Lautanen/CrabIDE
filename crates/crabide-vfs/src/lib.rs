@@ -18,6 +18,9 @@
 
 pub mod helpers;
 pub mod local;
+pub mod memory;
+pub mod read_only;
+pub mod resolver;
 pub mod watcher;
 
 pub use helpers::{
@@ -25,6 +28,9 @@ pub use helpers::{
     uri_file_stem, uri_to_path,
 };
 pub use local::LocalVfs;
+pub use memory::MemoryVfs;
+pub use read_only::ReadOnlyVfs;
+pub use resolver::{VfsKind, VfsResolver};
 pub use watcher::VfsWatcher;
 
 // Re-export core VFS types for convenience.

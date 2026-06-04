@@ -14,16 +14,17 @@ repository.workspace   = true
 crabide-core.workspace = true
 
 # File watching
-notify.workspace                = true
+notify.workspace = true
 notify-debouncer-full.workspace = true
 
-tokio.workspace             = true
-thiserror.workspace         = true
-anyhow.workspace            = true
-log.workspace               = true
-url.workspace               = true
+tokio.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+log.workspace = true
+url.workspace = true
 crossbeam-channel.workspace = true
-async-trait.workspace       = true
+async-trait.workspace = true
+parking_lot.workspace = true
 
 [features]
 remote-ssh     = ["dep:russh"]
@@ -36,4 +37,3 @@ optional  = true
 [dependencies.bollard]
 workspace = true
 optional  = true
-

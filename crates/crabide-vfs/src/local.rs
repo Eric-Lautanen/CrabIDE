@@ -34,7 +34,10 @@ impl VirtualFileSystem for LocalVfs {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        fs::write(&path, contents).await?;
+        // Atomic write: write to temp file then rename.
+        let temp_path = path.with_extension("crabide-tmp");
+        fs::write(&temp_path, contents).await?;
+        fs::rename(&temp_path, &path).await?;
         Ok(())
     }
 
