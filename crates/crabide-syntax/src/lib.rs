@@ -37,6 +37,7 @@ pub mod fold;
 pub mod grammar;
 pub mod highlight;
 pub mod indent;
+pub mod locals;
 pub mod outline;
 pub mod queries;
 
@@ -47,6 +48,7 @@ pub use fold::{FoldKind, FoldingRange};
 pub use grammar::{grammar_registry, GrammarEntry, GrammarRegistry, REGISTRY};
 pub use highlight::{scope_to_vscode, HighlightEngine, HighlightSpan};
 pub use indent::{IndentEngine, LineIndent};
+pub use locals::{LocalScopeInfo, LocalsEngine, ResolvedScope};
 pub use outline::{SymbolKind, SymbolOutline};
 pub use queries::highlights_query_for;
 

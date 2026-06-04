@@ -26,6 +26,7 @@ use crate::{
     grammar::{GrammarEntry, GrammarRegistry},
     highlight::{HighlightEngine, HighlightSpan},
     indent::{IndentEngine, LineIndent},
+    locals::{LocalScopeInfo, LocalsEngine},
     outline::{self, SymbolOutline},
 };
 
@@ -51,6 +52,7 @@ pub struct SyntaxEngine {
     cache: DashMap<BufferId, ParsedDoc>,
     highlighter: HighlightEngine,
     indenter: IndentEngine,
+    locals: LocalsEngine,
 }
 
 impl SyntaxEngine {
@@ -61,6 +63,7 @@ impl SyntaxEngine {
             cache: DashMap::new(),
             highlighter: HighlightEngine::new(),
             indenter: IndentEngine::new(),
+            locals: LocalsEngine::new(),
         }
     }
 
@@ -70,6 +73,7 @@ impl SyntaxEngine {
             cache: DashMap::new(),
             highlighter: HighlightEngine::new(),
             indenter: IndentEngine::new(),
+            locals: LocalsEngine::new(),
         }
     }
 
@@ -226,6 +230,22 @@ impl SyntaxEngine {
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
         self.indenter
             .compute_indents(&cached.language, &entry, source, &cached.tree)
+    }
+
+    /// Compute scope-aware local variable information for a document.
+    /// Returns `[]` if not parsed or no locals query is registered.
+    pub fn local_scopes(&self, id: BufferId) -> Vec<LocalScopeInfo> {
+        let cached = match self.cache.get(&id) {
+            Some(c) => c,
+            None => return Vec::new(),
+        };
+        let entry = match self.registry.get(&cached.language) {
+            Some(e) => e,
+            None => return Vec::new(),
+        };
+        let source = std::str::from_utf8(&cached.source).unwrap_or("");
+        self.locals
+            .compute_local_scopes(&cached.language, &entry, source, &cached.tree)
     }
 
     /// Return the current parse version for a document, or `None` if not parsed.
