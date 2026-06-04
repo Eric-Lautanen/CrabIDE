@@ -12,18 +12,11 @@ repository.workspace   = true
 
 [dependencies]
 crabide-core.workspace = true
-
-# All git operations run on a dedicated Tokio thread to never block the UI.
-tokio.workspace      = true
-thiserror.workspace  = true
-anyhow.workspace     = true
-log.workspace        = true
+log.workspace = true
 
 # Command channel to background worker thread
 crossbeam-channel.workspace = true
 
-# For parallel status scanning
-rayon.workspace = true
 
 # libgit2 — optional. vendored-openssl avoids needing system OpenSSL on CI/Windows.
 # git2 statically links libgit2 + OpenSSL (~15-20 MB of code). Only included when
@@ -35,4 +28,3 @@ optional  = true
 [features]
 # Pull in libgit2 + vendored OpenSSL only when git features are wanted.
 git-support = ["dep:git2"]
-

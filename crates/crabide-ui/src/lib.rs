@@ -34,15 +34,16 @@ use crabide_core::types::Position;
 
 /// Render the complete editor UI for one egui frame.
 ///
-/// Must be called from the egui `App::update` method.  The returned `Vec`
+/// Must be called from the egui `App::update` method. The returned `Vec`
 /// contains **backend actions** that require app-level work (e.g. saving a
-/// file, opening a URI, triggering LSP).  UI-internal actions (palette toggle,
+/// file, opening a URI, triggering LSP). UI-internal actions (palette toggle,
 /// sidebar toggle, tab navigation, zoom, cursor movement) are handled inside
 /// this function.
-pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
+pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
+    let ctx = ui.ctx().clone();
     let mut actions: Vec<Action> = Vec::new();
 
-    // ── Caret blink ───────────────────────────────────────────────────────────
+    // Caret blink
     // Only schedule repaints for the caret when a document is open. When idle
     // (no open tabs) the app should sleep until the user interacts.
     let now = ctx.input(|i| i.time);
@@ -63,7 +64,7 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
     state.expire_status();
 
     // ── Global keyboard routing ───────────────────────────────────────────────
-    let key_actions = process_keyboard(ctx, state);
+    let key_actions = process_keyboard(&ctx, state);
     for action in key_actions {
         if !handle_ui_action(action.clone(), state) {
             actions.push(action);
@@ -71,39 +72,39 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
     }
 
     // ── Command palette ───────────────────────────────────────────────────────
-    if let Some(confirmed) = palette::show(ctx, state) {
+    if let Some(confirmed) = palette::show(&ctx, state) {
         if !handle_ui_action(confirmed.clone(), state) {
             actions.push(confirmed);
         }
     }
 
     // ── Fuzzy file finder (Ctrl+P) ────────────────────────────────────────────
-    if let Some(open_action) = panels::fuzzy_finder::show(ctx, state) {
+    if let Some(open_action) = panels::fuzzy_finder::show(&ctx, state) {
         actions.push(open_action);
     }
 
-    // ── Go-to-line dialog (Ctrl+G) ────────────────────────────────────────────
-    if let Some(goto_action) = show_goto_line(ctx, state) {
+    // Go-to-line dialog (Ctrl+G)
+    if let Some(goto_action) = show_goto_line(ui, state) {
         actions.push(goto_action);
     }
 
     // ── Find / replace floating window ────────────────────────────────────────
-    panels::find_replace::show(ctx, state, &mut actions);
+    panels::find_replace::show(&ctx, state, &mut actions);
 
     // ── Status bar (bottom — must register before git panel) ─────────────────
-    actions.extend(panels::status_bar::show(ctx, state));
+    actions.extend(panels::status_bar::show(ui, state));
 
-    // ── Terminal panel (bottom strip, above git panel and status bar) ────────
+    // Terminal panel (bottom strip, above git panel and status bar)
     if state.terminal.visible {
-        egui::TopBottomPanel::bottom("terminal_panel")
-            .min_height(panels::terminal_panel::MIN_HEIGHT)
-            .max_height(600.0)
+        egui::Panel::bottom("terminal_panel")
+            .min_size(panels::terminal_panel::MIN_HEIGHT)
+            .max_size(600.0)
             .resizable(true)
             .frame(egui::Frame::NONE.fill(cfg_to_egui(state.theme.ui_or(
                 "terminal.background",
                 crabide_config::Color::rgb(0x1a, 0x1a, 0x1a),
             ))))
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 let term_actions = panels::terminal_panel::show(ui, state);
                 for a in term_actions {
                     actions.push(a);
@@ -120,12 +121,12 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
             "sideBar.background",
             crabide_config::Color::rgb(0x25, 0x25, 0x26),
         ));
-        egui::TopBottomPanel::bottom("git_panel")
-            .min_height(120.0)
-            .max_height(400.0)
+        egui::Panel::bottom("git_panel")
+            .min_size(120.0)
+            .max_size(400.0)
             .resizable(true)
             .frame(egui::Frame::NONE.fill(panel_bg))
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 panels::git_panel::show(ui, state);
             });
     }
@@ -136,12 +137,12 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
             "sideBar.background",
             crabide_config::Color::rgb(0x25, 0x25, 0x26),
         ));
-        egui::TopBottomPanel::bottom("problems_panel")
-            .min_height(panels::problems_panel::MIN_HEIGHT)
-            .max_height(350.0)
+        egui::Panel::bottom("problems_panel")
+            .min_size(panels::problems_panel::MIN_HEIGHT)
+            .max_size(350.0)
             .resizable(true)
             .frame(egui::Frame::NONE.fill(panel_bg))
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 panels::problems_panel::show(ui, state);
             });
     }
@@ -174,13 +175,13 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                 let egui_id = egui::Id::new(("ext_panel_bottom", panel_id.clone()));
                 let title = panel.registration.title.clone();
                 let content: Vec<crabide_extensions::ContentBlock> = panel.content.clone();
-                egui::TopBottomPanel::bottom(egui_id)
-                    .min_height(min_h)
-                    .default_height(def_h)
-                    .max_height(500.0)
+                egui::Panel::bottom(egui_id)
+                    .min_size(min_h)
+                    .default_size(def_h)
+                    .max_size(500.0)
                     .resizable(true)
                     .frame(egui::Frame::NONE.fill(panel_bg))
-                    .show(ctx, |ui| {
+                    .show_inside(ui, |ui| {
                         if let Some(nav) =
                             render_extension_panel(ui, state, &title, &panel_id, &content)
                         {
@@ -197,12 +198,12 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
             "sideBar.background",
             crabide_config::Color::rgb(0x25, 0x25, 0x26),
         ));
-        egui::TopBottomPanel::bottom("dap_panel")
-            .min_height(panels::debug_panel::MIN_HEIGHT)
-            .max_height(500.0)
+        egui::Panel::bottom("dap_panel")
+            .min_size(panels::debug_panel::MIN_HEIGHT)
+            .max_size(500.0)
             .resizable(true)
             .frame(egui::Frame::NONE.fill(panel_bg))
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 let dap_actions = panels::debug_panel::show(ui, state);
                 for a in dap_actions {
                     if !handle_ui_action(a.clone(), state) {
@@ -223,7 +224,7 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
     // ToggleWordWrap, FuzzyFindFile, …) is silently discarded or logged as
     // "unhandled action" by the app.
     let mut menu_actions: Vec<Action> = Vec::new();
-    show_menu_bar(ctx, state, &mut menu_actions);
+    show_menu_bar(ui, state, &mut menu_actions);
     for action in menu_actions {
         if !handle_ui_action(action.clone(), state) {
             actions.push(action);
@@ -255,12 +256,12 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                 let egui_id = egui::Id::new(("ext_panel_right", panel_id.clone()));
                 let title = panel.registration.title.clone();
                 let content: Vec<crabide_extensions::ContentBlock> = panel.content.clone();
-                egui::SidePanel::right(egui_id)
-                    .min_width(min_w)
-                    .default_width(def_w)
+                egui::Panel::right(egui_id)
+                    .min_size(min_w)
+                    .default_size(def_w)
                     .resizable(true)
                     .frame(egui::Frame::NONE.fill(panel_bg))
-                    .show(ctx, |ui| {
+                    .show_inside(ui, |ui| {
                         if let Some(nav) =
                             render_extension_panel(ui, state, &title, &panel_id, &content)
                         {
@@ -271,13 +272,13 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
         }
     }
 
-    // ── Main area: egui_tiles docking layout ──────────────────────────────────
+    // Main area: egui_tiles docking layout
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(cfg_to_egui(state.theme.ui_or(
             "editor.background",
             crabide_config::Color::rgb(0x1e, 0x1e, 0x1e),
         ))))
-        .show(ctx, |ui| {
+        .show_inside(ui, |ui| {
             if state.sidebar_visible {
                 let mut behavior = layout::UiBehavior {
                     state,
@@ -301,11 +302,12 @@ pub fn render(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
 ///
 /// Returns `Some(Action::GotoLine)` when the user confirms, which the app
 /// handles by moving the cursor and scrolling.
-fn show_goto_line(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
+fn show_goto_line(ui: &mut egui::Ui, state: &mut UiState) -> Option<Action> {
     if !state.goto_line.visible {
         return None;
     }
 
+    let ctx = ui.ctx();
     let (enter, escape) = ctx.input(|i| {
         (
             i.key_pressed(egui::Key::Enter),
@@ -459,7 +461,7 @@ fn menu_row(ui: &mut egui::Ui, label: &str, shortcut: &str) -> bool {
     resp.clicked()
 }
 
-fn show_menu_bar(ctx: &egui::Context, state: &mut UiState, actions: &mut Vec<Action>) {
+fn show_menu_bar(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     let menu_bg = cfg_to_egui(state.theme.ui_or(
         "sideBar.background",
         crabide_config::Color::rgb(0x25, 0x25, 0x26),
@@ -469,13 +471,13 @@ fn show_menu_bar(ctx: &egui::Context, state: &mut UiState, actions: &mut Vec<Act
         crabide_config::Color::rgb(0xcc, 0xcc, 0xcc),
     ));
 
-    egui::TopBottomPanel::top("menu_bar")
+    egui::Panel::top("menu_bar")
         .frame(
             egui::Frame::NONE
                 .fill(menu_bg)
                 .inner_margin(egui::Margin::symmetric(4, 2)),
         )
-        .show(ctx, |ui| {
+        .show_inside(ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 // Make top-level menu trigger buttons transparent so they blend
                 // with the menu bar background; hover shows a subtle highlight.
@@ -1210,16 +1212,15 @@ fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             false
         }
 
-        // ── Go-to-line ────────────────────────────────────────────────────────
+        // Go-to-line
+        Action::GotoLine if !state.goto_line.visible => {
+            state.goto_line.visible = true;
+            state.goto_line.query.clear();
+            true
+        }
         Action::GotoLine => {
-            if !state.goto_line.visible {
-                state.goto_line.visible = true;
-                state.goto_line.query.clear();
-                true
-            } else {
-                // Dialog already open — confirmation forwarded to app.
-                false
-            }
+            // Dialog already open confirmation forwarded to app.
+            false
         }
 
         // ── Find in files ─────────────────────────────────────────────────────

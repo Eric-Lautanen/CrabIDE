@@ -16,18 +16,17 @@ crabide-buffer.workspace = true
 
 tree-sitter.workspace = true
 
-thiserror.workspace  = true
+
 anyhow.workspace     = true
 log.workspace        = true
 parking_lot.workspace = true
 dashmap.workspace    = true
-once_cell.workspace  = true
+
 smol_str.workspace   = true
-serde.workspace      = true
+
 crossbeam-channel.workspace = true
 libloading.workspace         = true
 streaming-iterator.workspace = true
 
 # Rayon for parallel highlighting across large files
 rayon.workspace = true
-

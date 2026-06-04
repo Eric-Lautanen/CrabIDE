@@ -18,14 +18,7 @@ crabide-config.workspace  = true
 crabide-lsp.workspace     = true
 crabide-syntax.workspace  = true
 
-tokio.workspace             = true
-serde.workspace             = true
-serde_json.workspace        = true
-thiserror.workspace         = true
-anyhow.workspace            = true
-log.workspace               = true
-parking_lot.workspace       = true
-dashmap.workspace           = true
-uuid.workspace              = true
-crossbeam-channel.workspace = true
-
+tokio.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true

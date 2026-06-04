@@ -2807,7 +2807,7 @@ impl crabideApp {
 
 impl eframe::App for crabideApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        let ctx = ui.ctx();
+        let ctx = ui.ctx().clone();
         self.poll_events();
         self.drain_git_pending();
         self.drain_terminal_pending();
@@ -2815,10 +2815,10 @@ impl eframe::App for crabideApp {
         self.drain_extension_pending();
         if self.ui_state.extensions_panel.pending_cycle_theme {
             self.ui_state.extensions_panel.pending_cycle_theme = false;
-            self.apply_theme_cycle(ctx);
+            self.apply_theme_cycle(&ctx);
         }
-        let actions = crabide_ui::render(ctx, &mut self.ui_state);
-        self.dispatch_actions(actions, ctx);
+        let actions = crabide_ui::render(ui, &mut self.ui_state);
+        self.dispatch_actions(actions, &ctx);
 
         // ── Extension panel navigation ────────────────────────────────────────
         if let Some(nav) = self.ui_state.pending_navigate.take() {
@@ -3336,12 +3336,12 @@ fn configure_egui_style(ctx: &egui::Context, state: &UiState) {
     // carefully chosen button/input fill colours set above.
 
     // ── Apply ─────────────────────────────────────────────────────────────────
-    let mut style = (*ctx.style()).clone();
+    let mut style = (*ctx.global_style()).clone();
     style.visuals = visuals;
     style.spacing.item_spacing = egui::vec2(6.0, 4.0);
     style.spacing.button_padding = egui::vec2(8.0, 3.0);
     style.spacing.window_margin = egui::Margin::same(8);
-    ctx.set_style(style);
+    ctx.set_global_style(style);
 }
 
 // ── Edit helpers ──────────────────────────────────────────────────────────────

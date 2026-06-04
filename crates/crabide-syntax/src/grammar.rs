@@ -11,8 +11,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use std::sync::OnceLock;
 
 use crabide_core::{
     error::{crabideError, Result},
@@ -150,10 +150,10 @@ impl Default for GrammarRegistry {
 // ── Global singleton ──────────────────────────────────────────────────────────
 
 /// The global grammar registry, initialized on first access.
-pub static REGISTRY: Lazy<GrammarRegistry> = Lazy::new(GrammarRegistry::new);
+pub static REGISTRY: OnceLock<GrammarRegistry> = OnceLock::new();
 
 /// Convenience accessor for the global registry.
 #[inline]
 pub fn grammar_registry() -> &'static GrammarRegistry {
-    &REGISTRY
+    REGISTRY.get_or_init(GrammarRegistry::new)
 }

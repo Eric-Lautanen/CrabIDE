@@ -19,11 +19,10 @@ toml.workspace                = true
 thiserror.workspace           = true
 anyhow.workspace              = true
 log.workspace                 = true
-once_cell.workspace           = true
+
 parking_lot.workspace         = true
 indexmap.workspace            = true
 crossbeam-channel.workspace     = true
 notify.workspace                = true
 notify-debouncer-full.workspace = true
 bitflags.workspace              = true
-

@@ -15,7 +15,7 @@ pub const STATUS_BAR_HEIGHT: f32 = 22.0;
 ///
 /// Returns a `Vec` of backend actions triggered by user interaction in the bar
 /// this frame (e.g. `Action::ToggleGit`).
-pub fn show(ctx: &egui::Context, state: &UiState) -> Vec<Action> {
+pub fn show(ui: &mut egui::Ui, state: &UiState) -> Vec<Action> {
     let bg_color = cfg_to_egui(state.theme.ui_or(
         "statusBar.background",
         crabide_config::Color::rgb(0x00, 0x7a, 0xcc),
@@ -27,14 +27,14 @@ pub fn show(ctx: &egui::Context, state: &UiState) -> Vec<Action> {
 
     let mut triggered: Vec<Action> = Vec::new();
 
-    egui::TopBottomPanel::bottom("status_bar")
-        .exact_height(STATUS_BAR_HEIGHT)
+    egui::Panel::bottom("status_bar")
+        .exact_size(STATUS_BAR_HEIGHT)
         .frame(
             egui::Frame::NONE
                 .fill(bg_color)
                 .inner_margin(egui::Margin::symmetric(8, 2)),
         )
-        .show(ctx, |ui| {
+        .show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
 

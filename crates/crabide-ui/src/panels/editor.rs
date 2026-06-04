@@ -806,7 +806,7 @@ fn detect_row_pointer(
     // for text selection.  It fires on frame 2+ of a scrollbar drag (the
     // scrollbar claimed the drag in the previous frame via interact(Sense::drag()))
     // and suppresses both the Drag and Press paths below.
-    if ui.ctx().is_using_pointer() {
+    if ui.ctx().egui_is_using_pointer() {
         return;
     }
 
