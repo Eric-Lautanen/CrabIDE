@@ -1,7 +1,5 @@
 //! LSP server configuration.
 
-#![allow(dead_code)]
-
 use crabide_core::types::{DocumentUri, Language};
 use serde::{Deserialize, Serialize};
 

@@ -3,8 +3,6 @@
 //! crabide uses its own lean types (defined in `crabide-core`). At the LSP
 //! boundary we convert to/from `lsp_types` structs for serialisation.
 
-#![allow(dead_code)]
-
 use crabide_core::{
     event::{
         CodeAction, CompletionItem, CompletionKind, Diagnostic, DiagnosticRelated,

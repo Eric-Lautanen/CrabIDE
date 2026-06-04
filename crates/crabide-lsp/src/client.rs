@@ -8,10 +8,8 @@
 //! # Threading model
 //! - All public methods are `Send + Sync` and cheap to call from any thread.
 //! - Request methods fire a Tokio task (`tokio::spawn`) and return immediately.
-//! - The notification loop runs in its own task (started by `run_notifications`).
-//! - The UI thread never blocks — it drains the crossbeam channel per frame.
-
-#![allow(dead_code)]
+//!
+//! - The UI thread never blocks it drains the crossbeam channel per frame.
 
 use std::sync::{
     atomic::{AtomicBool, AtomicU8, Ordering},
@@ -37,9 +35,8 @@ use crate::{
     transport::{JsonRpcMessage, LspTransport},
 };
 
-// ── Text sync kind ────────────────────────────────────────────────────────────
+// Text sync kind
 
-const SYNC_NONE: u8 = 0;
 const SYNC_FULL: u8 = 1;
 const SYNC_INCREMENTAL: u8 = 2;
 

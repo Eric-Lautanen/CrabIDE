@@ -11,8 +11,6 @@
 //! - **Clean shutdown**: `stop_server` sends a `shutdown` request + `exit`
 //!   notification, then `kill()` if the process doesn't exit within 2 s.
 
-#![allow(dead_code)]
-
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use parking_lot::RwLock;

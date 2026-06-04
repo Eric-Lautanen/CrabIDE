@@ -4,6 +4,17 @@ Build order follows dependency direction. Each phase builds on the phases before
 
 **Legend:** ✓ = done (verified), ◐ = partial, ○ = not started
 
+## Crate & Dependency Minimization
+
+Every external crate adds compile time, binary size, memory use, and supply-chain risk. Prioritize removing dependencies and consolidating crates wherever possible.
+
+- **Prefer a 20-line local helper over pulling a crate.** Before adding any dependency, ask: can I write this in ≤50 lines? If yes, do that instead.
+- **If a crate has only one use site, inline it.** One function from `once_cell`? Use `std::sync::OnceLock` (stable since Rust 1.70). One use of `regex-lite`? Fold the logic.
+- **Granular crates are fine for separation of concerns but only when they reduce coupling.** If crate A and B always change together, merge them. The current 14 crates should be scrutinized: could some collapse?
+- **Every `[dependencies]` entry must carry a brief rationale comment** explaining why a local helper wouldn't suffice. Uncommented deps will be removed.
+- **Run `cargo-udeps` periodically** to find unused crates. Any crate declared but never imported gets deleted.
+- **Feature flags are the right way to gate heavy dependencies** (wasmtime, bollard, russh, wry). Default build must stay lean.
+
 ## Autonomous Coding Best Practices
 
 These rules exist because no human reviews intermediate steps. The agent must produce correct, review-ready code on the first pass across potentially hundreds of changes.
