@@ -290,19 +290,20 @@ async fn graceful_shutdown(transport: Option<LspTransport>) {
 }
 
 /// Extract a clone of the transport from a client.
-/// We piggyback on the fact that `LspClient` is `Clone`.
-fn client_transport(_client: &Arc<LspClient>) -> Option<LspTransport> {
-    // The transport is internal to the client; graceful shutdown is best-effort.
-    // In practice the kernel will clean up when the process dies.
-    None
+/// Extract a clone of the transport from a client for graceful shutdown.
+fn client_transport(client: &Arc<LspClient>) -> Option<LspTransport> {
+    Some(client.transport())
 }
 
-// ── Extend ServerEntry to hold Arc<LspClient> ─────────────────────────────────
+// Extend ServerEntry to hold Arc<LspClient>
 
 impl From<Arc<LspClient>> for ServerEntry {
-    fn from(_: Arc<LspClient>) -> Self {
-        // This impl is only used as a placeholder; real entries are built by
-        // spawn_and_init with a real lifecycle handle.
-        panic!("ServerEntry::from(Arc<LspClient>) should not be called directly")
+    fn from(client: Arc<LspClient>) -> Self {
+        // Placeholder entry without a lifecycle handle.
+        // Real entries should be built via spawn_and_init.
+        Self {
+            client,
+            _lifecycle: tokio::spawn(async {}),
+        }
     }
 }

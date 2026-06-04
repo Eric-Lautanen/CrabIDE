@@ -157,6 +157,19 @@ impl LspTransport {
     /// The caller gets back the raw `Value` of the `result` field on success,
     /// or an error if the server returned an error object or the transport fails.
     pub async fn request(&self, method: &str, params: Value) -> Result<Value> {
+        self.request_with_timeout(method, params, None).await
+    }
+
+    /// Send a request and await the response with an optional timeout.
+    ///
+    /// If `timeout` is `Some`, the request will be aborted if no response
+    /// arrives within the specified duration.
+    pub async fn request_with_timeout(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Value> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let msg = JsonRpcMessage::request(id, method, params);
 
@@ -170,10 +183,21 @@ impl LspTransport {
 
         self.send_raw(&msg)?;
 
-        // Await the response; timeout handled at the client level
-        respond_rx
-            .await
-            .map_err(|_| anyhow!("LSP transport closed while awaiting response to {method}"))?
+        let result = if let Some(dur) = timeout {
+            tokio::time::timeout(dur, respond_rx)
+                .await
+                .map_err(|_| anyhow!("LSP request {method} timed out after {:?}", dur))?
+                .map_err(|_| anyhow!("LSP transport closed while awaiting response to {method}"))?
+        } else {
+            respond_rx
+                .await
+                .map_err(|_| anyhow!("LSP transport closed while awaiting response to {method}"))?
+        };
+
+        // Clean up pending entry if the response never arrived.
+        self.inner.pending.remove(&id);
+
+        result
     }
 
     /// Send a notification (fire-and-forget, no response expected).

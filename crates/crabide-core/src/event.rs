@@ -96,6 +96,12 @@ pub enum LspEvent {
         workspace_edit: WorkspaceEdit,
     },
 
+    /// Formatting result (list of edits to apply).
+    FormattingReady {
+        request_id: u32,
+        workspace_edit: WorkspaceEdit,
+    },
+
     /// Code actions available at a position.
     CodeActionsReady {
         request_id: u32,
@@ -740,6 +746,7 @@ impl fmt::Display for LspEvent {
                 write!(f, "locations #{request_id}: {} results", locations.len())
             }
             LspEvent::RenameReady { request_id, .. } => write!(f, "rename #{request_id}"),
+            LspEvent::FormattingReady { request_id, .. } => write!(f, "formatting #{request_id}"),
             LspEvent::CodeActionsReady {
                 request_id,
                 actions,

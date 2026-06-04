@@ -86,6 +86,11 @@ impl LspClient {
         self.inner.initialized.load(Ordering::Acquire)
     }
 
+    /// Get a clone of the underlying transport for graceful shutdown.
+    pub fn transport(&self) -> LspTransport {
+        self.inner.transport.clone()
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     /// Send the `initialize` request and await the server's response,
@@ -237,7 +242,30 @@ impl LspClient {
                 );
             }
             "$/progress" | "window/workDoneProgress/create" => {
-                // Progress notifications — silently ignored for now.
+                // Progress notifications silently ignored for now.
+            }
+            // Server→client requests: respond with empty/unsupported.
+            "workspace/applyEdit" => {
+                log::debug!("LSP server requested workspace/applyEdit; not supported yet");
+                // Respond with `applied: false` if we can extract the request id.
+                if let Some(id) = params.get("id") {
+                    let _ = self.inner.transport.notify(
+                        "workspace/applyEdit",
+                        serde_json::json!({ "id": id, "result": { "applied": false } }),
+                    );
+                }
+            }
+            "workspace/configuration" => {
+                log::debug!("LSP server requested workspace/configuration; returning empty");
+                if let Some(id) = params.get("id") {
+                    let _ = self.inner.transport.notify(
+                        "workspace/configuration",
+                        serde_json::json!({ "id": id, "result": [] }),
+                    );
+                }
+            }
+            "client/registerCapability" => {
+                log::debug!("LSP server requested client/registerCapability; ignoring");
             }
             _ => {
                 log::trace!("LSP unhandled notification: {method}");
@@ -558,7 +586,7 @@ impl LspClient {
                 Ok(result) => {
                     let workspace_edit = parse_text_edits_as_workspace_edit(result, &uri);
                     let _ = client.inner.event_tx.send(
-                        LspEvent::RenameReady {
+                        LspEvent::FormattingReady {
                             request_id,
                             workspace_edit,
                         }
@@ -570,7 +598,7 @@ impl LspClient {
         });
     }
 
-    /// Request range formatting. Result reused `RenameReady` event as edits.
+    /// Request range formatting. Result arrives as `LspEvent::FormattingReady`.
     pub fn format_range(
         &self,
         uri: DocumentUri,
@@ -595,7 +623,7 @@ impl LspClient {
                 Ok(result) => {
                     let workspace_edit = parse_text_edits_as_workspace_edit(result, &uri);
                     let _ = client.inner.event_tx.send(
-                        LspEvent::RenameReady {
+                        LspEvent::FormattingReady {
                             request_id,
                             workspace_edit,
                         }
