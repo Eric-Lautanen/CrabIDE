@@ -179,6 +179,35 @@ impl Document {
         self.is_dirty = true;
     }
 
+    /// Clear the document content, leaving it empty.
+    pub fn clear(&mut self) {
+        self.rope = Rope::new();
+        self.version += 1;
+        self.is_dirty = true;
+    }
+
+    /// Reload the document from new bytes (e.g. after an external file change).
+    /// Resets version to 0 and clears the dirty flag.
+    pub fn reload(&mut self, bytes: &[u8]) -> anyhow::Result<()> {
+        let (text_bytes, encoding) = if bytes.starts_with(b"\xEF\xBB\xBF") {
+            (&bytes[3..], Encoding::Utf8Bom)
+        } else {
+            (bytes, Encoding::Utf8)
+        };
+
+        let text = std::str::from_utf8(text_bytes).context("File is not valid UTF-8")?;
+        let line_ending = LineEnding::detect(text);
+        let normalised: String = text.replace("\r\n", "\n").replace('\r', "\n");
+
+        self.rope = Rope::from_str(&normalised);
+        self.version = 0;
+        self.is_dirty = false;
+        self.line_ending = line_ending;
+        self.encoding = encoding;
+
+        Ok(())
+    }
+
     // ── Edit API ─────────────────────────────────────────────────────────────
 
     /// Apply a single text edit to the buffer.

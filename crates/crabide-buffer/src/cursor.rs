@@ -213,6 +213,23 @@ impl CursorSet {
         self.normalise();
     }
 
+    /// Remove the cursor at the given index, if it exists.
+    /// If this would leave the set empty, the last cursor is reset to origin instead.
+    pub fn remove(&mut self, index: usize) {
+        if self.cursors.len() <= 1 {
+            self.set_single(Position::ZERO);
+            return;
+        }
+        if index < self.cursors.len() {
+            self.cursors.remove(index);
+        }
+    }
+
+    /// Iterate over all cursors by reference.
+    pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
+        self.cursors.iter()
+    }
+
     /// Sort cursors by position and merge those with overlapping ranges.
     fn normalise(&mut self) {
         if self.cursors.len() <= 1 {

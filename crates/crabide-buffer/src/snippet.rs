@@ -25,6 +25,7 @@ use std::collections::BTreeMap;
 
 use crabide_core::types::{Position, Range, TextEdit};
 use regex::Regex;
+use std::cell::RefCell;
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
@@ -443,7 +444,7 @@ fn block_comment_end(lang: &str) -> &'static str {
 struct Expander<'a> {
     ctx: &'a SnippetContext<'a>,
     output: String,
-    /// index → list of (range, placeholder_text, choices)
+    /// index list of (range, placeholder_text, choices)
     tabstop_data: BTreeMap<u32, Vec<(Range, String, Vec<String>)>>,
     /// Current line offset from the first inserted line.
     cur_line: u32,
@@ -451,6 +452,8 @@ struct Expander<'a> {
     cur_col: u32,
     base_line: u32,
     base_col: u32,
+    /// Cached compiled regexes keyed by (pattern, flags).
+    regex_cache: RefCell<BTreeMap<String, Regex>>,
 }
 
 impl<'a> Expander<'a> {
@@ -463,6 +466,7 @@ impl<'a> Expander<'a> {
             cur_col: 0,
             base_line,
             base_col,
+            regex_cache: RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -552,7 +556,14 @@ impl<'a> Expander<'a> {
                 flags,
             } => {
                 let pos = self.current_pos();
-                let transformed = apply_transform("", pattern, replacement, flags);
+                // Look up the text of the referenced tabstop (already expanded).
+                let input = self
+                    .tabstop_data
+                    .get(index)
+                    .and_then(|entries| entries.first())
+                    .map(|(_, text, _)| text.as_str())
+                    .unwrap_or("");
+                let transformed = self.apply_transform(input, pattern, replacement, flags);
                 self.emit(&transformed);
                 let end = self.current_pos();
                 self.tabstop_data.entry(*index).or_default().push((
@@ -589,6 +600,35 @@ impl<'a> Expander<'a> {
         });
         (self.output, tabstops, final_pos)
     }
+
+    fn apply_transform(
+        &self,
+        input: &str,
+        pattern: &str,
+        replacement: &str,
+        flags: &str,
+    ) -> String {
+        let cache_key = if flags.contains('i') {
+            format!("(?i){pattern}")
+        } else {
+            pattern.to_owned()
+        };
+
+        let mut cache = self.regex_cache.borrow_mut();
+        let re = match cache.entry(cache_key.clone()) {
+            std::collections::btree_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::btree_map::Entry::Vacant(e) => match Regex::new(&cache_key) {
+                Ok(re) => e.insert(re),
+                Err(_) => return input.to_owned(),
+            },
+        };
+
+        if flags.contains('g') {
+            re.replace_all(input, replacement).into_owned()
+        } else {
+            re.replace(input, replacement).into_owned()
+        }
+    }
 }
 
 fn collect_text(nodes: &[Node]) -> String {
@@ -602,24 +642,6 @@ fn collect_text(nodes: &[Node]) -> String {
             _ => String::new(),
         })
         .collect()
-}
-
-fn apply_transform(input: &str, pattern: &str, replacement: &str, flags: &str) -> String {
-    let re_str = if flags.contains('i') {
-        format!("(?i){pattern}")
-    } else {
-        pattern.to_owned()
-    };
-    match Regex::new(&re_str) {
-        Ok(re) => {
-            if flags.contains('g') {
-                re.replace_all(input, replacement).into_owned()
-            } else {
-                re.replace(input, replacement).into_owned()
-            }
-        }
-        Err(_) => input.to_owned(),
-    }
 }
 
 // ── SnippetEngine ─────────────────────────────────────────────────────────────
