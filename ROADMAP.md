@@ -118,7 +118,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 **Gaps:**
 - [x] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
 - [x] Implement indentation query runner (`GrammarEntry` stores `indents_query`, unused)
-- [ ] Implement locals/scope-aware queries (`locals_query` stored, unused)
+- [x] Implement locals/scope-aware queries (`locals_query` stored, unused)
 - [ ] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
 - [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
 - [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
