@@ -95,7 +95,7 @@ impl fmt::Display for DocumentUri {
 }
 
 /// Combined document identifier (URI + optional buffer ID for unsaved docs).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DocumentId {
     pub uri: DocumentUri,
     pub buffer_id: BufferId,
@@ -107,6 +107,12 @@ impl DocumentId {
             uri,
             buffer_id: BufferId::new(),
         }
+    }
+}
+
+impl fmt::Display for DocumentId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}#{}", self.uri, self.buffer_id)
     }
 }
 

@@ -29,6 +29,7 @@
 
 use crate::types::{DocumentUri, ExtensionId, Language, Position, Range};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::path::PathBuf;
 
 // ── LSP Events ───────────────────────────────────────────────────────────────
@@ -470,7 +471,103 @@ pub struct DocumentEdit {
     pub edits: Vec<crate::types::TextEdit>,
 }
 
-// ── DAP types ─────────────────────────────────────────────────────────────────
+// Additional LSP shared types
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentSymbol {
+    pub name: String,
+    pub kind: SymbolKind,
+    pub range: Range,
+    pub selection_range: Range,
+    pub children: Vec<DocumentSymbol>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SymbolKind {
+    File,
+    Module,
+    Namespace,
+    Package,
+    Class,
+    Method,
+    Property,
+    Field,
+    Constructor,
+    Enum,
+    Interface,
+    Function,
+    Variable,
+    Constant,
+    String,
+    Number,
+    Boolean,
+    Array,
+    Object,
+    Key,
+    Null,
+    EnumMember,
+    Struct,
+    Event,
+    Operator,
+    TypeParameter,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignatureHelp {
+    pub signatures: Vec<SignatureInformation>,
+    pub active_signature: Option<u32>,
+    pub active_parameter: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignatureInformation {
+    pub label: String,
+    pub documentation: Option<String>,
+    pub parameters: Vec<ParameterInformation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParameterInformation {
+    pub label: ParameterLabel,
+    pub documentation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ParameterLabel {
+    Simple(String),
+    Offsets(u32, u32),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FoldingRange {
+    pub start_line: u32,
+    pub start_character: Option<u32>,
+    pub end_line: u32,
+    pub end_character: Option<u32>,
+    pub kind: Option<FoldingRangeKind>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FoldingRangeKind {
+    Comment,
+    Imports,
+    Region,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelectionRange {
+    pub range: Range,
+    pub parent: Option<Box<SelectionRange>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InlineCompletionItem {
+    pub insert_text: String,
+    pub range: Option<Range>,
+    pub command: Option<String>,
+}
+
+// DAP types
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BreakpointState {
@@ -591,5 +688,221 @@ impl From<VfsEvent> for EditorEvent {
 impl From<ExtensionEvent> for EditorEvent {
     fn from(e: ExtensionEvent) -> Self {
         EditorEvent::Extension(e)
+    }
+}
+
+// Display impls for debug logging
+
+impl fmt::Display for LspEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LspEvent::ServerReady { language } => write!(f, "LSP ready: {language}"),
+            LspEvent::ServerCrashed { language, code } => {
+                write!(f, "LSP crashed: {language} (code={code:?})")
+            }
+            LspEvent::DiagnosticsPublished { uri, diagnostics } => {
+                write!(f, "diagnostics: {} ({} items)", uri, diagnostics.len())
+            }
+            LspEvent::CompletionReady {
+                request_id,
+                items,
+                is_incomplete,
+            } => write!(
+                f,
+                "completion #{request_id}: {} items{}",
+                items.len(),
+                if *is_incomplete { " (incomplete)" } else { "" }
+            ),
+            LspEvent::HoverReady {
+                request_id,
+                contents,
+                ..
+            } => {
+                write!(
+                    f,
+                    "hover #{request_id}: {}",
+                    if contents.is_some() { "ok" } else { "empty" }
+                )
+            }
+            LspEvent::InlayHintsUpdated { uri, hints } => {
+                write!(f, "inlay hints: {} ({} hints)", uri, hints.len())
+            }
+            LspEvent::SemanticTokensUpdated { uri, tokens } => {
+                write!(f, "semantic tokens: {} ({} tokens)", uri, tokens.len())
+            }
+            LspEvent::CodeLensUpdated { uri, items } => {
+                write!(f, "code lens: {} ({} items)", uri, items.len())
+            }
+            LspEvent::LocationsReady {
+                request_id,
+                locations,
+            } => {
+                write!(f, "locations #{request_id}: {} results", locations.len())
+            }
+            LspEvent::RenameReady { request_id, .. } => write!(f, "rename #{request_id}"),
+            LspEvent::CodeActionsReady {
+                request_id,
+                actions,
+            } => {
+                write!(f, "code actions #{request_id}: {} actions", actions.len())
+            }
+            LspEvent::LogMessage { language, .. } => write!(f, "LSP log: {language}"),
+        }
+    }
+}
+
+impl fmt::Display for DapEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DapEvent::Initialized => write!(f, "DAP initialized"),
+            DapEvent::Stopped {
+                reason, thread_id, ..
+            } => {
+                write!(f, "DAP stopped: {reason:?} (thread={thread_id:?})")
+            }
+            DapEvent::Continued { thread_id } => {
+                write!(f, "DAP continued (thread={thread_id:?})")
+            }
+            DapEvent::Terminated => write!(f, "DAP terminated"),
+            DapEvent::BreakpointUpdated { .. } => write!(f, "DAP breakpoint updated"),
+            DapEvent::StackTraceReady {
+                request_id, frames, ..
+            } => {
+                write!(f, "stack trace #{request_id}: {} frames", frames.len())
+            }
+            DapEvent::VariablesReady {
+                request_id,
+                variables,
+            } => {
+                write!(f, "variables #{request_id}: {} vars", variables.len())
+            }
+            DapEvent::Output { category, .. } => write!(f, "DAP output: {category:?}"),
+            DapEvent::Error { message } => write!(f, "DAP error: {message}"),
+        }
+    }
+}
+
+impl fmt::Display for TerminalEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TerminalEvent::Output { terminal_id, .. } => {
+                write!(f, "terminal #{terminal_id} output")
+            }
+            TerminalEvent::TitleChanged { terminal_id, title } => {
+                write!(f, "terminal #{terminal_id} title: {title}")
+            }
+            TerminalEvent::CwdChanged { terminal_id, cwd } => {
+                write!(f, "terminal #{terminal_id} cwd: {}", cwd.display())
+            }
+            TerminalEvent::CommandStarted {
+                terminal_id,
+                command,
+            } => {
+                write!(f, "terminal #{terminal_id} started: {command}")
+            }
+            TerminalEvent::CommandFinished {
+                terminal_id,
+                exit_code,
+            } => {
+                write!(f, "terminal #{terminal_id} exited: {exit_code}")
+            }
+            TerminalEvent::Exited { terminal_id, code } => {
+                write!(f, "terminal #{terminal_id} exited (code={code:?})")
+            }
+            TerminalEvent::LinkDetected {
+                terminal_id, url, ..
+            } => {
+                write!(f, "terminal #{terminal_id} link: {url}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for GitEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GitEvent::StatusRefreshed { statuses } => {
+                write!(f, "git status: {} files", statuses.len())
+            }
+            GitEvent::DiffHunksUpdated { uri, hunks } => {
+                write!(f, "git diff: {} ({} hunks)", uri, hunks.len())
+            }
+            GitEvent::BlameUpdated { uri, lines } => {
+                write!(f, "git blame: {} ({} lines)", uri, lines.len())
+            }
+            GitEvent::HeadChanged { branch, commit } => {
+                write!(
+                    f,
+                    "git HEAD: {} ({})",
+                    branch.as_deref().unwrap_or("detached"),
+                    commit
+                )
+            }
+            GitEvent::OperationCompleted { operation } => {
+                write!(f, "git {operation} completed")
+            }
+            GitEvent::OperationFailed { operation, error } => {
+                write!(f, "git {operation} failed: {error}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for VfsEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VfsEvent::FileCreated(p) => write!(f, "vfs created: {}", p.display()),
+            VfsEvent::FileModified(p) => write!(f, "vfs modified: {}", p.display()),
+            VfsEvent::FileDeleted(p) => write!(f, "vfs deleted: {}", p.display()),
+            VfsEvent::FileRenamed { from, to } => {
+                write!(f, "vfs renamed: {} -> {}", from.display(), to.display())
+            }
+            VfsEvent::WatchError(e) => write!(f, "vfs watch error: {e}"),
+        }
+    }
+}
+
+impl fmt::Display for ExtensionEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExtensionEvent::Loaded(id) => write!(f, "extension loaded: {id}"),
+            ExtensionEvent::LoadFailed { id, error } => {
+                write!(f, "extension load failed: {id}: {error}")
+            }
+            ExtensionEvent::CommandRegistered { id, command } => {
+                write!(f, "extension command: {id}/{command}")
+            }
+            ExtensionEvent::StatusBarUpdated { id, .. } => {
+                write!(f, "extension status bar: {id}")
+            }
+            ExtensionEvent::DiagnosticsPublished {
+                id,
+                uri,
+                diagnostics,
+            } => {
+                write!(
+                    f,
+                    "extension diagnostics: {id} {} ({} items)",
+                    uri,
+                    diagnostics.len()
+                )
+            }
+            ExtensionEvent::Crashed { id, error } => {
+                write!(f, "extension crashed: {id}: {error}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for EditorEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EditorEvent::Lsp(e) => e.fmt(f),
+            EditorEvent::Dap(e) => e.fmt(f),
+            EditorEvent::Terminal(e) => e.fmt(f),
+            EditorEvent::Git(e) => e.fmt(f),
+            EditorEvent::Vfs(e) => e.fmt(f),
+            EditorEvent::Extension(e) => e.fmt(f),
+        }
     }
 }

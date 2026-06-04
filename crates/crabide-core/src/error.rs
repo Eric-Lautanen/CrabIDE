@@ -21,8 +21,8 @@ pub enum crabideError {
     #[error("Buffer error: {0}")]
     Buffer(String),
 
-    #[error("Position out of bounds: line {line}, col {col}")]
-    PositionOutOfBounds { line: u32, col: u32 },
+    #[error("Position out of bounds: line {line}, character {character}")]
+    PositionOutOfBounds { line: u32, character: u32 },
 
     // ── LSP ────────────────────────────────────────────────────────────────
     #[error("LSP server error: {server}: {message}")]
@@ -113,5 +113,17 @@ impl From<String> for crabideError {
 impl From<&str> for crabideError {
     fn from(s: &str) -> Self {
         crabideError::Other(s.to_owned())
+    }
+}
+
+impl From<url::ParseError> for crabideError {
+    fn from(e: url::ParseError) -> Self {
+        crabideError::Other(e.to_string())
+    }
+}
+
+impl From<std::path::StripPrefixError> for crabideError {
+    fn from(e: std::path::StripPrefixError) -> Self {
+        crabideError::Other(e.to_string())
     }
 }
