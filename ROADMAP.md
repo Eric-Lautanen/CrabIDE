@@ -4,6 +4,8 @@ Build order follows dependency direction. Each phase builds on the phases before
 
 **Legend:** ✅ = done (verified), 🔶 = partial, ❌ = not started
 
+> **Audit date:** 2026-06-06. All statuses verified against actual source code. See git log for latest changes.
+
 ## Crate & Dependency Minimization
 
 Every external crate adds compile time, binary size, memory use, and supply-chain risk. Prioritize removing dependencies and consolidating crates wherever possible.
@@ -68,7 +70,7 @@ cargo fmt --all 2>&1
 
 ## Phase 1 — Foundation ✓
 
-### crabide-core — COMPLETE
+### crabide-core — COMPLETE ✅
 Core domain model, error hierarchy (24 variants), event bus (6 domains, 50+ variants), 3 core traits.
 
 **Tidy-up:**
@@ -78,7 +80,7 @@ Core domain model, error hierarchy (24 variants), event bus (6 domains, 50+ vari
 - [x] Add missing LSP shared types: `DocumentSymbol`, `SignatureHelp`, `FoldingRange`, `SelectionRange`, `InlineCompletion`
 - [x] Rename `PositionOutOfBounds.col` `character` for consistency
 
-### crabide-config — COMPLETE
+### crabide-config — PARTIAL 🔶
 TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), VS Code theme parser, 2 built-in themes, ConfigManager with file watcher.
 
 **Gaps:**
@@ -89,7 +91,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 - [ ] Add action registry API for extensions to register custom actions
 - [ ] Add `keybindings.json` (VS Code format) import compatibility
 
-### crabide-vfs — DONE
+### crabide-vfs — COMPLETE ✅
 `LocalVfs` with full `VirtualFileSystem` impl, debounced `VfsWatcher`, URI↔path helpers.
 
 **Gaps:**
@@ -98,7 +100,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 - [x] Add MemoryVfs for testing
 - [x] Add read-only VFS wrapper
 
-### crabide-buffer — COMPLETE
+### crabide-buffer — COMPLETE ✅
 `Document` (ropey, BOM, line endings), `EditHistory` (500-entry, groups, checkpoints, undo/redo), `CursorSet` (multi-cursor, sorted, dedup), `SnippetEngine` (full VS Code syntax parser).
 
 **Gaps:**
@@ -110,15 +112,15 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 
 ---
 
-## Phase 2 — Syntax Highlighting ✓
+## Phase 2 — Syntax Highlighting ◐
 
-### crabide-syntax — COMPLETE
+### crabide-syntax — PARTIAL 🔶
 Grammar registry (static + dynamic loading), highlight queries for 10 languages, highlight engine, outline for 8 languages, folding range extraction, SyntaxEngine with per-doc cache.
 
 **Gaps:**
 - [x] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
-- [x] Implement indentation query runner (`GrammarEntry` stores `indents_query`, unused)
-- [x] Implement locals/scope-aware queries (`locals_query` stored, unused)
+- [x] Implement indentation query runner (`IndentEngine` + `SyntaxEngine::indents()` active)
+- [x] Implement locals/scope-aware queries (`LocalsEngine` + `SyntaxEngine::local_scopes()` active)
 - [ ] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
 - [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
 - [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
@@ -137,7 +139,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [ ] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
 - [x] Fix graceful shutdown: expose `LspTransport` from `LspClient` so `shutdown`/`exit` can actually be sent
 - [x] Remove `#[allow(dead_code)]` from stubs throughout the crate (violates project convention)
-- [x] Add serverclient request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
+- [x] Add server↔client request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
 - [x] Fix `format()` / `format_range()` they reuse `RenameReady` event variant; add dedicated `FormattingReady`
 - [x] Add request timeout or `request_with_timeout()` to transport
 
@@ -164,9 +166,9 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [ ] Add hover popup UI rendering
 - [ ] Add completion popup UI rendering
 - [ ] Add code actions popup UI rendering
-- [ ] Add `apply_workspace_edit()` helper in crabide-app
-- [ ] Add UI state fields for hover/completion/code_actions (hover_text, completion_items, completion_visible, code_actions, code_actions_visible)
-- [ ] Add inlay_hints/semantic_tokens/code_lens fields to EditorTab
+- [x] Add `apply_workspace_edit()` helper in crabide-app
+- [x] Add UI state fields for hover/completion/code_actions (hover_text, completion_items, completion_visible, code_actions, code_actions_visible)
+- [x] Add inlay_hints/semantic_tokens/code_lens fields to EditorTab
 
 ---
 
@@ -200,9 +202,9 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 
 ---
 
-## Phase 5 — Search ✓
+## Phase 5 — Search ◐
 
-### crabide-search — COMPLETE
+### crabide-search — PARTIAL 🔶
 Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 
 **Gaps:**
@@ -210,15 +212,15 @@ Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 - [ ] Add cancellation support for grep (AbortHandle)
 - [ ] Add incremental search (debounce + streaming results)
 - [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
-- [x] Remove dead `regex-lite` dependency
+- [ ] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
 - [x] Cache `nucleo::Matcher` instance across search calls
 - [ ] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
 
 ---
 
-## Phase 6 — Git ✓
+## Phase 6 — Git ◐
 
-### crabide-git — COMPLETE
+### crabide-git — PARTIAL 🔶
 Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 
 **Gaps:**
@@ -286,12 +288,15 @@ All DAP types defined, Content-Length transport complete, DapClient with launch/
 
 ---
 
-## Phase 9 — Extensions ✓
+## Phase 9 — Extensions ◐
 
-### crabide-extensions — COMPLETE
+### crabide-extensions — PARTIAL 🔶 (~60%)
 NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, hot-reload, WASM extension loader with full WIT binding.
 
-**Gaps (wasm_ext.rs stubs):**
+**WASM extension host (wasm_ext.rs):**
+- [x] WASM component loading, compilation, instantiation (wasmtime `CrabideExtension::load`)
+- [x] Host implementations for: diagnostics, status bar, terminal I/O, gutter markers, panel show/hide
+- [x] WIT bindgen integration with full crabide-extension.wit world
 - [ ] Implement `editor::Host::get_document_slice()` — enable cross-document access for WASM extensions
 - [ ] Implement `editor::Host::apply_edits()` — enable WASM extensions to modify documents
 - [ ] Implement `editor::Host::insert_at_cursor()` 
@@ -303,6 +308,8 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [ ] Implement `status_bar::Host::set_visible()`
 - [ ] Implement `terminal::Host::list_terminals()`
 - [ ] Implement `panels::Host::is_panel_visible()`
+
+**Registry & lifecycle:**
 - [ ] Implement registry download (actual ureq HTTP download with checksum verification)
 - [ ] Implement `ExtensionHost::install_registry()` — actual download + verify + install flow
 - [ ] Add capability enforcement (check `ExtensionCapabilities` before granting resource access)
@@ -316,7 +323,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 ### crabide-app — PARTIAL (~60%)
 
 **Remaining items:**
-- [ ] Real application icon replace 2x2 pixel placeholder in `assets/`
+- [ ] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
 - [x] CLI argument parsing (clap/structopt instead of manual `args().skip(1)`)
 - [x] `Ctrl+C` signal handler for graceful shutdown
 - [ ] Window state persistence (size, position, maximized state)
@@ -383,8 +390,9 @@ test: add integration test for SshVfs round-trip
 
 These aren't tied to any single phase:
 
-- [x] **Dead dependency cleanup**: Remove unused deps across all crates (`regex-lite` in search, `once_cell` in config, `tokio`/`rayon`/`thiserror`/`anyhow` in git, `crossbeam-channel`/`serde` in syntax, `uuid` in workspace)
-- [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (currently in LSP, DAP stubs)
+- [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
+- [ ] **Workspace-level dep cleanup**: `regex-lite` still declared in workspace `Cargo.toml` (line 72) but unused in any crate. `crossbeam-channel` still declared in `crabide-syntax/Cargo.toml` but unused in syntax source.
+- [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
 - [ ] **Unit test coverage**: No crate has any unit tests, integration tests, or doc tests — minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
