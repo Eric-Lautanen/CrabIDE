@@ -151,10 +151,10 @@ impl crabideApp {
         let terminal_manager = TerminalManager::new(event_tx.clone(), rt.clone());
 
         // Pre-open any files passed on the command line.
-    let mut extension_host = ExtensionHost::new();
-    let registry = RegistryClient::new();
-    let lsp_manager = LspServerManager::new(event_tx.clone());
-    let lsp_request_id = Arc::new(AtomicU32::new(1));
+        let mut extension_host = ExtensionHost::new();
+        let registry = RegistryClient::new();
+        let lsp_manager = LspServerManager::new(event_tx.clone());
+        let lsp_request_id = Arc::new(AtomicU32::new(1));
 
         // Set up extension directory and scan for user-installed extensions.
         {
@@ -923,96 +923,112 @@ impl crabideApp {
                     tab.diagnostics = diagnostics;
                 }
             }
-        LocationsReady {
-            request_id: _,
-            locations,
-        } => {
-            if let Some(loc) = locations.first() {
-                if let Some(path) = loc.uri.as_url().to_file_path().ok() {
-                    let line = loc.range.start.line as usize;
-                    if let Some(tab_idx) = self.ui_state.tabs.iter().position(|t| t.uri == loc.uri) {
-                        self.ui_state.tabs[tab_idx].cursors.set_single(Position::new(loc.range.start.line, loc.range.start.character));
-                        self.ui_state.pending_scroll_line = Some(line);
-                        self.ui_state.active_tab = Some(tab_idx);
-                    } else {
-                        self.open_path(path);
-                        if let Some(idx) = self.ui_state.active_tab {
-                            self.ui_state.tabs[idx].cursors.set_single(Position::new(loc.range.start.line, loc.range.start.character));
+            LocationsReady {
+                request_id: _,
+                locations,
+            } => {
+                if let Some(loc) = locations.first() {
+                    if let Ok(path) = loc.uri.as_url().to_file_path() {
+                        let line = loc.range.start.line as usize;
+                        if let Some(tab_idx) =
+                            self.ui_state.tabs.iter().position(|t| t.uri == loc.uri)
+                        {
+                            self.ui_state.tabs[tab_idx]
+                                .cursors
+                                .set_single(Position::new(
+                                    loc.range.start.line,
+                                    loc.range.start.character,
+                                ));
                             self.ui_state.pending_scroll_line = Some(line);
+                            self.ui_state.active_tab = Some(tab_idx);
+                        } else {
+                            self.open_path(path);
+                            if let Some(idx) = self.ui_state.active_tab {
+                                self.ui_state.tabs[idx].cursors.set_single(Position::new(
+                                    loc.range.start.line,
+                                    loc.range.start.character,
+                                ));
+                                self.ui_state.pending_scroll_line = Some(line);
+                            }
                         }
                     }
+                    if locations.len() > 1 {
+                        self.ui_state.set_status(format!(
+                            "Found {} locations (showing first)",
+                            locations.len()
+                        ));
+                    }
+                } else {
+                    self.ui_state.set_status("No locations found");
                 }
-                if locations.len() > 1 {
-                    self.ui_state.set_status(format!("Found {} locations (showing first)", locations.len()));
+            }
+            HoverReady {
+                request_id: _,
+                contents,
+                range: _,
+            } => {
+                if let Some(text) = contents {
+                    self.ui_state.hover_text = Some(text);
+                } else {
+                    self.ui_state.set_status("No hover information available");
                 }
-            } else {
-                self.ui_state.set_status("No locations found");
             }
-        }
-        HoverReady {
-            request_id: _,
-            contents,
-            range: _,
-        } => {
-            if let Some(text) = contents {
-                self.ui_state.hover_text = Some(text);
-            } else {
-                self.ui_state.set_status("No hover information available");
+            CompletionReady {
+                request_id: _,
+                items,
+                is_incomplete: _,
+            } => {
+                if !items.is_empty() {
+                    self.ui_state.completion_items = items;
+                    self.ui_state.completion_visible = true;
+                }
             }
-        }
-        CompletionReady {
-            request_id: _,
-            items,
-            is_incomplete: _,
-        } => {
-            if !items.is_empty() {
-                self.ui_state.completion_items = items;
-                self.ui_state.completion_visible = true;
+            FormattingReady {
+                request_id: _,
+                workspace_edit,
+            } => {
+                self.apply_workspace_edit(workspace_edit);
+                self.ui_state.set_status("Document formatted");
             }
-        }
-        FormattingReady {
-            request_id: _,
-            workspace_edit,
-        } => {
-            self.apply_workspace_edit(workspace_edit);
-            self.ui_state.set_status("Document formatted");
-        }
-        RenameReady {
-            request_id: _,
-            workspace_edit,
-        } => {
-            self.apply_workspace_edit(workspace_edit);
-            self.ui_state.set_status("Rename applied");
-        }
-        CodeActionsReady {
-            request_id: _,
-            actions,
-        } => {
-            if actions.is_empty() {
-                self.ui_state.set_status("No code actions available");
-            } else {
-                self.ui_state.code_actions = actions;
-                self.ui_state.code_actions_visible = true;
+            RenameReady {
+                request_id: _,
+                workspace_edit,
+            } => {
+                self.apply_workspace_edit(workspace_edit);
+                self.ui_state.set_status("Rename applied");
             }
-        }
-        LogMessage { language: _, message } => {
-            log::debug!("LSP log: {message}");
-        }
-        InlayHintsUpdated { uri, hints } => {
-            if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                tab.inlay_hints = hints;
+            CodeActionsReady {
+                request_id: _,
+                actions,
+            } => {
+                if actions.is_empty() {
+                    self.ui_state.set_status("No code actions available");
+                } else {
+                    self.ui_state.code_actions = actions;
+                    self.ui_state.code_actions_visible = true;
+                }
             }
-        }
-        SemanticTokensUpdated { uri, tokens } => {
-            if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                tab.semantic_tokens = tokens;
+            LogMessage {
+                language: _,
+                message,
+            } => {
+                log::debug!("LSP log: {message}");
             }
-        }
-        CodeLensUpdated { uri, items } => {
-            if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                tab.code_lens = items;
+            InlayHintsUpdated { uri, hints } => {
+                if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
+                    tab.inlay_hints = hints;
+                }
             }
-        }
+            SemanticTokensUpdated { uri, tokens } => {
+                if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
+                    tab.semantic_tokens = tokens;
+                }
+            }
+            CodeLensUpdated { uri, items } => {
+                if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
+                    tab.code_lens = items;
+                }
+            }
         }
     }
 
@@ -1734,48 +1750,50 @@ impl crabideApp {
                 self.ui_state.set_status("Split editor — Phase 5 layout");
             }
 
-        // ── LSP navigation ────────────────────────────────────────────────
-        Action::GotoDefinition => {
-            self.lsp_goto("textDocument/definition");
-        }
-        Action::GotoReferences => {
-            self.lsp_goto("textDocument/references");
-        }
-        Action::GotoImplementation => {
-            self.lsp_goto("textDocument/implementation");
-        }
-        Action::GotoDeclaration => {
-            self.lsp_goto("textDocument/declaration");
-        }
-        Action::GotoTypeDefinition => {
-            self.lsp_goto("textDocument/typeDefinition");
-        }
+            // ── LSP navigation ────────────────────────────────────────────────
+            Action::GotoDefinition => {
+                self.lsp_goto("textDocument/definition");
+            }
+            Action::GotoReferences => {
+                self.lsp_goto("textDocument/references");
+            }
+            Action::GotoImplementation => {
+                self.lsp_goto("textDocument/implementation");
+            }
+            Action::GotoDeclaration => {
+                self.lsp_goto("textDocument/declaration");
+            }
+            Action::GotoTypeDefinition => {
+                self.lsp_goto("textDocument/typeDefinition");
+            }
 
-        Action::FormatDocument => {
-            self.lsp_format(false);
-        }
-        Action::FormatSelection => {
-            self.lsp_format(true);
-        }
-        Action::OrganizeImports => {
-            self.ui_state.set_status("Organize imports — not yet supported by LSP server");
-        }
+            Action::FormatDocument => {
+                self.lsp_format(false);
+            }
+            Action::FormatSelection => {
+                self.lsp_format(true);
+            }
+            Action::OrganizeImports => {
+                self.ui_state
+                    .set_status("Organize imports — not yet supported by LSP server");
+            }
 
-        Action::RenameSymbol => {
-            self.lsp_rename();
-        }
-        Action::ShowHover => {
-            self.lsp_hover();
-        }
-        Action::TriggerCompletion => {
-            self.lsp_complete();
-        }
-        Action::ShowSignatureHelp => {
-            self.ui_state.set_status("Signature help — not yet implemented");
-        }
-        Action::ApplyCodeAction => {
-            self.lsp_code_actions();
-        }
+            Action::RenameSymbol => {
+                self.lsp_rename();
+            }
+            Action::ShowHover => {
+                self.lsp_hover();
+            }
+            Action::TriggerCompletion => {
+                self.lsp_complete();
+            }
+            Action::ShowSignatureHelp => {
+                self.ui_state
+                    .set_status("Signature help — not yet implemented");
+            }
+            Action::ApplyCodeAction => {
+                self.lsp_code_actions();
+            }
 
             // ── Debug ─────────────────────────────────────────────────────────
             Action::ToggleDebug => {
@@ -2929,6 +2947,196 @@ impl crabideApp {
     pub fn set_shutdown_flag(&mut self, flag: Arc<std::sync::atomic::AtomicBool>) {
         self.shutdown_flag = Some(flag);
     }
+
+    // ── LSP helpers ─────────────────────────────────────────────────────────
+
+    /// Get the language of the active tab, if any.
+    fn active_language(&self) -> Option<Language> {
+        self.ui_state
+            .active_tab
+            .and_then(|i| self.ui_state.tabs.get(i))
+            .map(|t| t.language.clone())
+    }
+
+    /// Get the URI and cursor position of the active tab.
+    fn active_uri_and_position(&self) -> Option<(DocumentUri, Position)> {
+        self.ui_state.active_tab.and_then(|i| {
+            let tab = self.ui_state.tabs.get(i)?;
+            Some((tab.uri.clone(), tab.cursors.primary().pos()))
+        })
+    }
+
+    /// Dispatch a go-to LSP request (definition, references, implementation, etc.).
+    fn lsp_goto(&mut self, method: &'static str) {
+        let Some((uri, pos)) = self.active_uri_and_position() else {
+            self.ui_state.set_status("No active document");
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            self.ui_state.set_status("Unknown language");
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        match method {
+            "textDocument/definition" => client.go_to_definition(uri, pos, req_id),
+            "textDocument/references" => client.references(uri, pos, req_id),
+            "textDocument/implementation" => client.implementation(uri, pos, req_id),
+            "textDocument/typeDefinition" => client.type_definition(uri, pos, req_id),
+            "textDocument/declaration" => client.declaration(uri, pos, req_id),
+            _ => {
+                self.ui_state
+                    .set_status(format!("Unknown LSP method: {method}"));
+                return;
+            }
+        }
+        self.ui_state.set_status(format!("Requesting {method}…"));
+    }
+
+    /// Request document formatting from the LSP server.
+    fn lsp_format(&mut self, _selection_only: bool) {
+        let Some((uri, _)) = self.active_uri_and_position() else {
+            self.ui_state.set_status("No active document");
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            self.ui_state.set_status("Unknown language");
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        let tab_size = self.config.settings().editor.tab_size;
+        let insert_spaces = self.config.settings().editor.insert_spaces;
+        client.format(uri, tab_size, insert_spaces, req_id);
+        self.ui_state.set_status("Formatting document…");
+    }
+
+    /// Request hover information from the LSP server.
+    fn lsp_hover(&mut self) {
+        let Some((uri, pos)) = self.active_uri_and_position() else {
+            self.ui_state.set_status("No active document");
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            self.ui_state.set_status("Unknown language");
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        client.hover(uri, pos, req_id);
+        self.ui_state.set_status("Requesting hover…");
+    }
+
+    /// Request completion from the LSP server.
+    fn lsp_complete(&self) {
+        let Some((uri, pos)) = self.active_uri_and_position() else {
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        client.complete(uri, pos, req_id);
+    }
+
+    /// Request code actions from the LSP server.
+    fn lsp_code_actions(&mut self) {
+        let Some(idx) = self.ui_state.active_tab else {
+            return;
+        };
+        let tab = &self.ui_state.tabs[idx];
+        let uri = tab.uri.clone();
+        let pos = tab.cursors.primary().pos();
+        let lang = tab.language.clone();
+        let range = if tab.cursors.primary().has_selection() {
+            tab.cursors.primary().range()
+        } else {
+            Range::new(pos, pos)
+        };
+        let diagnostics = tab.diagnostics.clone();
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        client.code_actions(uri, range, diagnostics, req_id);
+        self.ui_state.set_status("Requesting code actions…");
+    }
+
+    /// Request rename from the LSP server.
+    fn lsp_rename(&mut self) {
+        let Some((uri, pos)) = self.active_uri_and_position() else {
+            self.ui_state.set_status("No active document");
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            self.ui_state.set_status("Unknown language");
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let new_name = self
+            .ui_state
+            .active_tab
+            .map(|i| word_at_cursor(&self.ui_state.tabs[i]))
+            .unwrap_or_default();
+        if new_name.is_empty() {
+            self.ui_state.set_status("No symbol under cursor");
+            return;
+        }
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        client.rename(uri, pos, new_name, req_id);
+        self.ui_state.set_status("Requesting rename…");
+    }
+
+    /// Apply a workspace edit (from formatting, rename, or code action).
+    fn apply_workspace_edit(&mut self, edit: crabide_core::event::WorkspaceEdit) {
+        for doc_edit in edit.document_changes {
+            let Some(id) = self.workspace.get_buffer_id(&doc_edit.uri) else {
+                log::warn!("apply_workspace_edit: no buffer for {}", doc_edit.uri);
+                continue;
+            };
+            for te in &doc_edit.edits {
+                if let Err(e) = self
+                    .workspace
+                    .apply_edit(id, te.clone(), "lsp-workspace-edit")
+                {
+                    log::warn!("apply_workspace_edit: {e}");
+                }
+            }
+            self.sync_tab_after_edit(&doc_edit.uri);
+        }
+    }
+
+    /// Re-sync a tab's lines snapshot after an edit was applied to the workspace.
+    fn sync_tab_after_edit(&mut self, uri: &DocumentUri) {
+        if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, uri) {
+            let id = tab.buffer_id;
+            if let Ok(lines) = self.workspace.get_lines(id) {
+                tab.lines = lines;
+                tab.is_dirty = self.workspace.is_dirty(id);
+            }
+        }
+    }
 }
 
 // eframe::App
@@ -2978,166 +3186,6 @@ impl eframe::App for crabideApp {
         if !self.event_rx.is_empty() {
             ctx.request_repaint();
         }
-    }
-
-    // ── LSP helpers ─────────────────────────────────────────────────────────
-
-    /// Get the language of the active tab, if any.
-    fn active_language(&self) -> Option<Language> {
-        self.ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
-            .map(|t| t.language.clone())
-    }
-
-    /// Get the URI and cursor position of the active tab.
-    fn active_uri_and_position(&self) -> Option<(DocumentUri, Position)> {
-        self.ui_state.active_tab.and_then(|i| {
-            let tab = self.ui_state.tabs.get(i)?;
-            Some((tab.uri.clone(), tab.cursors.primary().pos()))
-        })
-    }
-
-    /// Dispatch a go-to LSP request (definition, references, implementation, etc.).
-    fn lsp_goto(&self, method: &'static str) {
-        let Some((uri, pos)) = self.active_uri_and_position() else {
-            self.ui_state.set_status("No active document");
-            return;
-        };
-        let Some(lang) = self.active_language() else {
-            self.ui_state.set_status("Unknown language");
-            return;
-        };
-        let Some(client) = self.lsp_manager.get_client(&lang) else {
-            self.ui_state
-                .set_status(format!("No language server running for {lang}"));
-            return;
-        };
-        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        match method {
-            "textDocument/definition" => client.go_to_definition(uri, pos, req_id),
-            "textDocument/references" => client.references(uri, pos, req_id),
-            "textDocument/implementation" => client.implementation(uri, pos, req_id),
-            "textDocument/typeDefinition" => client.type_definition(uri, pos, req_id),
-            "textDocument/declaration" => client.declaration(uri, pos, req_id),
-            _ => {
-                self.ui_state.set_status(format!("Unknown LSP method: {method}"));
-                return;
-            }
-        }
-        self.ui_state.set_status(format!("Requesting {method}…"));
-    }
-
-    /// Request document formatting from the LSP server.
-    fn lsp_format(&self, _selection_only: bool) {
-        let Some((uri, _)) = self.active_uri_and_position() else {
-            self.ui_state.set_status("No active document");
-            return;
-        };
-        let Some(lang) = self.active_language() else {
-            self.ui_state.set_status("Unknown language");
-            return;
-        };
-        let Some(client) = self.lsp_manager.get_client(&lang) else {
-            self.ui_state
-                .set_status(format!("No language server running for {lang}"));
-            return;
-        };
-        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        let tab_size = self.config.settings().editor.tab_size as u32;
-        let insert_spaces = self.config.settings().editor.insert_spaces;
-        client.format(uri, tab_size, insert_spaces, req_id);
-        self.ui_state.set_status("Formatting document…");
-    }
-
-    /// Request hover information from the LSP server.
-    fn lsp_hover(&self) {
-        let Some((uri, pos)) = self.active_uri_and_position() else {
-            self.ui_state.set_status("No active document");
-            return;
-        };
-        let Some(lang) = self.active_language() else {
-            self.ui_state.set_status("Unknown language");
-            return;
-        };
-        let Some(client) = self.lsp_manager.get_client(&lang) else {
-            self.ui_state
-                .set_status(format!("No language server running for {lang}"));
-            return;
-        };
-        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        client.hover(uri, pos, req_id);
-        self.ui_state.set_status("Requesting hover…");
-    }
-
-    /// Request completion from the LSP server.
-    fn lsp_complete(&self) {
-        let Some((uri, pos)) = self.active_uri_and_position() else {
-            return;
-        };
-        let Some(lang) = self.active_language() else {
-            return;
-        };
-        let Some(client) = self.lsp_manager.get_client(&lang) else {
-            return;
-        };
-        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        client.complete(uri, pos, req_id);
-    }
-
-    /// Request code actions from the LSP server.
-    fn lsp_code_actions(&self) {
-        let Some(idx) = self.ui_state.active_tab else {
-            return;
-        };
-        let tab = &self.ui_state.tabs[idx];
-        let uri = tab.uri.clone();
-        let pos = tab.cursors.primary().pos();
-        let lang = tab.language.clone();
-        let range = if tab.cursors.primary().has_selection() {
-            tab.cursors.primary().range()
-        } else {
-            Range::new(pos, pos)
-        };
-        let diagnostics = tab.diagnostics.clone();
-        let Some(client) = self.lsp_manager.get_client(&lang) else {
-            self.ui_state
-                .set_status(format!("No language server running for {lang}"));
-            return;
-        };
-        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        client.code_actions(uri, range, diagnostics, req_id);
-        self.ui_state.set_status("Requesting code actions…");
-    }
-
-    /// Request rename from the LSP server.
-    fn lsp_rename(&self) {
-        let Some((uri, pos)) = self.active_uri_and_position() else {
-            self.ui_state.set_status("No active document");
-            return;
-        };
-        let Some(lang) = self.active_language() else {
-            self.ui_state.set_status("Unknown language");
-            return;
-        };
-        let Some(client) = self.lsp_manager.get_client(&lang) else {
-            self.ui_state
-                .set_status(format!("No language server running for {lang}"));
-            return;
-        };
-        // Use the word at cursor as the default new name.
-        let new_name = self
-            .ui_state
-            .active_tab
-            .and_then(|i| word_at_cursor(&self.ui_state.tabs[i]))
-            .unwrap_or_default();
-        if new_name.is_empty() {
-            self.ui_state.set_status("No symbol under cursor");
-            return;
-        }
-        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        client.rename(uri, pos, new_name, req_id);
-        self.ui_state.set_status("Requesting rename…");
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

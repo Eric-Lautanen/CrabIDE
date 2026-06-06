@@ -361,6 +361,12 @@ pub struct EditorTab {
     pub last_click_pos: Option<Position>,
     /// Consecutive click count at the same position (1 = single, 2 = double, 3+ = triple).
     pub click_count: u32,
+    /// LSP inlay hints (parameter names, type hints) rendered inline.
+    pub inlay_hints: Vec<crabide_core::event::InlayHint>,
+    /// LSP semantic tokens for syntax highlighting.
+    pub semantic_tokens: Vec<crabide_core::event::SemanticToken>,
+    /// LSP code lens items (clickable links above functions).
+    pub code_lens: Vec<crabide_core::event::CodeLens>,
 }
 
 impl EditorTab {
@@ -386,6 +392,9 @@ impl EditorTab {
             last_click_time: 0.0,
             last_click_pos: None,
             click_count: 0,
+            inlay_hints: Vec::new(),
+            semantic_tokens: Vec::new(),
+            code_lens: Vec::new(),
         }
     }
 
@@ -892,6 +901,18 @@ pub struct UiState {
     // ── Extension context-menu contributions ──────────────────────────────────
     /// Context-menu items contributed by extensions (refreshed each frame).
     pub registered_context_menus: Vec<ContextMenuContribution>,
+
+    // ── LSP hover / completion / code action state ────────────────────────────
+    /// Text content of the hover popup (set by LSP HoverReady).
+    pub hover_text: Option<String>,
+    /// Completion items from the LSP server (set by CompletionReady).
+    pub completion_items: Vec<crabide_core::event::CompletionItem>,
+    /// Whether the completion popup is visible.
+    pub completion_visible: bool,
+    /// Code actions from the LSP server (set by CodeActionsReady).
+    pub code_actions: Vec<crabide_core::event::CodeAction>,
+    /// Whether the code actions popup is visible.
+    pub code_actions_visible: bool,
 }
 
 impl UiState {
@@ -931,6 +952,11 @@ impl UiState {
             registered_ext_commands: Vec::new(),
             sidebar_panes: IndexMap::new(),
             registered_context_menus: Vec::new(),
+            hover_text: None,
+            completion_items: Vec::new(),
+            completion_visible: false,
+            code_actions: Vec::new(),
+            code_actions_visible: false,
         }
     }
 
