@@ -209,6 +209,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     // inside the scroll closure.
     let bracket_match = tab.bracket_match;
     let active_tabstop = tab.active_tabstop();
+    let inlay_hints: Vec<crabide_core::event::InlayHint> = tab.inlay_hints.clone();
     let find_matches: Vec<crabide_core::types::Range> = state.find_replace.match_ranges.clone();
     let current_match = state.find_replace.current_match_idx;
 
@@ -395,6 +396,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                             .selectable(false),
                     );
 
+                    // ── Inlay hints (rendered inline after text) ────────────────────────
+                    paint_inlay_hints_on_line(ui, &inlay_hints, lrc, &state.theme);
+
                     // ── Carets (on top of text) ────────────────────────────────────────────
                     if caret_visible {
                         for cursor in tab.cursors.all() {
@@ -576,6 +580,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                     );
 
                     // ── Diagnostic squiggly underlines (below text, above carets) ─────────
+                    paint_diagnostic_underlines(ui, &tab.diagnostics, lrc);
+
+                    // ── Inlay hints (rendered inline after text) ────────────────────────
+                    paint_inlay_hints_on_line(ui, &inlay_hints, lrc, &state.theme);
                     paint_diagnostic_underlines(ui, &tab.diagnostics, lrc);
 
                     // ── Carets (on top of text) ────────────────────────────────────────────
@@ -1140,6 +1148,84 @@ fn paint_bracket_on_line(
         egui::Stroke::new(1.0, border_color),
         egui::StrokeKind::Middle,
     );
+}
+
+/// Paint inlay hints on a line. Inlay hints are rendered as small, muted text
+/// at the hint's position. Type hints appear after the expression with a
+/// leading `:`; parameter hints appear before the argument with a trailing `:`.
+fn paint_inlay_hints_on_line(
+    ui: &mut egui::Ui,
+    hints: &[crabide_core::event::InlayHint],
+    ctx: LineRenderCtx<'_>,
+    theme: &crabide_config::ColorTheme,
+) {
+    let LineRenderCtx {
+        line_idx,
+        text_left_x,
+        row_top,
+        line_height,
+        char_width,
+        ..
+    } = ctx;
+    let line = line_idx as u32;
+
+    let type_fg = cfg_to_egui(theme.ui_or(
+        "editorInlayHint.foreground",
+        crabide_config::Color::rgb(0x96, 0x96, 0x96),
+    ));
+    let param_fg = cfg_to_egui(theme.ui_or(
+        "editorInlayHint.foreground",
+        crabide_config::Color::rgb(0x96, 0x96, 0x96),
+    ));
+    let bg = cfg_to_egui(theme.ui_or(
+        "editorInlayHint.background",
+        crabide_config::Color::rgba(0x40, 0x40, 0x40, 0x80),
+    ));
+
+    let font_id = egui::FontId::monospace(11.0);
+
+    for hint in hints {
+        if hint.position.line != line {
+            continue;
+        }
+
+        let label = match hint.kind {
+            Some(crabide_core::event::InlayHintKind::Type) => {
+                format!(": {}", hint.label)
+            }
+            Some(crabide_core::event::InlayHintKind::Parameter) => {
+                format!("{}:", hint.label)
+            }
+            None => hint.label.clone(),
+        };
+
+        let fg = match hint.kind {
+            Some(crabide_core::event::InlayHintKind::Type) => type_fg,
+            Some(crabide_core::event::InlayHintKind::Parameter) => param_fg,
+            None => type_fg,
+        };
+
+        let col = hint.position.character;
+        let x = text_left_x + col as f32 * char_width;
+        let galley = ui.fonts_mut(|f| f.layout(label.clone(), font_id.clone(), fg, f32::INFINITY));
+        let galley_w = galley.size().x;
+        let galley_h = galley.size().y;
+
+        // Background pill behind the hint text.
+        let pad = 2.0;
+        let pill_rect = egui::Rect::from_min_size(
+            egui::pos2(x - pad, row_top + (line_height - galley_h) / 2.0 - 1.0),
+            egui::vec2(galley_w + pad * 2.0, galley_h + 2.0),
+        );
+        ui.painter().rect_filled(pill_rect, 3.0, bg);
+
+        // Hint text.
+        ui.painter().galley(
+            egui::pos2(x, row_top + (line_height - galley_h) / 2.0),
+            galley,
+            fg,
+        );
+    }
 }
 
 // ── Syntax-highlighted line builder ──────────────────────────────────────────
