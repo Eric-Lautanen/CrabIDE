@@ -1,32 +1,32 @@
-# RESUME — Session 3
+# RESUME — Session 4
 
 ## What was done
 
-### Action Registry API (crabide-config)
-- Added `ActionRegistry` struct to `crabide-config/src/keybindings.rs` with `register()`, `unregister()`, `has()`, `iter_custom()`, `len()`, `is_empty()` methods.
-- Added `all_actions_with(&ActionRegistry)` function that merges built-in actions with registered custom actions.
-- Added `action_registry` field to `ConfigManager` / `ConfigInner` with `action_registry()` and `with_action_registry()` accessor methods.
-- Exported `ActionRegistry` and `all_actions_with` from `crabide-config` crate.
+### Unit tests for crabide-config keybindings
+- Added 89 unit tests covering:
+  - `ActionRegistry` (register, unregister, has, iter_custom, len, is_empty, overwrite, default)
+  - `parse_chord` (simple keys, modifiers, function keys, special keys, numpad, unknown keys, alternate modifier names, mixed case, empty input error handling)
+  - `KeyChord::Display` (no modifiers, all modifiers, mixed modifiers, special keys)
+  - `Key::Display` (all variants)
+  - `Key::eq` / `KeyChord::eq`
+  - `Modifiers` bitflags
+  - `WhenCondition::evaluate` (True, False, Not, And, Or, boolean keys, KeyEquals, KeyNotEquals)
+  - `WhenCondition::parse` (boolean, negation, string equality/inequality, AND, OR, parenthesized, empty, whitespace, double quotes, complex expressions)
+  - `WhenContext` (new, set/get bool, set/get str, remove, merge, default)
+  - `all_actions` / `all_actions_with` (empty registry, custom actions, no override of built-in, order preservation, spot-check key categories)
+  - `KeybindingEngine` (with_defaults, press single chord, press with context, no match, two-chord sequence, cancel pending, bind, bind_ext, press_legacy, chords_for_action, load_toml with/without when, malformed TOML, invalid chords skipped, bindings list, fall-through behavior, pending chord timeout, duplicate binding)
 
-### Command Palette (crabide-ui)
-- Replaced `registered_ext_commands: Vec<(String, String)>` in `UiState` with `action_registry: ActionRegistry`.
-- Updated `palette::show()` to take `&ActionRegistry` instead of `&[(String,String)]`.
-- Palette now uses `all_actions_with(registry)` which returns a unified list of built-in + custom actions.
+### Fixed
+- Added `PartialEq` derive to `WhenCondition` to enable test assertions
+- Fixed `parse_chord` to reject empty/whitespace-only input with a proper error
 
-### App Wiring (crabide-app)
-- Extension commands are now registered through `ActionRegistry` via `ConfigManager::with_action_registry()`.
-- The registry is cloned into `UiState` each frame for the palette to use.
-
-### Roadmap
-- Marked "Add action registry API for extensions to register custom actions" as completed.
-
-## Commits
+### Commits
 ```
-84ec6ac feat: add ActionRegistry API for extensions to register custom actions
+b5fd42e test: add 89 unit tests to crabide-config keybindings module
 ```
 
 ## Next recommended priorities
-1. **Add unit tests to more crates** (crabide-config, crabide-search, crabide-vfs, crabide-lsp, etc.)
+1. **Add unit tests to more crates** (crabide-search, crabide-vfs, crabide-lsp, crabide-terminal, etc.)
 2. **Add incremental search support** (debounce + streaming results) in crabide-search
 3. **Add Go-to-symbol** (Ctrl+Shift+O) using crabide-syntax outline
 4. **Wire `SnippetEngine` tabstop UI** in crabide-ui (active tabstop highlight, Tab/Shift+Tab cycling)
@@ -34,4 +34,4 @@
 6. **Add code folding gutter UI** in crabide-ui
 
 ## Context usage
-~10% of 1M tokens consumed. Room to continue.
+~6% of 1M tokens consumed. Room to continue.

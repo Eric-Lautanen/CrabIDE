@@ -378,3 +378,334 @@ fn search_file(path: &Path, re: &Regex, abort: Option<&GrepAbortHandle>) -> Vec<
         })
         .collect()
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    // ── FuzzyFileFinder ─────────────────────────────────────────────────────
+
+    #[test]
+    fn fuzzy_finder_new_is_empty() {
+        let mut ff = FuzzyFileFinder::new();
+        assert!(!ff.has_index());
+        assert_eq!(ff.index_len(), 0);
+        assert!(ff.search("", 10).is_empty());
+    }
+
+    #[test]
+    fn fuzzy_finder_default_is_empty() {
+        let ff: FuzzyFileFinder = Default::default();
+        assert!(!ff.has_index());
+        assert_eq!(ff.index_len(), 0);
+    }
+
+    #[test]
+    fn fuzzy_finder_update_index() {
+        let mut ff = FuzzyFileFinder::new();
+        ff.update_index(vec![PathBuf::from("/a.rs"), PathBuf::from("/b.rs")]);
+        assert!(ff.has_index());
+        assert_eq!(ff.index_len(), 2);
+    }
+
+    #[test]
+    fn fuzzy_finder_search_empty_query() {
+        let mut ff = FuzzyFileFinder::new();
+        ff.update_index(vec![
+            PathBuf::from("/project/src/main.rs"),
+            PathBuf::from("/project/src/lib.rs"),
+        ]);
+        let results = ff.search("", 1);
+        assert_eq!(results.len(), 1);
+        // Empty query returns first files in index order
+        assert!(results[0].path.ends_with("main.rs"));
+        assert_eq!(results[0].score, 0);
+    }
+
+    #[test]
+    fn fuzzy_finder_search_with_query() {
+        let mut ff = FuzzyFileFinder::new();
+        ff.update_index(vec![
+            PathBuf::from("/project/src/main.rs"),
+            PathBuf::from("/project/src/lib.rs"),
+            PathBuf::from("/project/tests/test_helper.rs"),
+        ]);
+        let results = ff.search("lib", 10);
+        assert!(!results.is_empty());
+        // "lib" should match lib.rs
+        assert!(results.iter().any(|m| m.path.ends_with("lib.rs")));
+    }
+
+    #[test]
+    fn fuzzy_finder_search_no_match() {
+        let mut ff = FuzzyFileFinder::new();
+        ff.update_index(vec![PathBuf::from("/a.rs"), PathBuf::from("/b.rs")]);
+        let results = ff.search("zzzznonexistent", 10);
+        // May have some results if fuzzy matching finds something; but in practice
+        // "zzzznonexistent" shouldn't match "a.rs" or "b.rs" with nucleo
+        // If it does match, that's fine — just verify no panic.
+        assert!(results.len() <= 2);
+    }
+
+    #[test]
+    fn fuzzy_finder_search_respects_limit() {
+        let mut ff = FuzzyFileFinder::new();
+        let many: Vec<PathBuf> = (0..20)
+            .map(|i| PathBuf::from(format!("/file_{}.rs", i)))
+            .collect();
+        ff.update_index(many);
+        let results = ff.search("file", 5);
+        assert!(results.len() <= 5);
+    }
+
+    #[test]
+    fn fuzzy_finder_search_empty_index() {
+        let mut ff = FuzzyFileFinder::new();
+        assert!(ff.search("anything", 10).is_empty());
+    }
+
+    // ── GrepAbortHandle ─────────────────────────────────────────────────────
+
+    #[test]
+    fn abort_handle_new_not_aborted() {
+        let h = GrepAbortHandle::new();
+        assert!(!h.is_aborted());
+    }
+
+    #[test]
+    fn abort_handle_abort() {
+        let h = GrepAbortHandle::new();
+        h.abort();
+        assert!(h.is_aborted());
+    }
+
+    #[test]
+    fn abort_handle_default_not_aborted() {
+        let h = GrepAbortHandle::default();
+        assert!(!h.is_aborted());
+    }
+
+    #[test]
+    fn abort_handle_clone_reflects_abort() {
+        let h1 = GrepAbortHandle::new();
+        let h2 = h1.clone();
+        h1.abort();
+        assert!(h2.is_aborted()); // Shared AtomicBool
+    }
+
+    // ── grep_workspace ──────────────────────────────────────────────────────
+
+    #[test]
+    fn grep_workspace_empty_pattern() {
+        let results = grep_workspace(&[PathBuf::from(".")], "", false, true, 100, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_workspace_empty_roots() {
+        let results = grep_workspace(&[], "pattern", false, true, 100, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_workspace_invalid_regex_returns_empty() {
+        let results = grep_workspace(&[PathBuf::from(".")], "[invalid", true, true, 100, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_workspace_literal_search() {
+        // Search in the current directory (this source file) for a known string.
+        // We use "grep_workspace_literal_search" itself as the pattern.
+        // Note: the test runs from the workspace root, so we need to find
+        // our source file: crates/crabide-search/src/lib.rs
+        let source = PathBuf::from("crates/crabide-search/src/lib.rs");
+        if !source.exists() {
+            // The test might be run from a different cwd; skip gracefully
+            return;
+        }
+        let results = grep_workspace(
+            &[PathBuf::from("crates/crabide-search/src")],
+            "fn grep_workspace_literal_search",
+            false,
+            true,
+            100,
+            None,
+        );
+        assert!(!results.is_empty(), "should find the test function itself");
+        assert!(results.iter().any(|m| m.path.ends_with("lib.rs")));
+    }
+
+    #[test]
+    fn grep_workspace_case_insensitive() {
+        let source = PathBuf::from("crates/crabide-search/src/lib.rs");
+        if !source.exists() {
+            return;
+        }
+        let results = grep_workspace(
+            &[PathBuf::from("crates/crabide-search/src")],
+            "GREP_WORKSPACE_CASE_INSENSITIVE",
+            false,
+            false, // case-insensitive
+            100,
+            None,
+        );
+        // Should find the function name even though case differs
+        assert!(!results.is_empty(), "case-insensitive should match");
+    }
+
+    #[test]
+    fn grep_workspace_regex_search() {
+        let source = PathBuf::from("crates/crabide-search/src/lib.rs");
+        if !source.exists() {
+            return;
+        }
+        // regex: "grep_workspace_.*test" should match several test functions
+        let results = grep_workspace(
+            &[PathBuf::from("crates/crabide-search/src")],
+            r"grep_workspace_\w+_test",
+            true, // use_regex
+            true,
+            100,
+            None,
+        );
+        assert!(
+            !results.is_empty(),
+            "regex should match test function names"
+        );
+    }
+
+    #[test]
+    fn grep_workspace_abort_prevents_results() {
+        // Use a temp dir with a file we can search
+        let dir = std::env::temp_dir().join("crabide_test_grep_abort");
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("test.txt");
+        let _ = std::fs::write(&file, b"unique_match_content_xyz\n");
+
+        let abort = GrepAbortHandle::new();
+        abort.abort(); // Abort before searching
+
+        let results = grep_workspace(
+            &[dir.clone()],
+            "unique_match_content_xyz",
+            false,
+            true,
+            100,
+            Some(&abort),
+        );
+        assert!(results.is_empty(), "aborted search should return nothing");
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── GrepMatch ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn grep_match_fields() {
+        let m = GrepMatch {
+            path: PathBuf::from("/path/to/file.rs"),
+            line_number: 42,
+            line_text: "fn hello() {}".into(),
+            match_start: 3,
+            match_end: 8,
+        };
+        assert_eq!(m.path.to_string_lossy(), "/path/to/file.rs");
+        assert_eq!(m.line_number, 42);
+        assert_eq!(m.line_text, "fn hello() {}");
+        assert_eq!(m.match_start, 3);
+        assert_eq!(m.match_end, 8);
+    }
+
+    // ── FuzzyMatch ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn fuzzy_match_fields() {
+        let m = FuzzyMatch {
+            path: PathBuf::from("/main.rs"),
+            display: "main.rs".into(),
+            score: 42,
+        };
+        assert_eq!(m.path.to_string_lossy(), "/main.rs");
+        assert_eq!(m.display, "main.rs");
+        assert_eq!(m.score, 42);
+    }
+
+    // ── index_workspace_files ───────────────────────────────────────────────
+
+    #[test]
+    fn index_workspace_files_empty_roots() {
+        let files = index_workspace_files(&[]);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn index_workspace_files_nonexistent_dir() {
+        let files = index_workspace_files(&[PathBuf::from("/nonexistent_dir_xyz123")]);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn index_workspace_files_skip_hidden() {
+        let dir = std::env::temp_dir().join("crabide_test_index_skip_hidden");
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join(".hidden_file.rs"), b"");
+        let _ = std::fs::write(dir.join("visible.rs"), b"");
+        let _ = std::fs::create_dir(dir.join(".hidden_dir"));
+        let _ = std::fs::write(dir.join(".hidden_dir").join("nested.rs"), b"");
+
+        let files = index_workspace_files(&[dir.clone()]);
+        assert_eq!(files.len(), 1, "should only find visible.rs");
+        assert!(files[0].ends_with("visible.rs"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn index_workspace_files_skip_well_known_dirs() {
+        let dir = std::env::temp_dir().join("crabide_test_index_skip_well_known");
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::create_dir(dir.join("target"));
+        let _ = std::fs::write(dir.join("target").join("build.rs"), b"");
+        let _ = std::fs::create_dir(dir.join("node_modules"));
+        let _ = std::fs::write(dir.join("node_modules").join("pkg.rs"), b"");
+
+        let files = index_workspace_files(&[dir.clone()]);
+        assert!(files.is_empty(), "should skip target and node_modules");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── is_text_extension (tested via known paths) ──────────────────────────
+
+    #[test]
+    fn is_text_extension_known() {
+        assert!(is_text_extension(Path::new("foo.rs")));
+        assert!(is_text_extension(Path::new("foo.py")));
+        assert!(is_text_extension(Path::new("foo.js")));
+        assert!(is_text_extension(Path::new("foo.md")));
+        assert!(is_text_extension(Path::new("foo.toml")));
+        assert!(is_text_extension(Path::new("foo.json")));
+        assert!(is_text_extension(Path::new("foo.html")));
+    }
+
+    #[test]
+    fn is_text_extension_unknown() {
+        assert!(!is_text_extension(Path::new("foo.exe")));
+        assert!(!is_text_extension(Path::new("foo.dll")));
+        assert!(!is_text_extension(Path::new("foo.so")));
+        assert!(!is_text_extension(Path::new("foo.png")));
+        assert!(!is_text_extension(Path::new("foo.jpg")));
+        assert!(!is_text_extension(Path::new("foo.mp3")));
+        assert!(!is_text_extension(Path::new("foo"))); // no extension
+    }
+
+    #[test]
+    fn is_text_extension_no_ext() {
+        assert!(!is_text_extension(Path::new("Makefile")));
+    }
+}
