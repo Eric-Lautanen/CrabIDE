@@ -126,7 +126,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
 - [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
-- [ ] Add custom fold marker support (`// #region` / `// #endregion`)
+- [x] Add custom fold marker support (`// #region` / `// #endregion`)
 - [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
 - [ ] No unit tests in crate (has 2 test modules in `indent.rs` and `locals.rs` — needs more coverage)
 
@@ -325,6 +325,8 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 ### crabide-app — PARTIAL (~60%)
 
 **Remaining items:**
+- [x] Wire folding ranges from SyntaxEngine into EditorTab.folding_ranges
+- [x] Wire FindInFiles to search open buffers (grep_buffers) in addition to disk files
 - [x] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
 - [x] CLI argument parsing (manual parser with `-h`/`-V`/`--log` support — NOT using clap to minimize deps)
 - [x] `Ctrl+C` signal handler for graceful shutdown

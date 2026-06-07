@@ -37,7 +37,7 @@ use crabide_extensions::{
 };
 use crabide_git::GitService;
 use crabide_lsp::LspServerManager;
-use crabide_search::{grep_workspace, index_workspace_files, GrepAbortHandle};
+use crabide_search::{grep_buffers, grep_workspace, index_workspace_files, GrepAbortHandle};
 use crabide_syntax::{grammar::grammar_registry, queries, SyntaxEngine};
 use crabide_terminal::{TerminalManager, TerminalProfile};
 use crabide_ui::{
@@ -1731,6 +1731,17 @@ impl crabideApp {
                 let re = self.ui_state.workspace_search.use_regex;
                 let cs = self.ui_state.workspace_search.case_sensitive;
 
+                // Collect open buffer data for in-memory grep.
+                let buffers: Vec<(PathBuf, Vec<String>)> = self
+                    .ui_state
+                    .tabs
+                    .iter()
+                    .filter_map(|tab| {
+                        let path = tab.uri.as_url().to_file_path().ok()?;
+                        Some((path, tab.lines.clone()))
+                    })
+                    .collect();
+
                 // Cancel any previous search.
                 self.ui_state.workspace_search.abort_handle.abort();
                 // Create a fresh handle for the new search.
@@ -1744,10 +1755,40 @@ impl crabideApp {
                 std::thread::Builder::new()
                     .name("workspace-grep".into())
                     .spawn(move || {
-                        let results =
+                        // Search files on disk.
+                        let file_results =
                             grep_workspace(&roots, &query, re, cs, 2000, Some(&abort_handle));
+
+                        // Search open buffers (in-memory).
+                        let buf_refs: Vec<(PathBuf, &[String])> = buffers
+                            .iter()
+                            .map(|(p, l)| (p.clone(), l.as_slice()))
+                            .collect();
+                        let buffer_results = grep_buffers(
+                            &buf_refs,
+                            &query,
+                            re,
+                            cs,
+                            2000,
+                            Some(&abort_handle),
+                        );
+
+                        // Merge and deduplicate by (path, line_number, match_start).
+                        let mut merged: Vec<crabide_search::GrepMatch> = file_results;
+                        merged.extend(buffer_results);
+                        merged.sort_by(|a, b| {
+                            a.path
+                                .cmp(&b.path)
+                                .then_with(|| a.line_number.cmp(&b.line_number))
+                                .then_with(|| a.match_start.cmp(&b.match_start))
+                        });
+                        merged.dedup_by_key(|m| {
+                            (m.path.clone(), m.line_number, m.match_start)
+                        });
+                        merged.truncate(2000);
+
                         // Convert to event-friendly type.
-                        let grep_results: Vec<crabide_core::event::GrepResult> = results
+                        let grep_results: Vec<crabide_core::event::GrepResult> = merged
                             .into_iter()
                             .map(|m| crabide_core::event::GrepResult {
                                 path: m.path,
@@ -3023,7 +3064,8 @@ impl crabideApp {
         }
     }
 
-    /// Re-parse the document in `tab_idx` and store fresh highlight spans.
+    /// Re-parse the document in `tab_idx` and store fresh highlight spans and
+    /// folding ranges.
     fn update_highlights(&mut self, tab_idx: usize) {
         let Some(tab) = self.ui_state.tabs.get(tab_idx) else {
             return;
@@ -3036,8 +3078,10 @@ impl crabideApp {
 
         self.syntax.parse_document(id, &language, &source, version);
         let spans = self.syntax.highlights(id);
+        let folds = self.syntax.folding_ranges(id);
         if let Some(tab) = self.ui_state.tabs.get_mut(tab_idx) {
             tab.highlight_spans = spans;
+            tab.folding_ranges = folds.into_iter().map(Into::into).collect();
         }
     }
 

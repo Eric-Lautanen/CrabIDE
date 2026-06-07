@@ -38,6 +38,24 @@ pub struct FoldingRange {
     pub kind: FoldKind,
 }
 
+// ── Conversion to core event type ──────────────────────────────────────────
+
+impl From<FoldingRange> for crabide_core::event::FoldingRange {
+    fn from(val: FoldingRange) -> Self {
+        Self {
+            start_line: val.start_line,
+            start_character: None,
+            end_line: val.end_line,
+            end_character: None,
+            kind: Some(match val.kind {
+                FoldKind::Region => crabide_core::event::FoldingRangeKind::Region,
+                FoldKind::Comment => crabide_core::event::FoldingRangeKind::Comment,
+                FoldKind::Imports => crabide_core::event::FoldingRangeKind::Imports,
+            }),
+        }
+    }
+}
+
 /// Comment prefix patterns for `#region` / `#endregion` markers, ordered by
 /// how they appear in source. The `//` prefix is listed first since it is the
 /// most common across C-family languages.
@@ -379,5 +397,48 @@ mod tests {
             Some(FoldKind::Region)
         );
         assert_eq!(fold_kind_for("translation_unit"), Some(FoldKind::Region));
+    }
+
+    #[test]
+    fn folding_range_conversion_to_core_event() {
+        use crabide_core::event::FoldingRangeKind;
+
+        let sf = FoldingRange {
+            start_line: 0,
+            end_line: 5,
+            kind: FoldKind::Region,
+        };
+        let ef: crabide_core::event::FoldingRange = sf.into();
+        assert_eq!(ef.start_line, 0);
+        assert_eq!(ef.end_line, 5);
+        assert_eq!(ef.kind, Some(FoldingRangeKind::Region));
+        assert!(ef.start_character.is_none());
+        assert!(ef.end_character.is_none());
+    }
+
+    #[test]
+    fn folding_range_conversion_comment_kind() {
+        use crabide_core::event::FoldingRangeKind;
+
+        let sf = FoldingRange {
+            start_line: 2,
+            end_line: 10,
+            kind: FoldKind::Comment,
+        };
+        let ef: crabide_core::event::FoldingRange = sf.into();
+        assert_eq!(ef.kind, Some(FoldingRangeKind::Comment));
+    }
+
+    #[test]
+    fn folding_range_conversion_imports_kind() {
+        use crabide_core::event::FoldingRangeKind;
+
+        let sf = FoldingRange {
+            start_line: 1,
+            end_line: 3,
+            kind: FoldKind::Imports,
+        };
+        let ef: crabide_core::event::FoldingRange = sf.into();
+        assert_eq!(ef.kind, Some(FoldingRangeKind::Imports));
     }
 }
