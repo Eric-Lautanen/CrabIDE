@@ -16,6 +16,7 @@ use bitflags::bitflags;
 use crabide_core::error::{crabideError, Result};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
 
@@ -358,6 +359,231 @@ pub struct KeyBinding {
     pub when: Option<String>,
 }
 
+// ── When condition evaluation ─────────────────────────────────────────────────
+
+/// A pre-parsed `when` condition expression.
+///
+/// Supports boolean context keys (`editorFocused`), negation (`!terminalFocused`),
+/// string equality (`editorLangId == 'rust'`), and compound AND/OR expressions.
+#[derive(Debug, Clone)]
+pub enum WhenCondition {
+    /// Always matches.
+    True,
+    /// Never matches.
+    False,
+    /// Negates the inner condition.
+    Not(Box<WhenCondition>),
+    /// Both conditions must match.
+    And(Box<WhenCondition>, Box<WhenCondition>),
+    /// At least one condition must match.
+    Or(Box<WhenCondition>, Box<WhenCondition>),
+    /// A boolean context key that is present and truthy.
+    Key(String),
+    /// A context key compared for string equality (`key == "value"`).
+    KeyEquals(String, String),
+    /// A context key compared for string inequality (`key != "value"`).
+    KeyNotEquals(String, String),
+}
+
+impl WhenCondition {
+    /// Evaluate this condition against the given context.
+    pub fn evaluate(&self, ctx: &WhenContext) -> bool {
+        match self {
+            WhenCondition::True => true,
+            WhenCondition::False => false,
+            WhenCondition::Not(c) => !c.evaluate(ctx),
+            WhenCondition::And(a, b) => a.evaluate(ctx) && b.evaluate(ctx),
+            WhenCondition::Or(a, b) => a.evaluate(ctx) || b.evaluate(ctx),
+            WhenCondition::Key(k) => ctx.get_bool(k).unwrap_or(false),
+            WhenCondition::KeyEquals(k, v) => {
+                ctx.get_str(k).map(|s| s == v.as_str()).unwrap_or(false)
+            }
+            WhenCondition::KeyNotEquals(k, v) => {
+                ctx.get_str(k).map(|s| s != v.as_str()).unwrap_or(true)
+            }
+        }
+    }
+
+    /// Parse a `when` expression string into a condition tree.
+    ///
+    /// Supported syntax:
+    /// - `editorFocused` — boolean key
+    /// - `!terminalFocused` — negated boolean key
+    /// - `editorLangId == 'rust'` — string equality (single quotes)
+    /// - `editorLangId != 'rust'` — string inequality (single quotes)
+    /// - `a && b` — logical AND
+    /// - `a || b` — logical OR
+    /// - `(a || b) && c` — grouping with parentheses
+    pub fn parse(expr: &str) -> Self {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return WhenCondition::True;
+        }
+        Self::parse_or(expr)
+    }
+
+    fn parse_or(expr: &str) -> Self {
+        // Split on `||` not inside parentheses.
+        let parts = split_logical(expr, "||");
+        if parts.len() > 1 {
+            let mut iter = parts.into_iter().map(Self::parse_and);
+            let first = iter.next().unwrap_or(WhenCondition::True);
+            iter.fold(first, |acc, c| {
+                WhenCondition::Or(Box::new(acc), Box::new(c))
+            })
+        } else {
+            Self::parse_and(expr)
+        }
+    }
+
+    fn parse_and(expr: &str) -> Self {
+        // Split on `&&` not inside parentheses.
+        let parts = split_logical(expr, "&&");
+        if parts.len() > 1 {
+            let mut iter = parts.into_iter().map(Self::parse_not);
+            let first = iter.next().unwrap_or(WhenCondition::True);
+            iter.fold(first, |acc, c| {
+                WhenCondition::And(Box::new(acc), Box::new(c))
+            })
+        } else {
+            Self::parse_not(expr)
+        }
+    }
+
+    fn parse_not(expr: &str) -> Self {
+        let expr = expr.trim();
+        if let Some(stripped) = expr.strip_prefix('!') {
+            let inner = Self::parse_atom(stripped);
+            WhenCondition::Not(Box::new(inner))
+        } else {
+            Self::parse_atom(expr)
+        }
+    }
+
+    fn parse_atom(expr: &str) -> Self {
+        let expr = expr.trim();
+
+        // Parenthesized expression.
+        if expr.starts_with('(') && expr.ends_with(')') {
+            let inner = &expr[1..expr.len() - 1].trim();
+            return Self::parse_or(inner);
+        }
+
+        // String equality: key == 'value' or key != 'value'
+        if let Some((key, value)) = parse_string_eq(expr, "!=") {
+            return WhenCondition::KeyNotEquals(key.to_owned(), value.to_owned());
+        }
+        if let Some((key, value)) = parse_string_eq(expr, "==") {
+            return WhenCondition::KeyEquals(key.to_owned(), value.to_owned());
+        }
+
+        // Boolean key.
+        WhenCondition::Key(expr.to_owned())
+    }
+}
+
+/// Split a logical expression on `op` (e.g., `||` or `&&`), respecting parenthesized groups.
+fn split_logical<'a>(expr: &'a str, op: &str) -> Vec<&'a str> {
+    let mut depth: i32 = 0;
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut i = 0;
+    let bytes = expr.as_bytes();
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && expr[i..].starts_with(op) {
+            let part = expr[start..i].trim();
+            if !part.is_empty() {
+                parts.push(part);
+            }
+            i += op.len();
+            start = i;
+            continue;
+        }
+        i += 1;
+    }
+    let last = expr[start..].trim();
+    if !last.is_empty() {
+        parts.push(last);
+    }
+    parts
+}
+
+/// Parse a `key == 'value'` or `key != 'value'` expression.
+/// Returns `(key, value)` if matched.
+fn parse_string_eq<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
+    let pos = expr.find(op)?;
+    let key = expr[..pos].trim();
+    let rest = expr[pos + op.len()..].trim();
+    // Strip surrounding single or double quotes.
+    let value = rest
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+        .or_else(|| rest.strip_prefix('"').and_then(|s| s.strip_suffix('"')))
+        .or_else(|| {
+            // Unquoted value: take until whitespace or end.
+            let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+            Some(&rest[..end])
+        })?;
+    Some((key, value))
+}
+
+/// Runtime context for evaluating `when` conditions.
+///
+/// Holds a set of boolean keys and string-valued keys that extensions and the
+/// UI layer can populate before dispatching key presses.
+#[derive(Debug, Clone, Default)]
+pub struct WhenContext {
+    booleans: HashMap<String, bool>,
+    strings: HashMap<String, String>,
+}
+
+impl WhenContext {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set a boolean context key (e.g., `"editorFocused"`).
+    pub fn set_bool(&mut self, key: impl Into<String>, value: bool) {
+        self.booleans.insert(key.into(), value);
+    }
+
+    /// Set a string context key (e.g., `"editorLangId"` → `"rust"`).
+    pub fn set_str(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.strings.insert(key.into(), value.into());
+    }
+
+    /// Get a boolean context key.
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.booleans.get(key).copied()
+    }
+
+    /// Get a string context key.
+    pub fn get_str(&self, key: &str) -> Option<&str> {
+        self.strings.get(key).map(|s| s.as_str())
+    }
+
+    /// Remove a key.
+    pub fn remove(&mut self, key: &str) {
+        self.booleans.remove(key);
+        self.strings.remove(key);
+    }
+
+    /// Merge another context into this one (preferring the other on conflict).
+    pub fn merge(&mut self, other: &WhenContext) {
+        for (k, v) in &other.booleans {
+            self.booleans.insert(k.clone(), *v);
+        }
+        for (k, v) in &other.strings {
+            self.strings.insert(k.clone(), v.clone());
+        }
+    }
+}
+
 // ── TOML representation ───────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -376,8 +602,16 @@ struct TomlBinding {
 // ── KeybindingEngine ──────────────────────────────────────────────────────────
 
 pub struct KeybindingEngine {
-    bindings: Vec<KeyBinding>,
+    bindings: Vec<ParsedBinding>,
     pending_chord: Option<KeyChord>,
+}
+
+/// A binding with its `when` condition pre-parsed into a condition tree.
+#[derive(Debug, Clone)]
+struct ParsedBinding {
+    chords: Vec<KeyChord>,
+    action: Action,
+    when_condition: WhenCondition,
 }
 
 impl KeybindingEngine {
@@ -424,33 +658,49 @@ impl KeybindingEngine {
                 }
             }
             if !chords.is_empty() {
-                self.bindings.push(KeyBinding {
+                let when_condition = raw
+                    .when
+                    .as_deref()
+                    .map(WhenCondition::parse)
+                    .unwrap_or(WhenCondition::True);
+                self.bindings.push(ParsedBinding {
                     chords,
                     action: raw.action,
-                    when: raw.when,
+                    when_condition,
                 });
             }
         }
         Ok(())
     }
 
-    pub fn press(&mut self, chord: KeyChord) -> Option<Action> {
+    /// Dispatches a key press, returning the matching `Action` if any.
+    ///
+    /// `ctx` provides the current UI context for evaluating `when` conditions.
+    /// When `None`, all bindings are considered active (backward-compatible).
+    pub fn press(&mut self, chord: KeyChord, ctx: Option<&WhenContext>) -> Option<Action> {
         if let Some(first) = self.pending_chord.take() {
-            if let Some(action) = self.find_two_chord(&first, &chord) {
+            if let Some(action) = self.find_two_chord(&first, &chord, ctx) {
                 return Some(action.clone());
             }
         }
-        if let Some(action) = self.find_one_chord(&chord) {
+        if let Some(action) = self.find_one_chord(&chord, ctx) {
             return Some(action.clone());
         }
-        let starts_sequence = self
-            .bindings
-            .iter()
-            .any(|b| b.chords.len() == 2 && b.chords[0] == chord);
+        let starts_sequence = self.bindings.iter().any(|b| {
+            b.chords.len() == 2
+                && b.chords[0] == chord
+                && b.when_condition
+                    .evaluate(ctx.unwrap_or(&WhenContext::new()))
+        });
         if starts_sequence {
             self.pending_chord = Some(chord);
         }
         None
+    }
+
+    /// Dispatch a key press without a context (backward-compatible, all bindings active).
+    pub fn press_legacy(&mut self, chord: KeyChord) -> Option<Action> {
+        self.press(chord, None)
     }
 
     pub fn cancel_pending(&mut self) {
@@ -459,8 +709,15 @@ impl KeybindingEngine {
     pub fn has_pending_chord(&self) -> bool {
         self.pending_chord.is_some()
     }
-    pub fn bindings(&self) -> &[KeyBinding] {
-        &self.bindings
+    pub fn bindings(&self) -> Vec<KeyBinding> {
+        self.bindings
+            .iter()
+            .map(|pb| KeyBinding {
+                chords: pb.chords.clone(),
+                action: pb.action.clone(),
+                when: None, // raw when string not preserved; use KeyBinding when_condition
+            })
+            .collect()
     }
 
     pub fn chords_for_action(&self, action: &Action) -> Vec<&[KeyChord]> {
@@ -471,19 +728,35 @@ impl KeybindingEngine {
             .collect()
     }
 
-    fn find_one_chord(&self, chord: &KeyChord) -> Option<&Action> {
+    fn find_one_chord(&self, chord: &KeyChord, ctx: Option<&WhenContext>) -> Option<&Action> {
+        let empty_ctx = WhenContext::new();
+        let ctx = ctx.unwrap_or(&empty_ctx);
         self.bindings
             .iter()
             .rev()
-            .find(|b| b.chords.len() == 1 && &b.chords[0] == chord)
+            .find(|b| {
+                b.chords.len() == 1 && &b.chords[0] == chord && b.when_condition.evaluate(ctx)
+            })
             .map(|b| &b.action)
     }
 
-    fn find_two_chord(&self, first: &KeyChord, second: &KeyChord) -> Option<&Action> {
+    fn find_two_chord(
+        &self,
+        first: &KeyChord,
+        second: &KeyChord,
+        ctx: Option<&WhenContext>,
+    ) -> Option<&Action> {
+        let empty_ctx = WhenContext::new();
+        let ctx = ctx.unwrap_or(&empty_ctx);
         self.bindings
             .iter()
             .rev()
-            .find(|b| b.chords.len() == 2 && &b.chords[0] == first && &b.chords[1] == second)
+            .find(|b| {
+                b.chords.len() == 2
+                    && &b.chords[0] == first
+                    && &b.chords[1] == second
+                    && b.when_condition.evaluate(ctx)
+            })
             .map(|b| &b.action)
     }
 
@@ -495,10 +768,10 @@ impl KeybindingEngine {
             }
         }
         if !chords.is_empty() {
-            self.bindings.push(KeyBinding {
+            self.bindings.push(ParsedBinding {
                 chords,
                 action,
-                when: None,
+                when_condition: WhenCondition::True,
             });
         }
     }

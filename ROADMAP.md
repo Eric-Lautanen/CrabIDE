@@ -84,7 +84,7 @@ Core domain model, error hierarchy (24 variants), event bus (6 domains, 50+ vari
 TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), VS Code theme parser, 2 built-in themes, ConfigManager with file watcher.
 
 **Gaps:**
-- [ ] Implement `KeybindingEngine::when` condition evaluation context system
+- [x] Implement `KeybindingEngine::when` condition evaluation context system
 - [ ] Add per-language settings overlay (`[language.rust] tab_size = 4`)
 - [ ] Complete `all_actions()` with all ~50 missing Action variants
 - [x] Remove dead `once_cell` dependency

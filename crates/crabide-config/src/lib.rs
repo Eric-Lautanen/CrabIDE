@@ -13,6 +13,7 @@ pub mod theme;
 
 pub use keybindings::{
     all_actions, parse_chord, Action, Key, KeyBinding, KeyChord, KeybindingEngine, Modifiers,
+    WhenCondition, WhenContext,
 };
 pub use settings::{
     AutoSave, CursorBlinking, CursorStyle, EditorSettings, GitSettings, LineNumberStyle,

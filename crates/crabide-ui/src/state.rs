@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crabide_buffer::{CursorSet, SnippetEngine, SnippetTabstop};
-use crabide_config::{Action, Color, ColorTheme, KeybindingEngine};
+use crabide_config::{Action, Color, ColorTheme, KeybindingEngine, WhenContext};
 use crabide_core::{
     event::{
         BlameLine, Diagnostic, DiffHunk, FileStatus, OutputCategory, StackFrame, TerminalCell,
@@ -802,6 +802,10 @@ pub struct UiState {
     // ── Theme & bindings ──────────────────────────────────────────────────────
     pub theme: ColorTheme,
     pub keybindings: KeybindingEngine,
+    /// Runtime context for evaluating keybinding `when` conditions.
+    /// Populated by the app layer before each frame and consumed during key
+    /// event processing in the UI layer.
+    pub when_context: WhenContext,
 
     // ── Editor tabs ───────────────────────────────────────────────────────────
     pub tabs: Vec<EditorTab>,
@@ -932,6 +936,7 @@ impl UiState {
         Self {
             theme,
             keybindings,
+            when_context: WhenContext::new(),
             tabs: Vec::new(),
             active_tab: None,
             layout: default_layout(),

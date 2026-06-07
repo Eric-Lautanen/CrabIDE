@@ -1033,7 +1033,9 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                             surrender_focus = true;
                         } else {
                             let chord = egui_key_to_chord(*key, *modifiers);
-                            if let Some(action) = state.keybindings.press(chord) {
+                            if let Some(action) =
+                                state.keybindings.press(chord, Some(&state.when_context))
+                            {
                                 actions.push(action);
                             }
                         }

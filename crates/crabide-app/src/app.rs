@@ -3227,6 +3227,43 @@ impl eframe::App for crabideApp {
         self.drain_terminal_pending();
         self.drain_dap_pending();
         self.drain_extension_pending();
+
+        // ── Populate keybinding when-context ────────────────────────────────
+        {
+            // Collect values from the UI state before mutating when_context.
+            let has_active_tab = self.ui_state.active_tab.is_some();
+            let has_selection = self
+                .ui_state
+                .active_tab
+                .and_then(|i| self.ui_state.tabs.get(i))
+                .map(|t| t.cursors.primary().has_selection())
+                .unwrap_or(false);
+            let active_lang: Option<String> = self
+                .ui_state
+                .active_tab
+                .and_then(|i| self.ui_state.tabs.get(i))
+                .map(|t| t.language.clone())
+                .map(|l| l.as_str().to_owned());
+            let sidebar_visible = self.ui_state.sidebar_visible;
+            let terminal_visible = self.ui_state.terminal.visible;
+            let git_enabled = self.ui_state.git_enabled;
+            let debug_active = self.ui_state.dap_panel.session_active;
+
+            let wc = &mut self.ui_state.when_context;
+            wc.set_bool("editorFocused", has_active_tab);
+            wc.set_bool("editorTextFocus", has_active_tab);
+            wc.set_bool("editorHasSelection", has_selection);
+            if let Some(lang) = active_lang {
+                wc.set_str("editorLangId", lang);
+            } else {
+                wc.remove("editorLangId");
+            }
+            wc.set_bool("sideBarVisible", sidebar_visible);
+            wc.set_bool("terminalVisible", terminal_visible);
+            wc.set_bool("panelVisible", terminal_visible);
+            wc.set_bool("gitEnabled", git_enabled);
+            wc.set_bool("debugActive", debug_active);
+        }
         if self.ui_state.extensions_panel.pending_cycle_theme {
             self.ui_state.extensions_panel.pending_cycle_theme = false;
             self.apply_theme_cycle(&ctx);
