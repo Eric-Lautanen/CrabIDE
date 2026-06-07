@@ -135,7 +135,8 @@ impl LspServerManager {
         config: LspServerConfig,
     ) -> Result<(LspClient, tokio::task::JoinHandle<()>)> {
         let primary_lang = config.language_ids[0].clone();
-        let (client, notification_rx) = spawn_server_process(&config, self.event_tx.clone())?;
+        let (client, notification_rx, child) =
+            spawn_server_process(&config, self.event_tx.clone())?;
 
         // Run the `initialize` handshake.
         client
@@ -153,7 +154,7 @@ impl LspServerManager {
         let servers = Arc::clone(&self.servers);
         let event_tx = self.event_tx.clone();
         let lifecycle = tokio::spawn(async move {
-            restart_loop(config, primary_lang, servers, event_tx).await;
+            restart_loop(config, primary_lang, servers, event_tx, child).await;
         });
 
         Ok((client, lifecycle))
@@ -168,6 +169,7 @@ fn spawn_server_process(
 ) -> Result<(
     LspClient,
     tokio::sync::mpsc::UnboundedReceiver<crate::transport::JsonRpcMessage>,
+    tokio::process::Child, // return the Child handle for proper wait()
 )> {
     let mut cmd = Command::new(&config.command);
     cmd.args(&config.args)
@@ -193,7 +195,7 @@ fn spawn_server_process(
     let primary_lang = config.language_ids[0].clone();
     let client = LspClient::new(transport, primary_lang, event_tx);
 
-    Ok((client, notification_rx))
+    Ok((client, notification_rx, child))
 }
 
 // ── Crash detection + restart loop ───────────────────────────────────────────
@@ -203,38 +205,29 @@ async fn restart_loop(
     primary_lang: Language,
     servers: Arc<RwLock<HashMap<Language, ServerEntry>>>,
     event_tx: crossbeam_channel::Sender<EditorEvent>,
+    mut child: tokio::process::Child,
 ) {
     let mut restarts = 0u32;
 
     loop {
-        // Wait for the current server process to exit. We can't hold the child
-        // here directly (it was moved into LspTransport's tasks), so we just
-        // sleep and poll whether the client is still initialized.
-        // A more robust approach awaits the transport's drop or a crash signal.
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        // Properly await the child process exit — instant notification,
+        // no polling stub.
+        let exit_status = child.wait().await;
+        let exit_code = exit_status.ok().and_then(|s| s.code());
+
+        log::info!("LSP server process for {primary_lang} exited (code={exit_code:?})");
 
         // If the entry was removed by stop_server, exit.
         if !servers.read().contains_key(&primary_lang) {
             return;
         }
 
-        // Check if the client reports as uninitialized (transport tasks exited).
-        let still_alive = servers
-            .read()
-            .get(&primary_lang)
-            .map(|e| e.client.is_initialized())
-            .unwrap_or(false);
-
-        if still_alive {
-            continue;
-        }
-
-        // Server appears to have crashed.
-        log::warn!("LSP server for {primary_lang} appears crashed; restarting");
+        // Server has crashed — notify the UI.
+        log::warn!("LSP server for {primary_lang} crashed; restarting");
         let _ = event_tx.send(
             LspEvent::ServerCrashed {
                 language: primary_lang.clone(),
-                code: None,
+                code: exit_code,
             }
             .into(),
         );
@@ -249,7 +242,8 @@ async fn restart_loop(
         restarts += 1;
 
         match spawn_server_process(&config, event_tx.clone()) {
-            Ok((new_client, notification_rx)) => {
+            Ok((new_client, notification_rx, new_child)) => {
+                child = new_child; // Replace the child handle for the next iteration
                 if let Err(e) = new_client.initialize(&config).await {
                     log::error!("LSP re-initialize failed for {primary_lang}: {e}");
                     continue;

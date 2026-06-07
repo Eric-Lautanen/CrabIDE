@@ -264,6 +264,10 @@ struct PartialSettings {
     terminal: PartialTerminalSettings,
     git: PartialGitSettings,
     lsp: PartialLspSettings,
+    /// Per-language editor settings overrides. Map is merged (overwritten)
+    /// onto the base settings, so user/workspace files can add/override per-language keys.
+    #[serde(rename = "language", default)]
+    language_overrides: HashMap<String, PartialEditorSettings>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -513,6 +517,70 @@ impl PartialSettings {
         }
         if let Some(v) = l.completion_trigger_characters.clone() {
             base.lsp.completion_trigger_characters = v
+        }
+
+        // Per-language overrides: merge language_overrides maps, inserting/overwriting
+        for (lang, overrides) in &self.language_overrides {
+            base.language_overrides
+                .entry(lang.clone())
+                .or_default();
+            if let Some(entry) = base.language_overrides.get_mut(lang) {
+                // Copy over only the fields that are set in the partial
+                if let Some(v) = &overrides.font_family {
+                    entry.font_family = Some(v.clone());
+                }
+                if let Some(v) = overrides.font_size {
+                    entry.font_size = Some(v);
+                }
+                if let Some(v) = overrides.line_height {
+                    entry.line_height = Some(v);
+                }
+                if let Some(v) = overrides.tab_size {
+                    entry.tab_size = Some(v);
+                }
+                if let Some(v) = overrides.insert_spaces {
+                    entry.insert_spaces = Some(v);
+                }
+                if let Some(v) = overrides.word_wrap {
+                    entry.word_wrap = Some(v);
+                }
+                if let Some(v) = overrides.line_numbers {
+                    entry.line_numbers = Some(v);
+                }
+                if let Some(v) = overrides.auto_save {
+                    entry.auto_save = Some(v);
+                }
+                if let Some(v) = overrides.format_on_save {
+                    entry.format_on_save = Some(v);
+                }
+                if let Some(v) = overrides.trim_trailing_whitespace {
+                    entry.trim_trailing_whitespace = Some(v);
+                }
+                if let Some(v) = overrides.render_whitespace {
+                    entry.render_whitespace = Some(v);
+                }
+                if let Some(v) = overrides.minimap_enabled {
+                    entry.minimap_enabled = Some(v);
+                }
+                if let Some(v) = overrides.bracket_pair_colorization {
+                    entry.bracket_pair_colorization = Some(v);
+                }
+                if let Some(v) = overrides.inlay_hints_enabled {
+                    entry.inlay_hints_enabled = Some(v);
+                }
+                if let Some(v) = overrides.auto_closing_brackets {
+                    entry.auto_closing_brackets = Some(v);
+                }
+                if let Some(v) = overrides.scroll_beyond_last_line {
+                    entry.scroll_beyond_last_line = Some(v);
+                }
+                if let Some(v) = overrides.cursor_blinking {
+                    entry.cursor_blinking = Some(v);
+                }
+                if let Some(v) = overrides.cursor_style {
+                    entry.cursor_style = Some(v);
+                }
+            }
         }
     }
 }
