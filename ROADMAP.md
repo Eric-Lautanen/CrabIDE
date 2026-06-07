@@ -182,7 +182,7 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 **Missing features:**
 - [x] **Code folding gutter UI**: fold markers + expand/collapse controls
 - [x] **Breadcrumbs**: path bar above editor showing symbol hierarchy
-- [ ] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
+- [x] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
 - [ ] **Minimap**: scrollable code overview in sidebar
 - [ ] **Split editor**: side-by-side file comparison / multi-pane layouts
 - [ ] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
