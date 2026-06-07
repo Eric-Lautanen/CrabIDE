@@ -1,12 +1,12 @@
 //! Unit tests for `crabide-extensions`.
 
 use crabide_extensions::{
-    CommandResult, CompletionItem, CompletionKind, ContentBlock, ContextMenuContribution,
-    ContextMenuContext, ExtensionCapabilities, ExtensionCategory, ExtensionContext,
+    CommandResult, CompletionItem, CompletionKind, ContentBlock, ContextMenuContext,
+    ContextMenuContribution, ExtensionCapabilities, ExtensionCategory, ExtensionContext,
     ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
-    ExtensionSource, GutterMarker, HoverResult, InstalledExtension,
-    NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RegistryClient,
-    RowItem, SidebarPaneRegistration, StatusBarAlignment,
+    ExtensionSource, GutterMarker, HoverResult, InstalledExtension, NavigateTarget, PanelLocation,
+    PanelRegistration, RegisteredCommand, RegistryClient, RowItem, SidebarPaneRegistration,
+    StatusBarAlignment,
 };
 use std::path::PathBuf;
 
@@ -312,7 +312,11 @@ fn extension_output_diagnostics() {
         items: vec![diag],
     };
     match output {
-        ExtensionOutput::Diagnostics { extension_id, items, .. } => {
+        ExtensionOutput::Diagnostics {
+            extension_id,
+            items,
+            ..
+        } => {
             assert_eq!(extension_id, "lint");
             assert_eq!(items.len(), 1);
             assert_eq!(items[0].message, "unused variable");
@@ -375,7 +379,11 @@ fn extension_output_gutter_markers() {
         }],
     };
     match output {
-        ExtensionOutput::GutterMarkers { extension_id, markers, .. } => {
+        ExtensionOutput::GutterMarkers {
+            extension_id,
+            markers,
+            ..
+        } => {
             assert_eq!(extension_id, "test");
             assert_eq!(markers.len(), 1);
             assert_eq!(markers[0].icon, "●");

@@ -4,9 +4,9 @@
 //! `GitService` methods are all no-ops.  We verify the API compiles and
 //! doesn't panic.
 
+use crabide_core::event::EditorEvent;
 use crabide_git::GitService;
 use crossbeam_channel::unbounded;
-use crabide_core::event::EditorEvent;
 
 // ── GitService without git-support feature ─────────────────────────────────
 

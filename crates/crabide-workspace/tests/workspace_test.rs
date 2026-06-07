@@ -328,9 +328,7 @@ async fn workspace_with_document() {
     let ws = Workspace::new(vfs);
     let id = ws.open_file(uri).await.unwrap();
 
-    let text = ws
-        .with_document(id, |e| e.document.text_content())
-        .unwrap();
+    let text = ws.with_document(id, |e| e.document.text_content()).unwrap();
     assert_eq!(text, "hello");
 }
 

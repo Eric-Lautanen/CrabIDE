@@ -4335,3 +4335,356 @@ fn clamp_cursors_to_content(cursors: &mut CursorSet, lines: &[String]) {
         cursor.selection.anchor = Position::new(nl, nc);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crabide_core::types::Selection;
+
+    // ── word_at_cursor tests ────────────────────────────────────────────
+
+    fn make_tab(lines: Vec<String>, line: u32, col: u32) -> EditorTab {
+        let mut tab = EditorTab::new(
+            BufferId::new(),
+            "test.rs".into(),
+            DocumentUri::from_file_path(if cfg!(windows) {
+                r"C:\test.rs"
+            } else {
+                "/tmp/test.rs"
+            })
+            .unwrap(),
+            Language::RUST,
+        );
+        tab.lines = lines;
+        tab.cursors.set_single(Position::new(line, col));
+        tab
+    }
+
+    #[test]
+    fn word_at_cursor_simple() {
+        let tab = make_tab(vec!["fn hello_world() {}".into()], 0, 5);
+        assert_eq!(word_at_cursor(&tab), "hello_world");
+    }
+
+    #[test]
+    fn word_at_cursor_on_punctuation() {
+        let tab = make_tab(vec!["fn hello() {}".into()], 0, 8); // on '('
+        assert_eq!(word_at_cursor(&tab), "");
+    }
+
+    #[test]
+    fn word_at_cursor_out_of_bounds() {
+        let tab = make_tab(vec![], 0, 0);
+        assert_eq!(word_at_cursor(&tab), "");
+    }
+
+    #[test]
+    fn word_at_cursor_mid_word() {
+        let tab = make_tab(vec!["let my_variable = 42;".into()], 0, 10);
+        assert_eq!(word_at_cursor(&tab), "my_variable");
+    }
+
+    // ── find_next_occurrence tests ──────────────────────────────────────
+
+    #[test]
+    fn find_next_occurrence_basic() {
+        let lines = vec!["hello world".into(), "hello again".into()];
+        let result = find_next_occurrence(&lines, "hello", Position::ZERO);
+        assert_eq!(
+            result,
+            Some(Range::new(Position::new(0, 0), Position::new(0, 5)))
+        );
+    }
+
+    #[test]
+    fn find_next_occurrence_from_position() {
+        let lines = vec!["hello hello".into()];
+        let result = find_next_occurrence(&lines, "hello", Position::new(0, 3));
+        assert_eq!(
+            result,
+            Some(Range::new(Position::new(0, 6), Position::new(0, 11)))
+        );
+    }
+
+    #[test]
+    fn find_next_occurrence_empty_needle() {
+        let lines = vec!["hello".into()];
+        assert!(find_next_occurrence(&lines, "", Position::ZERO).is_none());
+    }
+
+    #[test]
+    fn find_next_occurrence_no_match() {
+        let lines = vec!["hello".into()];
+        assert!(find_next_occurrence(&lines, "xyz", Position::ZERO).is_none());
+    }
+
+    #[test]
+    fn find_next_occurrence_across_lines() {
+        let lines = vec!["hel".into(), "lo".into()];
+        // Won't match across lines (only searches single line)
+        assert!(find_next_occurrence(&lines, "hello", Position::ZERO).is_none());
+    }
+
+    // ── extract_text tests ──────────────────────────────────────────────
+
+    #[test]
+    fn extract_text_single_line() {
+        let lines = vec!["abcdef".into()];
+        let result = extract_text(&lines, Range::new(Position::new(0, 1), Position::new(0, 4)));
+        assert_eq!(result, "bcd");
+    }
+
+    #[test]
+    fn extract_text_multi_line() {
+        let lines = vec!["abc".into(), "def".into(), "ghi".into()];
+        let result = extract_text(&lines, Range::new(Position::new(0, 1), Position::new(2, 2)));
+        assert_eq!(result, "bc\ndef\ngh");
+    }
+
+    #[test]
+    fn extract_text_out_of_bounds() {
+        let lines = vec!["ab".into()];
+        let result = extract_text(
+            &lines,
+            Range::new(Position::new(0, 0), Position::new(0, 10)),
+        );
+        assert_eq!(result, "ab");
+    }
+
+    // ── selected_text tests ─────────────────────────────────────────────
+
+    #[test]
+    fn selected_text_no_selection() {
+        let tab = make_tab(vec!["hello".into()], 0, 0);
+        assert!(selected_text(&tab).is_none());
+    }
+
+    #[test]
+    fn selected_text_with_selection() {
+        let mut tab = make_tab(vec!["hello world".into()], 0, 0);
+        tab.cursors.primary_mut().selection = Selection {
+            anchor: Position::new(0, 0),
+            active: Position::new(0, 5),
+        };
+        assert_eq!(selected_text(&tab), Some("hello".into()));
+    }
+
+    // ── bracket_close_pair tests ────────────────────────────────────────
+
+    #[test]
+    fn bracket_close_pair_parentheses() {
+        assert_eq!(bracket_close_pair('('), Some(')'));
+        assert_eq!(bracket_close_pair('['), Some(']'));
+        assert_eq!(bracket_close_pair('{'), Some('}'));
+    }
+
+    #[test]
+    fn bracket_close_pair_quotes() {
+        assert_eq!(bracket_close_pair('"'), Some('"'));
+        assert_eq!(bracket_close_pair('\''), Some('\''));
+        assert_eq!(bracket_close_pair('`'), Some('`'));
+    }
+
+    #[test]
+    fn bracket_close_pair_other() {
+        assert_eq!(bracket_close_pair('a'), None);
+        assert_eq!(bracket_close_pair('<'), None);
+    }
+
+    // ── leading_whitespace tests ────────────────────────────────────────
+
+    #[test]
+    fn leading_whitespace_spaces() {
+        assert_eq!(leading_whitespace("    hello"), "    ");
+    }
+
+    #[test]
+    fn leading_whitespace_tabs() {
+        assert_eq!(leading_whitespace("\t\tindented"), "\t\t");
+    }
+
+    #[test]
+    fn leading_whitespace_no_indent() {
+        assert_eq!(leading_whitespace("hello"), "");
+    }
+
+    #[test]
+    fn leading_whitespace_empty() {
+        assert_eq!(leading_whitespace(""), "");
+    }
+
+    #[test]
+    fn leading_whitespace_all_whitespace() {
+        assert_eq!(leading_whitespace("   \t  "), "   \t  ");
+    }
+
+    // ── line_comment_prefix tests ───────────────────────────────────────
+
+    #[test]
+    fn line_comment_prefix_rust() {
+        assert_eq!(line_comment_prefix(&Language::RUST), "//");
+    }
+
+    #[test]
+    fn line_comment_prefix_python() {
+        assert_eq!(line_comment_prefix(&Language::PYTHON), "#");
+    }
+
+    #[test]
+    fn line_comment_prefix_lua() {
+        assert_eq!(line_comment_prefix(&Language::new("lua")), "--");
+    }
+
+    #[test]
+    fn line_comment_prefix_html() {
+        assert_eq!(line_comment_prefix(&Language::new("html")), "<!--");
+    }
+
+    #[test]
+    fn line_comment_prefix_unknown() {
+        assert_eq!(line_comment_prefix(&Language::new("unknown")), "//");
+    }
+
+    // ── matching_close / matching_open tests ────────────────────────────
+
+    #[test]
+    fn matching_close_all() {
+        assert_eq!(matching_close('('), Some(')'));
+        assert_eq!(matching_close('['), Some(']'));
+        assert_eq!(matching_close('{'), Some('}'));
+        assert_eq!(matching_close('<'), None);
+        assert_eq!(matching_close('a'), None);
+    }
+
+    #[test]
+    fn matching_open_all() {
+        assert_eq!(matching_open(')'), Some('('));
+        assert_eq!(matching_open(']'), Some('['));
+        assert_eq!(matching_open('}'), Some('{'));
+        assert_eq!(matching_open('>'), None);
+        assert_eq!(matching_open('a'), None);
+    }
+
+    // ── find_forward tests ──────────────────────────────────────────────
+
+    #[test]
+    fn find_forward_simple() {
+        let lines = vec!["(a + b)".into()];
+        let result = find_forward(&lines, Position::new(0, 0), '(', ')');
+        assert_eq!(result, Some(Position::new(0, 6)));
+    }
+
+    #[test]
+    fn find_forward_nested() {
+        // "f(g(h), i)" - start at (0,1) which is the outer '('
+        let lines = vec!["f(g(h), i)".into()];
+        let result = find_forward(&lines, Position::new(0, 1), '(', ')');
+        assert_eq!(result, Some(Position::new(0, 9)));
+    }
+
+    #[test]
+    fn find_forward_no_match() {
+        let lines = vec!["(abc".into()];
+        assert!(find_forward(&lines, Position::new(0, 0), '(', ')').is_none());
+    }
+
+    #[test]
+    fn find_forward_multi_line() {
+        let lines = vec!["(".into(), ")".into()];
+        let result = find_forward(&lines, Position::new(0, 0), '(', ')');
+        assert_eq!(result, Some(Position::new(1, 0)));
+    }
+
+    // ── find_backward tests ─────────────────────────────────────────────
+
+    #[test]
+    fn find_backward_simple() {
+        let lines = vec!["(a + b)".into()];
+        let result = find_backward(&lines, Position::new(0, 6), '(', ')');
+        assert_eq!(result, Some(Position::new(0, 0)));
+    }
+
+    #[test]
+    fn find_backward_nested() {
+        // "f(g(h), i)" - start at (0,9) which is the outer ')'
+        let lines = vec!["f(g(h), i)".into()];
+        let result = find_backward(&lines, Position::new(0, 9), '(', ')');
+        assert_eq!(result, Some(Position::new(0, 1)));
+    }
+
+    #[test]
+    fn find_backward_no_match() {
+        let lines = vec!["abc)".into()];
+        assert!(find_backward(&lines, Position::new(0, 3), '(', ')').is_none());
+    }
+
+    #[test]
+    fn find_backward_multi_line() {
+        let lines = vec!["(".into(), ")".into()];
+        let result = find_backward(&lines, Position::new(1, 0), '(', ')');
+        assert_eq!(result, Some(Position::new(0, 0)));
+    }
+
+    // ── compute_bracket_match tests ─────────────────────────────────────
+
+    #[test]
+    fn compute_bracket_match_at_open() {
+        let lines = vec!["(hello)".into()];
+        let result = compute_bracket_match(&lines, Position::new(0, 0));
+        assert_eq!(
+            result,
+            Some((
+                Range::new(Position::new(0, 0), Position::new(0, 1)),
+                Range::new(Position::new(0, 6), Position::new(0, 7)),
+            ))
+        );
+    }
+
+    #[test]
+    fn compute_bracket_match_at_close() {
+        let lines = vec!["(hello)".into()];
+        let result = compute_bracket_match(&lines, Position::new(0, 7));
+        assert_eq!(
+            result,
+            Some((
+                Range::new(Position::new(0, 0), Position::new(0, 1)),
+                Range::new(Position::new(0, 6), Position::new(0, 7)),
+            ))
+        );
+    }
+
+    #[test]
+    fn compute_bracket_match_no_bracket() {
+        let lines = vec!["hello".into()];
+        assert!(compute_bracket_match(&lines, Position::new(0, 0)).is_none());
+    }
+
+    // ── clamp_cursors_to_content tests ──────────────────────────────────
+
+    #[test]
+    fn clamp_cursors_to_content_clamps_line() {
+        let mut cursors = CursorSet::new();
+        cursors.set_single(Position::new(100, 0));
+        let lines = vec!["hello".into(), "world".into()];
+        clamp_cursors_to_content(&mut cursors, &lines);
+        assert_eq!(cursors.primary().pos().line, 1);
+    }
+
+    #[test]
+    fn clamp_cursors_to_content_clamps_col() {
+        let mut cursors = CursorSet::new();
+        cursors.set_single(Position::new(0, 100));
+        let lines = vec!["hi".into()];
+        clamp_cursors_to_content(&mut cursors, &lines);
+        assert_eq!(cursors.primary().pos().character, 2);
+    }
+
+    #[test]
+    fn clamp_cursors_to_content_no_clamp_needed() {
+        let mut cursors = CursorSet::new();
+        cursors.set_single(Position::new(0, 2));
+        let lines = vec!["hello".into()];
+        clamp_cursors_to_content(&mut cursors, &lines);
+        assert_eq!(cursors.primary().pos(), Position::new(0, 2));
+    }
+}

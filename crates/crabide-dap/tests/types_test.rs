@@ -1,7 +1,7 @@
 //! Unit tests for `crabide-dap`.
 
-use crabide_dap::types::*;
 use crabide_dap::resolve_adapter;
+use crabide_dap::types::*;
 
 // ── DapMessage ────────────────────────────────────────────────────────────────
 

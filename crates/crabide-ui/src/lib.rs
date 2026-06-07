@@ -1213,7 +1213,6 @@ fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
 
-
         // ── Fuzzy finder ──────────────────────────────────────────────────────
         Action::FuzzyFindFile => {
             // Open the overlay; forward to app so it can populate file_index.
@@ -1227,9 +1226,7 @@ fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             state.goto_line.query.clear();
             true
         }
-        Action::GotoLine => {
-            false
-        }
+        Action::GotoLine => false,
 
         // ── Go-to-symbol (Ctrl+Shift+O) ───────────────────────────────────────
         Action::GotoSymbol if !state.symbol_outline.visible => {
@@ -2186,7 +2183,10 @@ mod tests {
     fn egui_key_to_chord_ctrl_a() {
         let chord = egui_key_to_chord(
             egui::Key::A,
-            egui::Modifiers { ctrl: true, ..Default::default() },
+            egui::Modifiers {
+                ctrl: true,
+                ..Default::default()
+            },
         );
         assert_eq!(chord, KeyChord::new(Modifiers::CTRL, Key::Char('a')));
     }
@@ -2195,7 +2195,11 @@ mod tests {
     fn egui_key_to_chord_ctrl_shift_a() {
         let chord = egui_key_to_chord(
             egui::Key::A,
-            egui::Modifiers { ctrl: true, shift: true, ..Default::default() },
+            egui::Modifiers {
+                ctrl: true,
+                shift: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             chord,

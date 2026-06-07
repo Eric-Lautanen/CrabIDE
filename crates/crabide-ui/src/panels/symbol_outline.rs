@@ -17,7 +17,7 @@ use crabide_config::{Action, Color};
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32String};
 
-use crate::state::{cfg_to_egui, UiState, SymbolOutlineEntry};
+use crate::state::{cfg_to_egui, SymbolOutlineEntry, UiState};
 
 /// Maximum number of results shown.
 const MAX_RESULTS: usize = 20;
@@ -81,14 +81,16 @@ pub fn show(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
         "list.activeSelectionForeground",
         Color::rgb(0xff, 0xff, 0xff),
     ));
-    let item_fg = cfg_to_egui(state.theme.ui_or(
-        "sideBar.foreground",
-        Color::rgb(0xcc, 0xcc, 0xcc),
-    ));
-    let drop_bg = cfg_to_egui(state.theme.ui_or(
-        "dropdown.background",
-        Color::rgb(0x3c, 0x3c, 0x3c),
-    ));
+    let item_fg = cfg_to_egui(
+        state
+            .theme
+            .ui_or("sideBar.foreground", Color::rgb(0xcc, 0xcc, 0xcc)),
+    );
+    let drop_bg = cfg_to_egui(
+        state
+            .theme
+            .ui_or("dropdown.background", Color::rgb(0x3c, 0x3c, 0x3c)),
+    );
     let kind_fg = egui::Color32::from_rgb(0x88, 0x88, 0x88);
 
     // Snapshot mutable state for use inside the window closure.
@@ -112,7 +114,11 @@ pub fn show(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
             })
             .collect();
         scored.sort_by_key(|b| std::cmp::Reverse(b.0));
-        scored.into_iter().take(MAX_RESULTS).map(|(_, e)| e).collect()
+        scored
+            .into_iter()
+            .take(MAX_RESULTS)
+            .map(|(_, e)| e)
+            .collect()
     };
 
     let display_entries = &filtered[..filtered.len().min(MAX_RESULTS)];
@@ -173,9 +179,7 @@ pub fn show(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
                         ui.set_width(win_width - 24.0);
                         ui.horizontal(|ui| {
                             ui.add(egui::Label::new(
-                                egui::RichText::new(&entry.name)
-                                    .color(row_fg)
-                                    .size(13.0),
+                                egui::RichText::new(&entry.name).color(row_fg).size(13.0),
                             ));
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),

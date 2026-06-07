@@ -531,13 +531,12 @@ mod tests {
     // ── EditorTab tests ─────────────────────────────────────────────────
 
     fn make_uri(name: &str) -> DocumentUri {
-        DocumentUri::from_file_path(
-            if cfg!(windows) {
-                format!(r"C:\{name}")
-            } else {
-                format!("/tmp/{name}")
-            }
-        ).unwrap()
+        DocumentUri::from_file_path(if cfg!(windows) {
+            format!(r"C:\{name}")
+        } else {
+            format!("/tmp/{name}")
+        })
+        .unwrap()
     }
 
     fn make_test_tab() -> EditorTab {
@@ -599,12 +598,7 @@ mod tests {
         let keybindings = crabide_config::KeybindingEngine::with_defaults();
         let mut state = UiState::new(theme, keybindings);
         let buf_id = BufferId::new();
-        let tab1 = EditorTab::new(
-            buf_id,
-            "a.rs".into(),
-            make_uri("a.rs"),
-            Language::RUST,
-        );
+        let tab1 = EditorTab::new(buf_id, "a.rs".into(), make_uri("a.rs"), Language::RUST);
         let tab2 = EditorTab::new(
             BufferId::new(),
             "b.rs".into(),
@@ -615,12 +609,7 @@ mod tests {
         state.open_tab(tab2);
         assert_eq!(state.tabs.len(), 2);
 
-        let tab_dup = EditorTab::new(
-            buf_id,
-            "a.rs".into(),
-            make_uri("a.rs"),
-            Language::RUST,
-        );
+        let tab_dup = EditorTab::new(buf_id, "a.rs".into(), make_uri("a.rs"), Language::RUST);
         state.open_tab(tab_dup);
         assert_eq!(state.tabs.len(), 2);
         assert_eq!(state.active_tab, Some(0));
@@ -648,12 +637,7 @@ mod tests {
         let keybindings = crabide_config::KeybindingEngine::with_defaults();
         let mut state = UiState::new(theme, keybindings);
         let bid = BufferId::new();
-        let tab = EditorTab::new(
-            bid,
-            "t.rs".into(),
-            make_uri("t.rs"),
-            Language::RUST,
-        );
+        let tab = EditorTab::new(bid, "t.rs".into(), make_uri("t.rs"), Language::RUST);
         state.open_tab(tab);
         let closed = state.close_tab(0);
         assert_eq!(closed, Some(bid));
