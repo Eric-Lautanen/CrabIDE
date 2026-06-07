@@ -354,6 +354,61 @@ fn is_text_extension(path: &Path) -> bool {
     }
 }
 
+/// Search in-memory buffers (open documents) for a pattern.
+///
+/// This is identical to `grep_workspace` but operates on already-loaded text
+/// lines instead of reading files from disk.  The `buffers` parameter is a
+/// slice of `(path, lines)` pairs where `lines` is a slice of document lines.
+pub fn grep_buffers(
+    buffers: &[(PathBuf, &[String])],
+    pattern: &str,
+    use_regex: bool,
+    case_sensitive: bool,
+    max_results: usize,
+    abort: Option<&GrepAbortHandle>,
+) -> Vec<GrepMatch> {
+    if pattern.is_empty() || buffers.is_empty() {
+        return Vec::new();
+    }
+
+    let flags = if case_sensitive { "" } else { "(?i)" };
+    let re_str = if use_regex {
+        format!("{flags}{pattern}")
+    } else {
+        format!("{flags}{}", regex::escape(pattern))
+    };
+
+    let re = match Regex::new(&re_str) {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("grep_buffers: invalid pattern — {e}");
+            return Vec::new();
+        }
+    };
+
+    let mut results: Vec<GrepMatch> = Vec::new();
+    for (path, lines) in buffers {
+        if abort.is_some_and(|h| h.is_aborted()) {
+            break;
+        }
+        for (line_num, line) in lines.iter().enumerate() {
+            for m in re.find_iter(line) {
+                results.push(GrepMatch {
+                    path: path.clone(),
+                    line_number: line_num,
+                    line_text: line.clone(),
+                    match_start: m.start(),
+                    match_end: m.end(),
+                });
+                if results.len() >= max_results {
+                    return results;
+                }
+            }
+        }
+    }
+    results
+}
+
 /// Search a single file for all regex matches, checking the abort handle.
 fn search_file(path: &Path, re: &Regex, abort: Option<&GrepAbortHandle>) -> Vec<GrepMatch> {
     if abort.is_some_and(|h| h.is_aborted()) {
@@ -619,6 +674,104 @@ mod tests {
         assert_eq!(m.line_text, "fn hello() {}");
         assert_eq!(m.match_start, 3);
         assert_eq!(m.match_end, 8);
+    }
+
+    // ── grep_buffers ────────────────────────────────────────────────────────
+
+    #[test]
+    fn grep_buffers_empty_pattern() {
+        let lines: [String; 1] = ["fn main() {}".to_string()];
+        let buffers = [(PathBuf::from("test.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "", false, true, 100, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_buffers_empty_buffers() {
+        let results = grep_buffers(&[], "pattern", false, true, 100, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_buffers_finds_match() {
+        let lines: [String; 3] = [
+            "fn foo() {}".to_string(),
+            "fn bar() {}".to_string(),
+            "// comment".to_string(),
+        ];
+        let buffers = [(PathBuf::from("src/lib.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "fn", false, true, 100, None);
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|m| m.path.ends_with("lib.rs")));
+        assert_eq!(results[0].line_number, 0);
+        assert_eq!(results[1].line_number, 1);
+    }
+
+    #[test]
+    fn grep_buffers_case_sensitive() {
+        let lines: [String; 2] = ["Hello".to_string(), "hello".to_string()];
+        let buffers = [(PathBuf::from("test.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "Hello", false, true, 100, None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].line_number, 0);
+    }
+
+    #[test]
+    fn grep_buffers_case_insensitive() {
+        let lines: [String; 2] = ["Hello".to_string(), "hello".to_string()];
+        let buffers = [(PathBuf::from("test.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "hello", false, false, 100, None);
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn grep_buffers_max_results() {
+        let lines: Vec<String> = std::iter::repeat("line with x".to_string())
+            .take(100)
+            .collect();
+        let buffers = [(PathBuf::from("big.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "x", false, true, 10, None);
+        assert_eq!(results.len(), 10);
+    }
+
+    #[test]
+    fn grep_buffers_abort() {
+        let abort = GrepAbortHandle::new();
+        abort.abort();
+        let lines: [String; 1] = ["match_me".to_string()];
+        let buffers = [(PathBuf::from("test.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "match_me", false, true, 100, Some(&abort));
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_buffers_invalid_regex() {
+        let lines: [String; 1] = ["some text".to_string()];
+        let buffers = [(PathBuf::from("test.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, "[invalid", true, true, 100, None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn grep_buffers_multiple_buffers() {
+        let lines_a: [String; 1] = ["fn a() {}".to_string()];
+        let lines_b: [String; 1] = ["fn b() {}".to_string()];
+        let buffers = [
+            (PathBuf::from("a.rs"), &lines_a[..]),
+            (PathBuf::from("b.rs"), &lines_b[..]),
+        ];
+        let results = grep_buffers(&buffers, "fn", false, true, 100, None);
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().any(|m| m.path.ends_with("a.rs")));
+        assert!(results.iter().any(|m| m.path.ends_with("b.rs")));
+    }
+
+    #[test]
+    fn grep_buffers_regex_search() {
+        let lines: [String; 2] = ["123-abc".to_string(), "456-def".to_string()];
+        let buffers = [(PathBuf::from("test.rs"), &lines[..])];
+        let results = grep_buffers(&buffers, r"\d+", true, true, 100, None);
+        assert_eq!(results.len(), 2);
     }
 
     // ── FuzzyMatch ──────────────────────────────────────────────────────────
