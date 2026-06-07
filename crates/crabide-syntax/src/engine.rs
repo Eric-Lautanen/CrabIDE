@@ -204,7 +204,8 @@ impl SyntaxEngine {
             Some(c) => c,
             None => return Vec::new(),
         };
-        fold::extract_folding_ranges(&cached.tree, &cached.language)
+        let source = std::str::from_utf8(&cached.source).unwrap_or("");
+        fold::extract_folding_ranges(&cached.tree, source, &cached.language)
     }
 
     /// Extract the symbol outline for a document. Returns `[]` if not parsed.
