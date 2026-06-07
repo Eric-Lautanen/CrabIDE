@@ -7,6 +7,7 @@
 
 use crabide_core::error::{crabideError, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 // ── Settings structs ──────────────────────────────────────────────────────────
@@ -20,6 +21,22 @@ pub struct Settings {
     pub terminal: TerminalSettings,
     pub git: GitSettings,
     pub lsp: LspSettings,
+    // Per-language editor settings overrides, keyed by language ID.
+    // E.g., `[language.rust] tab_size = 4`
+    #[serde(rename = "language", default)]
+    pub language_overrides: HashMap<String, PartialEditorSettings>,
+}
+
+impl Settings {
+    /// Return the effective editor settings for a given language, merging the
+    /// base `editor` settings with any per-language overrides.
+    pub fn editor_for_language(&self, language: &str) -> EditorSettings {
+        let mut base = self.editor.clone();
+        if let Some(overrides) = self.language_overrides.get(language) {
+            overrides.apply_to(&mut base);
+        }
+        base
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,27 +266,87 @@ struct PartialSettings {
     lsp: PartialLspSettings,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
-struct PartialEditorSettings {
-    font_family: Option<String>,
-    font_size: Option<f32>,
-    line_height: Option<f32>,
-    tab_size: Option<u32>,
-    insert_spaces: Option<bool>,
-    word_wrap: Option<bool>,
-    line_numbers: Option<LineNumberStyle>,
-    auto_save: Option<AutoSave>,
-    format_on_save: Option<bool>,
-    trim_trailing_whitespace: Option<bool>,
-    render_whitespace: Option<RenderWhitespace>,
-    minimap_enabled: Option<bool>,
-    bracket_pair_colorization: Option<bool>,
-    inlay_hints_enabled: Option<bool>,
-    auto_closing_brackets: Option<bool>,
-    scroll_beyond_last_line: Option<bool>,
-    cursor_blinking: Option<CursorBlinking>,
-    cursor_style: Option<CursorStyle>,
+pub struct PartialEditorSettings {
+    pub font_family: Option<String>,
+    pub font_size: Option<f32>,
+    pub line_height: Option<f32>,
+    pub tab_size: Option<u32>,
+    pub insert_spaces: Option<bool>,
+    pub word_wrap: Option<bool>,
+    pub line_numbers: Option<LineNumberStyle>,
+    pub auto_save: Option<AutoSave>,
+    pub format_on_save: Option<bool>,
+    pub trim_trailing_whitespace: Option<bool>,
+    pub render_whitespace: Option<RenderWhitespace>,
+    pub minimap_enabled: Option<bool>,
+    pub bracket_pair_colorization: Option<bool>,
+    pub inlay_hints_enabled: Option<bool>,
+    pub auto_closing_brackets: Option<bool>,
+    pub scroll_beyond_last_line: Option<bool>,
+    pub cursor_blinking: Option<CursorBlinking>,
+    pub cursor_style: Option<CursorStyle>,
+}
+
+impl PartialEditorSettings {
+    /// Apply these partial overrides onto a base `EditorSettings`.
+    pub fn apply_to(&self, base: &mut EditorSettings) {
+        if let Some(v) = &self.font_family {
+            base.font_family = v.clone();
+        }
+        if let Some(v) = self.font_size {
+            base.font_size = v;
+        }
+        if let Some(v) = self.line_height {
+            base.line_height = v;
+        }
+        if let Some(v) = self.tab_size {
+            base.tab_size = v;
+        }
+        if let Some(v) = self.insert_spaces {
+            base.insert_spaces = v;
+        }
+        if let Some(v) = self.word_wrap {
+            base.word_wrap = v;
+        }
+        if let Some(v) = self.line_numbers {
+            base.line_numbers = v;
+        }
+        if let Some(v) = self.auto_save {
+            base.auto_save = v;
+        }
+        if let Some(v) = self.format_on_save {
+            base.format_on_save = v;
+        }
+        if let Some(v) = self.trim_trailing_whitespace {
+            base.trim_trailing_whitespace = v;
+        }
+        if let Some(v) = self.render_whitespace {
+            base.render_whitespace = v;
+        }
+        if let Some(v) = self.minimap_enabled {
+            base.minimap_enabled = v;
+        }
+        if let Some(v) = self.bracket_pair_colorization {
+            base.bracket_pair_colorization = v;
+        }
+        if let Some(v) = self.inlay_hints_enabled {
+            base.inlay_hints_enabled = v;
+        }
+        if let Some(v) = self.auto_closing_brackets {
+            base.auto_closing_brackets = v;
+        }
+        if let Some(v) = self.scroll_beyond_last_line {
+            base.scroll_beyond_last_line = v;
+        }
+        if let Some(v) = self.cursor_blinking {
+            base.cursor_blinking = v;
+        }
+        if let Some(v) = self.cursor_style {
+            base.cursor_style = v;
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
