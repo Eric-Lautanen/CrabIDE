@@ -359,6 +359,65 @@ pub struct KeyBinding {
     pub when: Option<String>,
 }
 
+// ── ActionRegistry ─────────────────────────────────────────────────────────────
+
+/// A registry for extension-defined custom actions.
+///
+/// Extensions (or other dynamic sources) register custom action IDs here so they
+/// appear in the command palette and can be bound to keys. The registry is
+/// thread-safe via `Arc<RwLock<…>>`.
+#[derive(Debug, Clone)]
+pub struct ActionRegistry {
+    /// Map of action ID → human-readable title (e.g. "Markdown: Toggle Preview")
+    actions: IndexMap<String, String>,
+}
+
+impl ActionRegistry {
+    pub fn new() -> Self {
+        Self {
+            actions: IndexMap::new(),
+        }
+    }
+
+    /// Register a custom action. If an action with the same ID already exists,
+    /// its title is updated (no-op for same title).
+    pub fn register(&mut self, id: impl Into<String>, title: impl Into<String>) {
+        self.actions.insert(id.into(), title.into());
+    }
+
+    /// Unregister a previously registered custom action.
+    pub fn unregister(&mut self, id: &str) {
+        self.actions.shift_remove(id);
+    }
+
+    /// Returns `true` if an action with the given ID is registered.
+    pub fn has(&self, id: &str) -> bool {
+        self.actions.contains_key(id)
+    }
+
+    /// Iterate over all registered custom actions as `(Action::Custom(id), title)` pairs.
+    pub fn iter_custom(&self) -> impl Iterator<Item = (Action, &str)> + '_ {
+        self.actions
+            .iter()
+            .map(|(id, title)| (Action::Custom(id.clone()), title.as_str()))
+    }
+
+    /// Total number of registered custom actions.
+    pub fn len(&self) -> usize {
+        self.actions.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.actions.is_empty()
+    }
+}
+
+impl Default for ActionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ── When condition evaluation ─────────────────────────────────────────────────
 
 /// A pre-parsed `when` condition expression.
@@ -1038,5 +1097,21 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     // Snippets
     m.insert(Action::NextTabstop, "Snippet: Next Tabstop");
     m.insert(Action::PreviousTabstop, "Snippet: Previous Tabstop");
+    m
+}
+
+/// Return all built-in actions merged with actions from a registry.
+///
+/// This is the primary function to use when building the command-palette list.
+/// Custom actions registered via [`ActionRegistry`] are appended after the
+/// built-in actions so they appear in a predictable section.
+pub fn all_actions_with(registry: &ActionRegistry) -> IndexMap<Action, String> {
+    let mut m: IndexMap<Action, String> = all_actions()
+        .into_iter()
+        .map(|(k, v)| (k, v.to_owned()))
+        .collect();
+    for (action, title) in registry.iter_custom() {
+        m.entry(action).or_insert_with(|| title.to_owned());
+    }
     m
 }

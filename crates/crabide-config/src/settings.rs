@@ -521,9 +521,7 @@ impl PartialSettings {
 
         // Per-language overrides: merge language_overrides maps, inserting/overwriting
         for (lang, overrides) in &self.language_overrides {
-            base.language_overrides
-                .entry(lang.clone())
-                .or_default();
+            base.language_overrides.entry(lang.clone()).or_default();
             if let Some(entry) = base.language_overrides.get_mut(lang) {
                 // Copy over only the fields that are set in the partial
                 if let Some(v) = &overrides.font_family {

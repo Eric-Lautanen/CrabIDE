@@ -903,8 +903,8 @@ pub struct UiState {
     pub pending_navigate: Option<NavigateTarget>,
 
     // ── Extension commands (for command palette) ───────────────────────────────
-    /// (command_id, title) pairs for all registered extension commands.
-    pub registered_ext_commands: Vec<(String, String)>,
+    /// Registry of custom actions contributed by extensions.
+    pub action_registry: crabide_config::ActionRegistry,
 
     // ── Extension sidebar panes ───────────────────────────────────────────────
     /// Left-sidebar panes registered by extensions.
@@ -974,7 +974,7 @@ impl UiState {
             problems_panel_open: false,
             extension_panels: IndexMap::new(),
             pending_navigate: None,
-            registered_ext_commands: Vec::new(),
+            action_registry: crabide_config::ActionRegistry::new(),
             sidebar_panes: IndexMap::new(),
             registered_context_menus: Vec::new(),
             hover_text: None,

@@ -13,8 +13,8 @@ pub mod settings;
 pub mod theme;
 
 pub use keybindings::{
-    all_actions, parse_chord, Action, Key, KeyBinding, KeyChord, KeybindingEngine, Modifiers,
-    WhenCondition, WhenContext,
+    all_actions, all_actions_with, parse_chord, Action, ActionRegistry, Key, KeyBinding, KeyChord,
+    KeybindingEngine, Modifiers, WhenCondition, WhenContext,
 };
 pub use settings::{
     AutoSave, CursorBlinking, CursorStyle, EditorSettings, GitSettings, LineNumberStyle,
@@ -62,6 +62,7 @@ struct ConfigInner {
     keybinding_engine: KeybindingEngine,
     themes: IndexMap<String, ColorTheme>,
     active_theme_id: String,
+    action_registry: ActionRegistry,
 }
 
 impl ConfigManager {
@@ -94,6 +95,7 @@ impl ConfigManager {
             keybinding_engine,
             themes,
             active_theme_id,
+            action_registry: ActionRegistry::new(),
         }));
 
         let debouncer = Self::start_watcher(workspace_root.as_deref(), inner.clone(), tx.clone());
@@ -116,6 +118,19 @@ impl ConfigManager {
         F: FnOnce(&mut KeybindingEngine) -> R,
     {
         f(&mut self.inner.write().keybinding_engine)
+    }
+
+    /// Access the action registry for extensions to register custom actions.
+    pub fn action_registry(&self) -> ActionRegistry {
+        self.inner.read().action_registry.clone()
+    }
+
+    /// Mutate the action registry.
+    pub fn with_action_registry<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut ActionRegistry) -> R,
+    {
+        f(&mut self.inner.write().action_registry)
     }
 
     pub fn active_theme(&self) -> ColorTheme {

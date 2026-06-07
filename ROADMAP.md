@@ -88,7 +88,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 - [x] Add per-language settings overlay (`[language.rust] tab_size = 4`)
 - [x] Complete `all_actions()` with all ~80 Action variants (verified: 2-column enum + IndexMap)
 - [x] Remove dead `once_cell` dependency
-- [ ] Add action registry API for extensions to register custom actions
+- [x] Add action registry API for extensions to register custom actions
 - [ ] Add `keybindings.json` (VS Code format) import compatibility
 
 ### crabide-vfs — COMPLETE ✅

@@ -426,10 +426,14 @@ impl crabideApp {
 
         // ── Sync registered extension commands (for palette + keybindings) ────
         let cmds = self.extension_host.registered_commands();
-        self.ui_state.registered_ext_commands = cmds
-            .iter()
-            .map(|c| (c.id.clone(), c.title.clone()))
-            .collect();
+        // Update the action registry with all extension commands.
+        self.config.with_action_registry(|reg| {
+            for cmd in &cmds {
+                reg.register(&cmd.id, &cmd.title);
+            }
+        });
+        // Clone the updated registry into UiState so the palette can use it.
+        self.ui_state.action_registry = self.config.action_registry();
         // Register default keybindings for extension commands (once per command).
         for cmd in &cmds {
             if let Some(ref kb_str) = cmd.default_keybinding {

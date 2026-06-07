@@ -7,7 +7,7 @@
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32String};
 
-use crabide_config::{all_actions, Action};
+use crabide_config::{all_actions_with, Action, ActionRegistry};
 
 use crate::state::{cfg_to_egui, CommandPaletteState, PaletteEntry, UiState};
 
@@ -20,18 +20,14 @@ const MAX_RESULTS: usize = 10;
 ///
 /// Returns `Some(Action)` when the user confirms a selection.
 /// The caller handles the action and the palette hides itself.
-pub fn show(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
+pub fn show(ctx: &egui::Context, state: &mut UiState, registry: &ActionRegistry) -> Option<Action> {
     if !state.command_palette.visible {
         return None;
     }
 
     // ── Pre-populate entries on first open ────────────────────────────────────
     if state.command_palette.entries.is_empty() {
-        rebuild_entries(
-            &mut state.command_palette,
-            &state.keybindings,
-            &state.registered_ext_commands,
-        );
+        rebuild_entries(&mut state.command_palette, &state.keybindings, registry);
     }
 
     // ── Keyboard navigation (processed outside the window to run every frame) ─
@@ -198,11 +194,7 @@ pub fn show(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
     state.command_palette.selected_idx = selected_idx;
 
     if query_changed {
-        rebuild_entries(
-            &mut state.command_palette,
-            &state.keybindings,
-            &state.registered_ext_commands,
-        );
+        rebuild_entries(&mut state.command_palette, &state.keybindings, registry);
     }
 
     if close {
@@ -225,29 +217,20 @@ pub fn show(ctx: &egui::Context, state: &mut UiState) -> Option<Action> {
 fn rebuild_entries(
     cp: &mut CommandPaletteState,
     keybindings: &crabide_config::KeybindingEngine,
-    ext_commands: &[(String, String)],
+    registry: &ActionRegistry,
 ) {
-    let all = all_actions();
+    let all = all_actions_with(registry);
     cp.selected_idx = 0;
 
     if cp.query.is_empty() {
         cp.entries = all
             .iter()
-            .map(|(action, &label)| PaletteEntry {
+            .map(|(action, label)| PaletteEntry {
                 action: action.clone(),
-                label: label.to_string(),
+                label: label.clone(),
                 shortcut: format_shortcut(action, keybindings),
             })
             .collect();
-        // Append extension commands.
-        for (id, title) in ext_commands {
-            let shortcut = format_shortcut(&Action::Custom(id.clone()), keybindings);
-            cp.entries.push(PaletteEntry {
-                action: Action::Custom(id.clone()),
-                label: title.clone(),
-                shortcut,
-            });
-        }
         return;
     }
 
@@ -256,20 +239,12 @@ fn rebuild_entries(
 
     let mut scored: Vec<(u32, Action, String)> = all
         .iter()
-        .filter_map(|(action, &label)| {
-            let hay = Utf32String::from(label);
+        .filter_map(|(action, label)| {
+            let hay = Utf32String::from(label.as_str());
             let score = pattern.score(hay.slice(..), &mut matcher)?;
-            Some((score, action.clone(), label.to_string()))
+            Some((score, action.clone(), label.clone()))
         })
         .collect();
-
-    // Score extension commands too.
-    for (id, title) in ext_commands {
-        let hay = Utf32String::from(title.as_str());
-        if let Some(score) = pattern.score(hay.slice(..), &mut matcher) {
-            scored.push((score, Action::Custom(id.clone()), title.clone()));
-        }
-    }
 
     scored.sort_by_key(|b| std::cmp::Reverse(b.0));
 

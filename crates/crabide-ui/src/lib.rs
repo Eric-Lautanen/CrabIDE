@@ -72,7 +72,8 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
     }
 
     // ── Command palette ───────────────────────────────────────────────────────
-    if let Some(confirmed) = palette::show(&ctx, state) {
+    let registry = state.action_registry.clone();
+    if let Some(confirmed) = palette::show(&ctx, state, &registry) {
         if !handle_ui_action(confirmed.clone(), state) {
             actions.push(confirmed);
         }
@@ -688,11 +689,11 @@ fn show_menu_bar(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Actio
                         let shortcut = toggle_cmd
                             .as_deref()
                             .and_then(|cmd| {
-                                state
-                                    .registered_ext_commands
-                                    .iter()
-                                    .find(|(id, _)| id == cmd)
-                                    .map(|_| "")
+                                if state.action_registry.has(cmd) {
+                                    Some("")
+                                } else {
+                                    None
+                                }
                             })
                             .unwrap_or("");
                         if menu_row(ui, &label, shortcut) {
