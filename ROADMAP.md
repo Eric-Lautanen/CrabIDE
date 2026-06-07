@@ -86,7 +86,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 **Gaps:**
 - [x] Implement `KeybindingEngine::when` condition evaluation context system
 - [ ] Add per-language settings overlay (`[language.rust] tab_size = 4`)
-- [ ] Complete `all_actions()` with all ~50 missing Action variants
+- [x] Complete `all_actions()` with all ~50 missing Action variants
 - [x] Remove dead `once_cell` dependency
 - [ ] Add action registry API for extensions to register custom actions
 - [ ] Add `keybindings.json` (VS Code format) import compatibility

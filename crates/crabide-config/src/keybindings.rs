@@ -894,6 +894,7 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::SaveFileAs, "File: Save As...");
     m.insert(Action::SaveAll, "File: Save All");
     m.insert(Action::CloseTab, "View: Close Editor");
+    m.insert(Action::CloseAllTabs, "View: Close All Editors");
     m.insert(Action::Quit, "File: Quit");
     m.insert(Action::Undo, "Edit: Undo");
     m.insert(Action::Redo, "Edit: Redo");
@@ -902,52 +903,140 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::Paste, "Edit: Paste");
     m.insert(Action::SelectAll, "Edit: Select All");
     m.insert(Action::ToggleLineComment, "Editor: Toggle Line Comment");
+    m.insert(Action::ToggleBlockComment, "Editor: Toggle Block Comment");
     m.insert(Action::FormatDocument, "Editor: Format Document");
+    m.insert(Action::FormatSelection, "Editor: Format Selection");
+    m.insert(Action::OrganizeImports, "Editor: Organize Imports");
     m.insert(Action::RenameSymbol, "Editor: Rename Symbol");
     m.insert(Action::GotoDefinition, "Go: Go to Definition");
+    m.insert(Action::GotoDeclaration, "Go: Go to Declaration");
+    m.insert(Action::GotoImplementation, "Go: Go to Implementation");
+    m.insert(Action::GotoTypeDefinition, "Go: Go to Type Definition");
     m.insert(Action::GotoReferences, "Go: Go to References");
     m.insert(Action::GotoSymbol, "Go: Go to Symbol in File...");
     m.insert(Action::GotoLine, "Go: Go to Line...");
+    m.insert(Action::GoBack, "Go: Go Back");
+    m.insert(Action::GoForward, "Go: Go Forward");
+    m.insert(Action::NextDiagnostic, "Go: Next Diagnostic");
+    m.insert(Action::PreviousDiagnostic, "Go: Previous Diagnostic");
     m.insert(Action::Find, "Edit: Find");
-    m.insert(Action::FindInFiles, "Edit: Find in Files");
-    m.insert(Action::CommandPalette, "View: Command Palette");
-    m.insert(Action::FuzzyFindFile, "View: Open File by Name...");
-    m.insert(Action::ToggleSidebar, "View: Toggle Sidebar");
-    m.insert(Action::ToggleTerminal, "View: Toggle Terminal");
-    m.insert(Action::ToggleWordWrap, "View: Toggle Word Wrap");
-    m.insert(Action::ZoomIn, "View: Zoom In");
-    m.insert(Action::ZoomOut, "View: Zoom Out");
-    m.insert(Action::ZoomReset, "View: Reset Zoom");
-    m.insert(Action::DuplicateLine, "Edit: Duplicate Line");
-    m.insert(Action::DeleteLine, "Edit: Delete Line");
-    m.insert(Action::MoveLineUp, "Edit: Move Line Up");
-    m.insert(Action::MoveLineDown, "Edit: Move Line Down");
-    m.insert(Action::IndentLine, "Edit: Indent Line");
-    m.insert(Action::OutdentLine, "Edit: Outdent Line");
-    m.insert(Action::ToggleBlockComment, "Editor: Toggle Block Comment");
-    m.insert(
-        Action::TrimTrailingWhitespace,
-        "Editor: Trim Trailing Whitespace",
-    );
-    m.insert(Action::Find, "Edit: Find");
-    m.insert(Action::FindReplace, "Edit: Replace");
+    m.insert(Action::FindReplace, "Edit: Find and Replace");
     m.insert(Action::FindNext, "Edit: Find Next");
     m.insert(Action::FindPrevious, "Edit: Find Previous");
-    m.insert(Action::NextTabstop, "Snippet: Next Tabstop");
-    m.insert(Action::PreviousTabstop, "Snippet: Previous Tabstop");
-    m.insert(Action::StartDebug, "Debug: Start Debugging");
-    m.insert(Action::StopDebug, "Debug: Stop Debugging");
-    m.insert(Action::ContinueDebug, "Debug: Continue");
-    m.insert(Action::StepOver, "Debug: Step Over");
-    m.insert(Action::StepInto, "Debug: Step Into");
-    m.insert(Action::StepOut, "Debug: Step Out");
-    m.insert(Action::RestartDebug, "Debug: Restart");
-    m.insert(Action::ToggleBreakpoint, "Debug: Toggle Breakpoint");
+    m.insert(Action::FindInFiles, "Edit: Find in Files");
+    m.insert(Action::ReplaceInFiles, "Edit: Replace in Files");
+    m.insert(Action::CommandPalette, "View: Command Palette");
+    m.insert(Action::FuzzyFindFile, "View: Open File by Name...");
+    m.insert(
+        Action::FuzzyFindSymbol,
+        "View: Go to Symbol in Workspace...",
+    );
+    m.insert(Action::ToggleSidebar, "View: Toggle Sidebar");
+    m.insert(Action::TogglePanel, "View: Toggle Panel");
+    m.insert(Action::ToggleTerminal, "View: Toggle Terminal");
+    m.insert(Action::ToggleGitPanel, "View: Toggle Source Control Panel");
+    m.insert(Action::ToggleGit, "Source Control: Enable/Disable Git");
     m.insert(Action::ToggleDebugPanel, "View: Toggle Debug Panel");
     m.insert(Action::ToggleDebug, "Debug: Enable/Disable Debugger");
     m.insert(
         Action::ToggleExtensionsPanel,
         "View: Toggle Extensions Panel",
     );
+    m.insert(Action::ToggleOutputPanel, "View: Toggle Output Panel");
+    m.insert(Action::ToggleProblemsPanel, "View: Toggle Problems Panel");
+    m.insert(Action::ToggleMinimap, "View: Toggle Minimap");
+    m.insert(Action::ToggleWordWrap, "View: Toggle Word Wrap");
+    m.insert(Action::ZoomIn, "View: Zoom In");
+    m.insert(Action::ZoomOut, "View: Zoom Out");
+    m.insert(Action::ZoomReset, "View: Reset Zoom");
+    m.insert(Action::SplitEditorRight, "View: Split Editor Right");
+    m.insert(Action::SplitEditorDown, "View: Split Editor Down");
+    m.insert(Action::CloseEditor, "View: Close Editor Pane");
+    m.insert(Action::NextTab, "View: Next Tab");
+    m.insert(Action::PreviousTab, "View: Previous Tab");
+    m.insert(Action::MoveTabRight, "View: Move Tab Right");
+    m.insert(Action::MoveTabLeft, "View: Move Tab Left");
+    m.insert(Action::DuplicateLine, "Edit: Duplicate Line");
+    m.insert(Action::DeleteLine, "Edit: Delete Line");
+    m.insert(Action::MoveLineUp, "Edit: Move Line Up");
+    m.insert(Action::MoveLineDown, "Edit: Move Line Down");
+    m.insert(Action::InsertNewlineAbove, "Edit: Insert Line Above");
+    m.insert(Action::InsertNewlineBelow, "Edit: Insert Line Below");
+    m.insert(Action::IndentLine, "Edit: Indent Line");
+    m.insert(Action::OutdentLine, "Edit: Outdent Line");
+    m.insert(
+        Action::TrimTrailingWhitespace,
+        "Editor: Trim Trailing Whitespace",
+    );
+    m.insert(Action::SelectLine, "Selection: Select Line");
+    m.insert(Action::ExpandSelection, "Selection: Expand Selection");
+    m.insert(Action::ShrinkSelection, "Selection: Shrink Selection");
+    m.insert(Action::AddCursorAbove, "Selection: Add Cursor Above");
+    m.insert(Action::AddCursorBelow, "Selection: Add Cursor Below");
+    m.insert(Action::AddNextOccurrence, "Selection: Add Next Occurrence");
+    m.insert(
+        Action::SelectAllOccurrences,
+        "Selection: Select All Occurrences",
+    );
+    m.insert(Action::ColumnSelectUp, "Selection: Column Select Up");
+    m.insert(Action::ColumnSelectDown, "Selection: Column Select Down");
+    // Cursor movement
+    m.insert(Action::CursorUp, "Cursor: Up");
+    m.insert(Action::CursorDown, "Cursor: Down");
+    m.insert(Action::CursorLeft, "Cursor: Left");
+    m.insert(Action::CursorRight, "Cursor: Right");
+    m.insert(Action::CursorWordLeft, "Cursor: Word Left");
+    m.insert(Action::CursorWordRight, "Cursor: Word Right");
+    m.insert(Action::CursorLineStart, "Cursor: Line Start");
+    m.insert(Action::CursorLineEnd, "Cursor: Line End");
+    m.insert(Action::CursorFileStart, "Cursor: File Start");
+    m.insert(Action::CursorFileEnd, "Cursor: File End");
+    m.insert(Action::CursorPageUp, "Cursor: Page Up");
+    m.insert(Action::CursorPageDown, "Cursor: Page Down");
+    m.insert(Action::ScrollLineUp, "Cursor: Scroll Line Up");
+    m.insert(Action::ScrollLineDown, "Cursor: Scroll Line Down");
+    // Selection (cursor with shift)
+    m.insert(Action::SelectUp, "Selection: Up");
+    m.insert(Action::SelectDown, "Selection: Down");
+    m.insert(Action::SelectLeft, "Selection: Left");
+    m.insert(Action::SelectRight, "Selection: Right");
+    m.insert(Action::SelectWordLeft, "Selection: Word Left");
+    m.insert(Action::SelectWordRight, "Selection: Word Right");
+    m.insert(Action::SelectLineStart, "Selection: Line Start");
+    m.insert(Action::SelectLineEnd, "Selection: Line End");
+    m.insert(Action::SelectFileStart, "Selection: File Start");
+    m.insert(Action::SelectFileEnd, "Selection: File End");
+    // Deletion
+    m.insert(Action::DeleteCharLeft, "Edit: Delete Character Left");
+    m.insert(Action::DeleteCharRight, "Edit: Delete Character Right");
+    m.insert(Action::DeleteWordLeft, "Edit: Delete Word Left");
+    m.insert(Action::DeleteWordRight, "Edit: Delete Word Right");
+    m.insert(Action::DeleteLineLeft, "Edit: Delete to Line Start");
+    m.insert(Action::DeleteLineRight, "Edit: Delete to Line End");
+    // LSP
+    m.insert(Action::TriggerCompletion, "Editor: Trigger Completion");
+    m.insert(Action::ShowHover, "Editor: Show Hover");
+    m.insert(Action::ShowSignatureHelp, "Editor: Show Signature Help");
+    m.insert(Action::ApplyCodeAction, "Editor: Apply Code Action");
+    // Git
+    m.insert(Action::GitCommit, "Git: Commit");
+    m.insert(Action::GitStageAll, "Git: Stage All Changes");
+    m.insert(Action::GitUnstageAll, "Git: Unstage All Changes");
+    m.insert(Action::GitDiscardChanges, "Git: Discard Changes");
+    // Debug
+    m.insert(Action::ToggleBreakpoint, "Debug: Toggle Breakpoint");
+    m.insert(Action::StartDebug, "Debug: Start Debugging");
+    m.insert(Action::StopDebug, "Debug: Stop Debugging");
+    m.insert(Action::ContinueDebug, "Debug: Continue / Pause");
+    m.insert(Action::StepOver, "Debug: Step Over");
+    m.insert(Action::StepInto, "Debug: Step Into");
+    m.insert(Action::StepOut, "Debug: Step Out");
+    m.insert(Action::RestartDebug, "Debug: Restart");
+    // Terminal
+    m.insert(Action::NewTerminal, "Terminal: New Terminal");
+    m.insert(Action::KillTerminal, "Terminal: Kill Terminal");
+    // Snippets
+    m.insert(Action::NextTabstop, "Snippet: Next Tabstop");
+    m.insert(Action::PreviousTabstop, "Snippet: Previous Tabstop");
     m
 }
