@@ -1,26 +1,40 @@
 //! Editor gutter: line numbers, diagnostic severity icons, git diff markers,
-//! and breakpoint indicators.
+//! breakpoint indicators, and code folding controls.
 //!
 //! `show_line` is called once per visible line from inside the `ScrollArea`
 //! in `editor.rs`, so its coordinate system is always correct for the
 //! current scroll position.
 
-use crabide_core::event::{Diagnostic, DiagnosticSeverity, DiffHunk, HunkKind};
+use crabide_core::event::{Diagnostic, DiagnosticSeverity, DiffHunk, FoldingRange, HunkKind};
 
 use crate::state::{cfg_to_egui, EditorTab, UiState};
 
 /// Width of the gutter column in logical pixels.
-/// Extended slightly to accommodate the breakpoint circle.
+/// Extended to accommodate the breakpoint circle and fold controls.
 pub const GUTTER_WIDTH: f32 = 60.0;
+
+/// Result of processing a gutter row.
+pub enum GutterAction {
+    /// No interaction.
+    None,
+    /// User clicked in the breakpoint zone for this line.
+    ToggleBreakpoint,
+    /// User clicked on a fold marker for the folding range at this index.
+    ToggleFold(usize),
+}
 
 /// Render one gutter row for `line_idx` (0-based).
 ///
 /// The caller must have already started a horizontal layout group for the row;
 /// this function allocates exactly `GUTTER_WIDTH` pixels wide.
 ///
-/// Returns `true` if the user clicked inside the breakpoint zone of this line
-/// (so the caller can toggle the breakpoint for that line).
-pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: usize) -> bool {
+/// Returns a `GutterAction` indicating what interaction occurred on this row.
+pub fn show_line(
+    ui: &mut egui::Ui,
+    tab: &EditorTab,
+    state: &UiState,
+    line_idx: usize,
+) -> GutterAction {
     let line_no = line_idx + 1; // 1-based display
     let is_active = tab.cursors.primary().pos().line as usize == line_idx;
 
@@ -55,6 +69,10 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
     let has_bp = tab.breakpoints.contains(&line_u32);
     let bp_verified = has_bp && breakpoint_verified(state, tab, line_u32);
 
+    // ── Folding state for this line ───────────────────────────────────────────
+    let (fold_marker, fold_idx, is_collapsed) =
+        fold_info_on_line(&tab.folding_ranges, &tab.collapsed_folds, line_idx);
+
     // ── Layout ────────────────────────────────────────────────────────────────
     // Claim GUTTER_WIDTH px; fill with gutter background.
     let (gutter_rect, gutter_resp) = ui.allocate_exact_size(
@@ -64,7 +82,6 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
     ui.painter().rect_filled(gutter_rect, 0.0, gutter_bg);
 
     // ── Breakpoint circle (left edge, 10px wide zone) ─────────────────────────
-    // Clicking anywhere in the left 16 px of the gutter toggles the breakpoint.
     let bp_zone =
         egui::Rect::from_min_size(gutter_rect.min, egui::vec2(16.0, gutter_rect.height()));
     let bp_zone_resp = ui.interact(bp_zone, gutter_resp.id.with("bp"), egui::Sense::click());
@@ -74,7 +91,6 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
     let bp_radius = 4.5_f32;
 
     if has_bp {
-        // Filled circle: verified = red, unverified = grey outline.
         if bp_verified {
             ui.painter().circle_filled(
                 bp_center,
@@ -89,7 +105,6 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
             );
         }
     } else if gutter_resp.hovered() {
-        // Ghost hint: faint circle on hover to hint that you can click.
         ui.painter().circle_stroke(
             bp_center,
             bp_radius,
@@ -98,6 +113,46 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
                 egui::Color32::from_rgba_unmultiplied(0xe5, 0x1b, 0x1b, 0x55),
             ),
         );
+    }
+
+    // ── Fold marker ───────────────────────────────────────────────────────────
+    // If this line starts a folding range, render ▶ (collapsed) or ▼ (expanded).
+    // The marker sits just to the right of the breakpoint zone.
+    if let Some((marker, idx, collapsed)) =
+        fold_marker.map(|m| (m, fold_idx.unwrap(), is_collapsed.unwrap()))
+    {
+        let fold_center = egui::pos2(gutter_rect.left() + 24.0, gutter_rect.center().y);
+        let fold_zone = egui::Rect::from_min_size(
+            egui::pos2(gutter_rect.left() + 18.0, gutter_rect.top()),
+            egui::vec2(16.0, gutter_rect.height()),
+        );
+        let fold_resp = ui.interact(fold_zone, gutter_resp.id.with("fold"), egui::Sense::click());
+        ui.painter().text(
+            fold_center,
+            egui::Align2::CENTER_CENTER,
+            marker,
+            egui::FontId::proportional(state.font_size - 2.0),
+            egui::Color32::from_rgb(0xcc, 0xcc, 0xcc),
+        );
+        if fold_resp.clicked() {
+            return GutterAction::ToggleFold(idx);
+        }
+
+        // Also add a faint line below the fold marker to hint at the folded region.
+        if collapsed {
+            // Draw a thin horizontal line from fold marker to the right edge.
+            let line_y = gutter_rect.center().y;
+            ui.painter().line_segment(
+                [
+                    egui::pos2(gutter_rect.left() + 24.0, line_y),
+                    egui::pos2(gutter_rect.right() - 4.0, line_y),
+                ],
+                egui::Stroke::new(
+                    1.0,
+                    egui::Color32::from_rgba_unmultiplied(0x88, 0x88, 0x88, 0x60),
+                ),
+            );
+        }
     }
 
     // ── Line number right-aligned in gutter ───────────────────────────────────
@@ -110,9 +165,9 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
     });
 
     // Reserve 14 px on the right for the git/diagnostic strip + 8 for padding,
-    // and 16 px on the left for the breakpoint zone.
+    // and 16 px on the left for the breakpoint zone + fold marker zone.
     let number_right_x = gutter_rect.right() - 14.0;
-    let text_left = (number_right_x - galley.rect.width()).max(gutter_rect.left() + 18.0);
+    let text_left = (number_right_x - galley.rect.width()).max(gutter_rect.left() + 32.0);
     let text_top = gutter_rect.center().y - galley.rect.height() / 2.0;
     ui.painter().galley(
         egui::pos2(text_left, text_top),
@@ -161,7 +216,11 @@ pub fn show_line(ui: &mut egui::Ui, tab: &EditorTab, state: &UiState, line_idx: 
         );
     }
 
-    bp_zone_resp.clicked()
+    if bp_zone_resp.clicked() {
+        GutterAction::ToggleBreakpoint
+    } else {
+        GutterAction::None
+    }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -201,6 +260,23 @@ fn git_marker_on_line(hunks: &[DiffHunk], line_idx: usize) -> Option<egui::Color
             HunkKind::Modified => egui::Color32::from_rgb(0x0c, 0x7d, 0x9d),
             HunkKind::Removed => egui::Color32::from_rgb(0x94, 0x15, 0x1b),
         })
+}
+
+/// Return fold marker info for a line: the marker character (if any), the index
+/// into `folding_ranges`, and whether it's collapsed.
+fn fold_info_on_line(
+    folding_ranges: &[FoldingRange],
+    collapsed_folds: &[usize],
+    line_idx: usize,
+) -> (Option<&'static str>, Option<usize>, Option<bool>) {
+    for (i, fr) in folding_ranges.iter().enumerate() {
+        if fr.start_line as usize == line_idx {
+            let collapsed = collapsed_folds.contains(&i);
+            let marker = if collapsed { "▶" } else { "▼" };
+            return (Some(marker), Some(i), Some(collapsed));
+        }
+    }
+    (None, None, None)
 }
 
 /// Returns `true` if the DAP session has a verified breakpoint on this line.

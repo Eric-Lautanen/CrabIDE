@@ -27,12 +27,31 @@
 use egui::text::{LayoutJob, TextFormat};
 
 use crabide_config::Action;
-use crabide_core::event::{Diagnostic, DiagnosticSeverity};
+use crabide_core::event::{Diagnostic, DiagnosticSeverity, FoldingRange};
 use crabide_core::types::Position;
 use crabide_syntax::highlight::scope_to_vscode;
 
 use crate::panels::{gutter, tab_bar};
 use crate::state::{cfg_to_egui, UiState};
+
+/// Returns `true` if `line_idx` is hidden by a collapsed fold range.
+/// A fold range hides lines strictly between `start_line` and `end_line`
+/// (the first line of the range is always visible as the fold marker).
+fn is_line_folded(
+    line_idx: usize,
+    folding_ranges: &[FoldingRange],
+    collapsed_folds: &[usize],
+) -> bool {
+    collapsed_folds.iter().any(|&i| {
+        if let Some(fr) = folding_ranges.get(i) {
+            let start = fr.start_line as usize;
+            let end = fr.end_line as usize;
+            line_idx > start && line_idx < end
+        } else {
+            false
+        }
+    })
+}
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -234,6 +253,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     // Breakpoint gutter clicks are collected here and applied to state.dap_panel
     // AFTER the scroll closures so the closures don't need mutable state access.
     let mut bp_gutter_click: Option<(std::path::PathBuf, Vec<u32>)> = None;
+    // Fold toggles are also collected and applied after the scroll area.
+    let mut unsorted_fold_toggles: Vec<usize> = Vec::new();
 
     if word_wrap {
         // ── Word-wrap mode: one label per line, all lines rendered ─────────────
@@ -277,6 +298,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 let row_rect = ui.available_rect_before_wrap();
                 let row_top = row_rect.top();
 
+                // Skip lines hidden by collapsed folds.
+                if is_line_folded(line_idx, &tab.folding_ranges, &tab.collapsed_folds) {
+                    ui.add_space(line_height);
+                    continue;
+                }
+
                 // Skip lines that are fully above or below the visible clip rect.
                 // For lines above we add the minimum height so scroll geometry is
                 // preserved; below, we stop rendering entirely.
@@ -307,20 +334,27 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                     // overlapping borrow of `state` when we later touch `state.dap_panel`.
                     let tab_bp_path = tab.uri.as_url().to_file_path().ok();
                     let tab_bps_snap = tab.breakpoints.clone();
-                    let bp_clicked = gutter::show_line(ui, tab, state, line_idx);
-                    if bp_clicked {
-                        let bp_line = line_idx as u32;
-                        actions.push(Action::ToggleBreakpoint);
-                        if let Some(path) = tab_bp_path {
-                            let mut lines = tab_bps_snap;
-                            if let Some(pos) = lines.iter().position(|&l| l == bp_line) {
-                                lines.remove(pos);
-                            } else {
-                                lines.push(bp_line);
-                                lines.sort_unstable();
+                    match gutter::show_line(ui, tab, state, line_idx) {
+                        gutter::GutterAction::ToggleBreakpoint => {
+                            let bp_line = line_idx as u32;
+                            actions.push(Action::ToggleBreakpoint);
+                            if let Some(path) = tab_bp_path {
+                                let mut lines = tab_bps_snap;
+                                if let Some(pos) = lines.iter().position(|&l| l == bp_line) {
+                                    lines.remove(pos);
+                                } else {
+                                    lines.push(bp_line);
+                                    lines.sort_unstable();
+                                }
+                                bp_gutter_click = Some((path, lines));
                             }
-                            bp_gutter_click = Some((path, lines));
                         }
+                        gutter::GutterAction::ToggleFold(idx) => {
+                            // Toggle fold is handled after the scroll area to avoid
+                            // borrowing conflicts.
+                            unsorted_fold_toggles.push(idx);
+                        }
+                        gutter::GutterAction::None => {}
                     }
                     let text_left_x = ui.cursor().left();
 
@@ -461,6 +495,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 let row_rect = ui.available_rect_before_wrap();
                 let row_top = row_rect.top();
 
+                // Skip lines hidden by collapsed folds.
+                if is_line_folded(line_idx, &tab.folding_ranges, &tab.collapsed_folds) {
+                    ui.add_space(line_height);
+                    continue;
+                }
+
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
 
@@ -476,20 +516,25 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                     // overlapping borrow of `state` when we later touch `state.dap_panel`.
                     let tab_bp_path = tab.uri.as_url().to_file_path().ok();
                     let tab_bps_snap = tab.breakpoints.clone();
-                    let bp_clicked = gutter::show_line(ui, tab, state, line_idx);
-                    if bp_clicked {
-                        let bp_line = line_idx as u32;
-                        actions.push(Action::ToggleBreakpoint);
-                        if let Some(path) = tab_bp_path {
-                            let mut lines = tab_bps_snap;
-                            if let Some(pos) = lines.iter().position(|&l| l == bp_line) {
-                                lines.remove(pos);
-                            } else {
-                                lines.push(bp_line);
-                                lines.sort_unstable();
+                    match gutter::show_line(ui, tab, state, line_idx) {
+                        gutter::GutterAction::ToggleBreakpoint => {
+                            let bp_line = line_idx as u32;
+                            actions.push(Action::ToggleBreakpoint);
+                            if let Some(path) = tab_bp_path {
+                                let mut lines = tab_bps_snap;
+                                if let Some(pos) = lines.iter().position(|&l| l == bp_line) {
+                                    lines.remove(pos);
+                                } else {
+                                    lines.push(bp_line);
+                                    lines.sort_unstable();
+                                }
+                                bp_gutter_click = Some((path, lines));
                             }
-                            bp_gutter_click = Some((path, lines));
                         }
+                        gutter::GutterAction::ToggleFold(idx) => {
+                            unsorted_fold_toggles.push(idx);
+                        }
+                        gutter::GutterAction::None => {}
                     }
                     let text_left_x = ui.cursor().left();
 
@@ -602,6 +647,20 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             .pending_set_breakpoints
             .retain(|(p, _)| p != &path);
         state.dap_panel.pending_set_breakpoints.push((path, lines));
+    }
+
+    // ── Apply fold toggles ──────────────────────────────────────────────────
+    if let Some(tab) = state.tabs.get_mut(active_idx) {
+        for idx in unsorted_fold_toggles {
+            if idx < tab.folding_ranges.len() {
+                if let Some(pos) = tab.collapsed_folds.iter().position(|&i| i == idx) {
+                    tab.collapsed_folds.remove(pos);
+                } else {
+                    tab.collapsed_folds.push(idx);
+                    tab.collapsed_folds.sort_unstable();
+                }
+            }
+        }
     }
 
     // ── Apply pointer events → cursor placement / drag selection ──────────────

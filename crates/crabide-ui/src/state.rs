@@ -14,8 +14,8 @@ use crabide_buffer::{CursorSet, SnippetEngine, SnippetTabstop};
 use crabide_config::{Action, Color, ColorTheme, KeybindingEngine, WhenContext};
 use crabide_core::{
     event::{
-        BlameLine, Diagnostic, DiffHunk, FileStatus, OutputCategory, StackFrame, TerminalCell,
-        TerminalColor, Variable,
+        BlameLine, Diagnostic, DiffHunk, FileStatus, FoldingRange, OutputCategory, StackFrame,
+        TerminalCell, TerminalColor, Variable,
     },
     types::{BufferId, DocumentUri, Language, Position, Range},
 };
@@ -1165,6 +1165,10 @@ pub struct EditorTab {
     pub semantic_tokens: Vec<crabide_core::event::SemanticToken>,
     /// LSP code lens items (clickable links above functions).
     pub code_lens: Vec<crabide_core::event::CodeLens>,
+    /// Folding ranges from syntax engine or LSP (sorted by start_line).
+    pub folding_ranges: Vec<FoldingRange>,
+    /// Bit-set tracking which folding ranges are collapsed (indices into folding_ranges).
+    pub collapsed_folds: Vec<usize>,
 }
 
 impl EditorTab {
@@ -1193,6 +1197,8 @@ impl EditorTab {
             inlay_hints: Vec::new(),
             semantic_tokens: Vec::new(),
             code_lens: Vec::new(),
+            folding_ranges: Vec::new(),
+            collapsed_folds: Vec::new(),
         }
     }
 
