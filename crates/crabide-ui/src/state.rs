@@ -1180,7 +1180,7 @@ pub struct EditorTab {
     pub folding_ranges: Vec<FoldingRange>,
     /// Bit-set tracking which folding ranges are collapsed (indices into folding_ranges).
     pub collapsed_folds: Vec<usize>,
-    /// Breadcrumb segments for the current cursor position (file → module → symbol).
+    /// Breadcrumb segments for the cursor position (file → module → struct → function).
     pub breadcrumbs: Vec<BreadcrumbSegment>,
 }
 

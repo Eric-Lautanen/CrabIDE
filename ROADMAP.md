@@ -123,7 +123,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Implement indentation query runner (`IndentEngine` + `SyntaxEngine::indents()` active)
 - [x] Implement locals/scope-aware queries (`LocalsEngine` + `SyntaxEngine::local_scopes()` active)
 - [x] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
-- [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
+- [x] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
 - [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
 - [x] Add custom fold marker support (`// #region` / `// #endregion`)

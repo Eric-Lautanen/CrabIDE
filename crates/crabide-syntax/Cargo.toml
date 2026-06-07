@@ -1,31 +1,28 @@
 [package]
-name        = "crabide-syntax"
+name = "crabide-syntax"
 description = "Tree-sitter integration: incremental parsing, highlighting, folding, symbols"
-workspace   = "../.."
+workspace = "../.."
 
-version.workspace      = true
-edition.workspace      = true
+version.workspace = true
+edition.workspace = true
 rust-version.workspace = true
-authors.workspace      = true
-license.workspace      = true
-repository.workspace   = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 crabide-core.workspace = true
 # crabide-buffer: needed for TextBuffer trait impl on SyntaxDocumentObserver
 crabide-buffer.workspace = true
-
 tree-sitter.workspace = true
-
-anyhow.workspace     = true
-log.workspace        = true
+anyhow.workspace = true
+log.workspace = true
 parking_lot.workspace = true
-dashmap.workspace    = true
-
-smol_str.workspace   = true
-
-libloading.workspace         = true
+dashmap.workspace = true
+smol_str.workspace = true
+libloading.workspace = true
 streaming-iterator.workspace = true
-
-# Rayon for parallel highlighting across large files
+# Rayon for parallel parsing across documents
 rayon.workspace = true
+# crossbeam-channel for async parse result delivery
+crossbeam-channel.workspace = true

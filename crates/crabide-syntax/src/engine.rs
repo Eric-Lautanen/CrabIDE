@@ -12,8 +12,11 @@
 //! resulting highlight spans.
 //!
 //! # Threading
-//! - Parse calls are synchronous but cheap for small files; callers can wrap
-//!   them in `rayon::spawn` for large files.
+//! - Parse calls can be dispatched to the Rayon thread pool via
+//!   [`parse_document_async`]; the UI collects results each frame via
+//!   [`poll_async_results`].
+//! - Synchronous [`parse_document`] is still available for small files or
+//!   latency-critical paths.
 //! - The `DashMap` is lock-free for concurrent reads from multiple threads.
 
 use std::sync::Arc;
@@ -23,6 +26,7 @@ use crabide_core::{
     traits::DocumentObserver,
     types::{BufferId, DocumentUri, Language, TextEdit},
 };
+use crossbeam_channel::Receiver;
 use dashmap::DashMap;
 
 use crate::{
@@ -57,6 +61,17 @@ pub struct PendingReparse {
     pub version: u32,
 }
 
+// ── ParseResult ──────────────────────────────────────────────────────────────
+
+/// Result of a background parse dispatched to the Rayon thread pool.
+pub struct ParseResult {
+    pub id: BufferId,
+    pub tree: tree_sitter::Tree,
+    pub language: Language,
+    pub version: u32,
+    pub source: Arc<[u8]>,
+}
+
 // ── SyntaxEngine ──────────────────────────────────────────────────────────────
 
 /// Central syntax analysis service.
@@ -67,7 +82,15 @@ pub struct PendingReparse {
 /// text in a pending-source map; the UI layer calls [`drain_pending_reparses`]
 /// each frame to actually execute the parses and update highlight spans.
 ///
+/// # Async parsing
+///
+/// For large documents, parsing can be dispatched to the Rayon thread pool
+/// via [`parse_document_async`]. The UI layer calls [`poll_async_results`]
+/// each frame to collect completed parse trees and update the cache.
+///
 /// [`drain_pending_reparses`]: SyntaxEngine::drain_pending_reparses
+/// [`parse_document_async`]: SyntaxEngine::parse_document_async
+/// [`poll_async_results`]: SyntaxEngine::poll_async_results
 pub struct SyntaxEngine {
     registry: &'static GrammarRegistry,
     cache: DashMap<BufferId, ParsedDoc>,
@@ -77,11 +100,16 @@ pub struct SyntaxEngine {
     /// Documents that need re-parsing, populated by the DocumentObserver impl.
     /// The UI drains this each frame via `drain_pending_reparses()`.
     pending: DashMap<BufferId, PendingReparse>,
+    /// Channel for receiving completed parse results from the Rayon thread pool.
+    async_results_rx: Receiver<ParseResult>,
+    /// Sender side cloned into Rayon tasks.
+    async_results_tx: crossbeam_channel::Sender<ParseResult>,
 }
 
 impl SyntaxEngine {
     /// Create a new engine backed by the global grammar registry.
     pub fn new() -> Self {
+        let (tx, rx) = crossbeam_channel::unbounded();
         Self {
             registry: crate::grammar::grammar_registry(),
             cache: DashMap::new(),
@@ -89,10 +117,13 @@ impl SyntaxEngine {
             indenter: IndentEngine::new(),
             locals: LocalsEngine::new(),
             pending: DashMap::new(),
+            async_results_rx: rx,
+            async_results_tx: tx,
         }
     }
 
     pub fn with_registry(registry: &'static GrammarRegistry) -> Self {
+        let (tx, rx) = crossbeam_channel::unbounded();
         Self {
             registry,
             cache: DashMap::new(),
@@ -100,6 +131,8 @@ impl SyntaxEngine {
             indenter: IndentEngine::new(),
             locals: LocalsEngine::new(),
             pending: DashMap::new(),
+            async_results_rx: rx,
+            async_results_tx: tx,
         }
     }
 
@@ -205,6 +238,95 @@ impl SyntaxEngine {
     /// Remove a document from the parse cache.
     pub fn close_document(&self, id: BufferId) {
         self.cache.remove(&id);
+    }
+
+    /// Dispatch a document parse to the Rayon thread pool.
+    ///
+    /// This is the async counterpart of [`parse_document`]. The parse runs on
+    /// a Rayon worker thread and the result is delivered via the internal
+    /// channel. Call [`poll_async_results`] each frame to collect completed
+    /// parse trees and update the cache.
+    ///
+    /// If no grammar is registered for `language`, this is a no-op.
+    ///
+    /// [`parse_document`]: SyntaxEngine::parse_document
+    /// [`poll_async_results`]: SyntaxEngine::poll_async_results
+    pub fn parse_document_async(
+        &self,
+        id: BufferId,
+        language: &Language,
+        source: &str,
+        version: u32,
+    ) {
+        let entry = match self.registry.get(language) {
+            Some(e) => e,
+            None => {
+                log::debug!("No grammar registered for {language}; skipping async parse of {id}");
+                return;
+            }
+        };
+
+        let source_bytes: Arc<[u8]> = Arc::from(source.as_bytes());
+        let tx = self.async_results_tx.clone();
+        let id_clone = id;
+        let language_clone = language.clone();
+
+        rayon::spawn(move || {
+            let mut parser = match make_parser(&entry) {
+                Ok(p) => p,
+                Err(e) => {
+                    log::error!("Failed to create parser for {language_clone}: {e}");
+                    return;
+                }
+            };
+
+            match parser.parse(source_bytes.as_ref(), None) {
+                Some(tree) => {
+                    let result = ParseResult {
+                        id: id_clone,
+                        tree,
+                        language: language_clone,
+                        version,
+                        source: source_bytes,
+                    };
+                    if tx.send(result).is_err() {
+                        log::warn!("Async parse result for {id_clone} dropped — engine shut down");
+                    }
+                }
+                None => {
+                    log::warn!("Async parser returned no tree for {id_clone} ({language_clone})");
+                }
+            }
+        });
+    }
+
+    /// Poll for completed async parse results and insert them into the cache.
+    ///
+    /// Call this once per frame from the UI thread. Returns the set of buffer
+    /// IDs whose parse cache was updated, so the caller can refresh highlight
+    /// spans in its editor tabs.
+    pub fn poll_async_results(&self) -> Vec<BufferId> {
+        let mut updated = Vec::new();
+        while let Ok(result) = self.async_results_rx.try_recv() {
+            // Only insert if the result is not stale (version >= cached version).
+            let is_newer = match self.cache.get(&result.id) {
+                Some(cached) => result.version >= cached.version,
+                None => true,
+            };
+            if is_newer {
+                self.cache.insert(
+                    result.id,
+                    ParsedDoc {
+                        tree: result.tree,
+                        language: result.language,
+                        version: result.version,
+                        source: result.source,
+                    },
+                );
+                updated.push(result.id);
+            }
+        }
+        updated
     }
 
     // ── Queries ───────────────────────────────────────────────────────────────
