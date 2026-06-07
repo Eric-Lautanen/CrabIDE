@@ -14,6 +14,7 @@ pub mod git_panel;
 pub mod gutter;
 pub mod problems_panel;
 pub mod status_bar;
+pub mod symbol_outline;
 pub mod tab_bar;
 pub mod terminal_panel;
 pub mod workspace_search;

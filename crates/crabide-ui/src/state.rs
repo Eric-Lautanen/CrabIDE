@@ -198,6 +198,23 @@ impl GotoLineState {
     }
 }
 
+/// A search result for the symbol outline overlay.
+#[derive(Debug, Clone)]
+pub struct SymbolOutlineEntry {
+    pub name: String,
+    pub kind: String,
+    pub line: u32,
+}
+
+/// State for the Go-to-symbol (Ctrl+Shift+O) overlay.
+#[derive(Default)]
+pub struct SymbolOutlineState {
+    pub visible: bool,
+    pub query: String,
+    pub entries: Vec<SymbolOutlineEntry>,
+    pub selected_idx: usize,
+}
+
 // ── DapPanelState ─────────────────────────────────────────────────────────────
 
 /// All state for the integrated debugger bottom panel.
@@ -841,6 +858,9 @@ pub struct UiState {
     // ── Go-to-line (Ctrl+G) ───────────────────────────────────────────────────
     pub goto_line: GotoLineState,
 
+    // ── Symbol outline (Ctrl+Shift+O) ──────────────────────────────────────────
+    pub symbol_outline: SymbolOutlineState,
+
     // ── Terminal panel ────────────────────────────────────────────────────────
     pub terminal: TerminalPanelState,
 
@@ -955,6 +975,7 @@ impl UiState {
             fuzzy_finder: FuzzyFinderState::default(),
             workspace_search: WorkspaceSearchState::default(),
             goto_line: GotoLineState::default(),
+            symbol_outline: SymbolOutlineState::default(),
             terminal: TerminalPanelState::default(),
             git_panel: GitPanelState::default(),
             git_enabled: false,

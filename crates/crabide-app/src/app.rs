@@ -42,7 +42,7 @@ use crabide_syntax::{grammar::grammar_registry, queries, SyntaxEngine};
 use crabide_terminal::{TerminalManager, TerminalProfile};
 use crabide_ui::{
     cfg_to_egui, EditorTab, FileNode, GitDecoration, LspStatus, SidebarPaneUiState,
-    TerminalInstance, UiState,
+    SymbolOutlineEntry, TerminalInstance, UiState,
 };
 use crabide_vfs::{LocalVfs, VfsWatcher};
 use crabide_workspace::Workspace;
@@ -1747,12 +1747,23 @@ impl crabideApp {
 
             // ── Go to symbol (Ctrl+Shift+O) ───────────────────────────────────
             Action::GotoSymbol => {
-                // Symbols from syntax outline — open command palette pre-filtered
-                // with "@" prefix (VS Code convention); for Phase 7 we open the
-                // standard command palette as a placeholder.
-                self.ui_state.command_palette.visible = true;
-                self.ui_state
-                    .set_status("Go to Symbol — use command palette for now");
+                // Populate entries from the syntax engine if a tab is active
+                if let Some(idx) = self.ui_state.active_tab {
+                    if let Some(tab) = self.ui_state.tabs.get(idx) {
+                        let symbols = self.syntax.outline(tab.buffer_id);
+                        self.ui_state.symbol_outline.entries = symbols
+                            .into_iter()
+                            .map(|s| {
+                                let kind = format!("{:?}", s.kind);
+                                SymbolOutlineEntry {
+                                    name: s.name,
+                                    kind,
+                                    line: s.range.start.line,
+                                }
+                            })
+                            .collect();
+                    }
+                }
             }
 
             // ── Add next occurrence (Ctrl+D) ──────────────────────────────────

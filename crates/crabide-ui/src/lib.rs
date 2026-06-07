@@ -23,8 +23,8 @@ pub use layout::PaneKind;
 pub use state::{
     cfg_to_egui, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
-    GitPanelState, LspStatus, SidebarPaneUiState, SidebarTab, TerminalInstance, TerminalPanelState,
-    UiState,
+    GitPanelState, LspStatus, SidebarPaneUiState, SidebarTab, SymbolOutlineEntry,
+    SymbolOutlineState, TerminalInstance, TerminalPanelState, UiState,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -87,6 +87,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
     // Go-to-line dialog (Ctrl+G)
     if let Some(goto_action) = show_goto_line(ui, state) {
         actions.push(goto_action);
+    }
+
+    // ── Symbol outline (Ctrl+Shift+O) ─────────────────────────────────────────
+    if let Some(sym_action) = panels::symbol_outline::show(&ctx, state) {
+        actions.push(sym_action);
     }
 
     // ── Find / replace floating window ────────────────────────────────────────
@@ -1208,6 +1213,7 @@ fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
 
+
         // ── Fuzzy finder ──────────────────────────────────────────────────────
         Action::FuzzyFindFile => {
             // Open the overlay; forward to app so it can populate file_index.
@@ -1222,11 +1228,24 @@ fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
         Action::GotoLine => {
-            // Dialog already open confirmation forwarded to app.
             false
         }
 
-        // ── Find in files ─────────────────────────────────────────────────────
+        // ── Go-to-symbol (Ctrl+Shift+O) ───────────────────────────────────────
+        Action::GotoSymbol if !state.symbol_outline.visible => {
+            // Open overlay; forward to app so it can populate entries from syntax.
+            state.symbol_outline.visible = true;
+            state.symbol_outline.query.clear();
+            state.symbol_outline.selected_idx = 0;
+            state.symbol_outline.entries.clear();
+            false
+        }
+        Action::GotoSymbol => {
+            // Already open — confirmation, forwarded to app for scroll.
+            false
+        }
+
+        // ── Tab navigation ────────────────────────────────────────────────────
         Action::FindInFiles => {
             if !state.workspace_search.visible {
                 state.workspace_search.just_opened = true;
