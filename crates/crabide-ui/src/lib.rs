@@ -21,7 +21,7 @@ pub mod state;
 
 pub use layout::PaneKind;
 pub use state::{
-    cfg_to_egui, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
+    cfg_to_egui, BreadcrumbSegment, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
     GitPanelState, LspStatus, SidebarPaneUiState, SidebarTab, SymbolOutlineEntry,
     SymbolOutlineState, TerminalInstance, TerminalPanelState, UiState,

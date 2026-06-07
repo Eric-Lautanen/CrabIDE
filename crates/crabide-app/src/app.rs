@@ -15,6 +15,86 @@
 use std::sync::Arc;
 
 use crossbeam_channel::{Receiver, Sender};
+
+/// Compute the breadcrumb path for the cursor position from the symbol outline.
+///
+/// Walks the outline tree and collects the chain of symbols whose `range`
+/// contains the cursor line, from outermost to innermost.
+fn compute_breadcrumbs(outline: &[SymbolOutline], cursor_line: u32) -> Vec<BreadcrumbSegment> {
+    let mut result = Vec::new();
+    let mut current = outline;
+    loop {
+        let found = current
+            .iter()
+            .find(|sym| sym.range.start.line <= cursor_line && sym.range.end.line >= cursor_line);
+        if let Some(sym) = found {
+            result.push(BreadcrumbSegment {
+                name: sym.name.clone(),
+                kind: format!("{:?}", sym.kind),
+                line: sym.selection_range.start.line,
+            });
+            current = &sym.children;
+        } else {
+            break;
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod breadcrumb_tests {
+    use super::*;
+    use crabide_core::types::{Position, Range};
+    use crabide_syntax::outline::{SymbolKind, SymbolOutline};
+
+    fn make_outline(name: &str, kind: SymbolKind, start_line: u32, end_line: u32) -> SymbolOutline {
+        SymbolOutline::new(
+            name.to_owned(),
+            kind,
+            Range::new(Position::new(start_line, 0), Position::new(end_line, 0)),
+            Range::new(
+                Position::new(start_line, 0),
+                Position::new(start_line, name.len() as u32),
+            ),
+        )
+    }
+
+    #[test]
+    fn breadcrumbs_empty_outline() {
+        let result = compute_breadcrumbs(&[], 5);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn breadcrumbs_single_level() {
+        let outline = vec![make_outline("main", SymbolKind::Function, 0, 10)];
+        let result = compute_breadcrumbs(&outline, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "main");
+        assert_eq!(result[0].kind, "Function");
+    }
+
+    #[test]
+    fn breadcrumbs_nested() {
+        let mut parent = make_outline("MyStruct", SymbolKind::Struct, 0, 20);
+        parent
+            .children
+            .push(make_outline("method", SymbolKind::Method, 5, 15));
+        let outline = vec![parent];
+        let result = compute_breadcrumbs(&outline, 10);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].name, "MyStruct");
+        assert_eq!(result[1].name, "method");
+    }
+
+    #[test]
+    fn breadcrumbs_cursor_outside_all_symbols() {
+        let outline = vec![make_outline("foo", SymbolKind::Function, 0, 5)];
+        let result = compute_breadcrumbs(&outline, 10);
+        assert!(result.is_empty());
+    }
+}
+
 use eframe::{egui, CreationContext};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
@@ -38,11 +118,11 @@ use crabide_extensions::{
 use crabide_git::GitService;
 use crabide_lsp::LspServerManager;
 use crabide_search::{grep_buffers, grep_workspace, index_workspace_files, GrepAbortHandle};
-use crabide_syntax::{grammar::grammar_registry, queries, SyntaxEngine};
+use crabide_syntax::{grammar::grammar_registry, outline::SymbolOutline, queries, SyntaxEngine};
 use crabide_terminal::{TerminalManager, TerminalProfile};
 use crabide_ui::{
-    cfg_to_egui, EditorTab, FileNode, GitDecoration, LspStatus, SidebarPaneUiState,
-    SymbolOutlineEntry, TerminalInstance, UiState,
+    cfg_to_egui, BreadcrumbSegment, EditorTab, FileNode, GitDecoration, LspStatus,
+    SidebarPaneUiState, SymbolOutlineEntry, TerminalInstance, UiState,
 };
 use crabide_vfs::{LocalVfs, VfsWatcher};
 use crabide_workspace::Workspace;
@@ -1764,14 +1844,8 @@ impl crabideApp {
                             .iter()
                             .map(|(p, l)| (p.clone(), l.as_slice()))
                             .collect();
-                        let buffer_results = grep_buffers(
-                            &buf_refs,
-                            &query,
-                            re,
-                            cs,
-                            2000,
-                            Some(&abort_handle),
-                        );
+                        let buffer_results =
+                            grep_buffers(&buf_refs, &query, re, cs, 2000, Some(&abort_handle));
 
                         // Merge and deduplicate by (path, line_number, match_start).
                         let mut merged: Vec<crabide_search::GrepMatch> = file_results;
@@ -1782,9 +1856,7 @@ impl crabideApp {
                                 .then_with(|| a.line_number.cmp(&b.line_number))
                                 .then_with(|| a.match_start.cmp(&b.match_start))
                         });
-                        merged.dedup_by_key(|m| {
-                            (m.path.clone(), m.line_number, m.match_start)
-                        });
+                        merged.dedup_by_key(|m| (m.path.clone(), m.line_number, m.match_start));
                         merged.truncate(2000);
 
                         // Convert to event-friendly type.
@@ -3072,6 +3144,7 @@ impl crabideApp {
         };
         let id = tab.buffer_id;
         let language = tab.language.clone();
+        let cursor_line = tab.cursors.primary().pos().line;
         // Reconstruct full source from line snapshot (lines have no trailing \n).
         let source = tab.lines.join("\n");
         let version = self.syntax.version(id).unwrap_or(0).wrapping_add(1);
@@ -3079,9 +3152,12 @@ impl crabideApp {
         self.syntax.parse_document(id, &language, &source, version);
         let spans = self.syntax.highlights(id);
         let folds = self.syntax.folding_ranges(id);
+        let outline = self.syntax.outline(id);
+        let breadcrumbs = compute_breadcrumbs(&outline, cursor_line);
         if let Some(tab) = self.ui_state.tabs.get_mut(tab_idx) {
             tab.highlight_spans = spans;
             tab.folding_ranges = folds.into_iter().map(Into::into).collect();
+            tab.breadcrumbs = breadcrumbs;
         }
     }
 

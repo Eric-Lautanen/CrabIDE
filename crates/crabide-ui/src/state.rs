@@ -971,6 +971,17 @@ impl GotoLineState {
     }
 }
 
+/// A single segment in the breadcrumb bar above the editor.
+#[derive(Debug, Clone)]
+pub struct BreadcrumbSegment {
+    /// Display name (e.g. "main", "MyStruct", "impl Foo").
+    pub name: String,
+    /// Symbol kind label (e.g. "function", "struct", "module").
+    pub kind: String,
+    /// 0-based line to jump to when this segment is clicked.
+    pub line: u32,
+}
+
 /// A search result for the symbol outline overlay.
 #[derive(Debug, Clone)]
 pub struct SymbolOutlineEntry {
@@ -1169,6 +1180,8 @@ pub struct EditorTab {
     pub folding_ranges: Vec<FoldingRange>,
     /// Bit-set tracking which folding ranges are collapsed (indices into folding_ranges).
     pub collapsed_folds: Vec<usize>,
+    /// Breadcrumb segments for the current cursor position (file → module → symbol).
+    pub breadcrumbs: Vec<BreadcrumbSegment>,
 }
 
 impl EditorTab {
@@ -1199,6 +1212,7 @@ impl EditorTab {
             code_lens: Vec::new(),
             folding_ranges: Vec::new(),
             collapsed_folds: Vec::new(),
+            breadcrumbs: Vec::new(),
         }
     }
 
