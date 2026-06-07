@@ -1,90 +1,76 @@
-# RESUME — Session 6
+# RESUME — Session 7
 
 ## What was done
 
-### Unit tests added to 5 crates (170 total new tests)
+### Unit tests added to 2 remaining crates (155 total new tests)
 
-1. **crabide-dap** (43 tests)
-   - DapMessage: request construction, is_response/is_event, serialize roundtrip, response/event/error serialization, optional field omission
-   - InitializeRequestArguments: defaults, serialize
-   - Source: from_path, no name
-   - LaunchRequestArguments: serialize with all fields
-   - parse_launch_json: empty, invalid, no configurations, single config, attach request, extra fields, missing name, multiple configs
-   - load_launch_configs: nonexistent dir
-   - LaunchConfig: default
-   - Event bodies: StoppedEventBody, ContinuedEventBody, OutputEventBody, BreakpointEventBody
-   - Breakpoint types: SourceBreakpoint, Breakpoint
-   - Stack trace: StackTraceResponse, StackFrameInfo
-   - Scopes/Variables: ScopesResponse, VariablesResponse, VariableInfo with children
-   - Disconnect: serialize, defaults
-   - resolve_adapter: explicit command, python, debugpy, node, lldb, gdb, codelldb, unknown type
+1. **crabide-ui** (112 tests total — 62 in state.rs + 50 in lib.rs)
+   - `state.rs`: FindReplaceState, FuzzyFinderState, GotoLineState, SymbolOutlineState, DapPanelState, TerminalInstance, TerminalPanelState, EditorTab, UiState, cfg_to_egui, DisplayCell, SymbolOutlineEntry, FileExplorerState, GitPanelState, ExtensionsPanelState, SidebarTab, ExtensionsPanelTab, LspStatus, GitDecoration, FileNode, CommandPaletteState, WorkspaceSearchState
+   - `lib.rs`: egui_key_to_chord, is_word_char, word_left, word_right, compute_new_position, line_char_count, handle_ui_action (12 action handlers tested), PaneKind derive
+   - Total: 112 tests (was 0 before this session)
 
-2. **crabide-extensions** (54 tests)
-   - ExtensionCategory: label, color, equality
-   - ExtensionManifest, InstalledExtension
-   - ExtensionCapabilities: default, custom
-   - StatusBarAlignment: default
-   - ExtensionSource: Builtin, Local, Registry
-   - RegistryClient: search empty, search query, search no match, recommended, download fails without base URL
-   - ExtensionHost: new has builtins, list installed, registered commands, registered panels, enable/disable extension, enable unknown extension
-   - ExtensionOutput: all 13 variants (StatusBarText, Diagnostics, PanelContent, Notification, GutterMarkers, CycleTheme, WriteFile, SendToTerminal, OpenTerminal, ShowPanel, HidePanel)
-   - ContentBlock: all 5 variants
-   - NavigateTarget: FileAt, Command
-   - ContextMenuContribution
-   - PanelRegistration, SidebarPaneRegistration
-   - CompletionItem, CompletionKind
-   - HoverResult, GutterMarker
-   - ExtensionSeverity, CommandResult
-   - PanelLocation equality, RegisteredCommand
-   - ExtensionContext construction, ExtensionDiagnostic
+2. **crabide-app** (43 tests — all in app.rs)
+   - word_at_cursor, find_next_occurrence, extract_text, selected_text, bracket_close_pair, leading_whitespace, line_comment_prefix, matching_close/open, find_forward/backward, compute_bracket_match, clamp_cursors_to_content
+   - Total: 43 tests (was 1 before this session)
 
-3. **crabide-git** (3 tests)
-   - GitService start returns None without git-support feature
-   - GitService API compiles (all methods exist)
-   - Type re-exports
+### Feature: Incremental workspace search (debounce + background thread)
 
-4. **crabide-workspace** (25 tests)
-   - Workspace construction, roots
-   - Opening files (new, already open, nonexistent)
-   - Open or create (new, existing)
-   - Untitled buffers (default lang, with lang, counter increments)
-   - Close (clean, unsaved changes, nonexistent)
-   - Document queries (buffer_id, language)
-   - Edits
-   - Undo/Redo
-   - Save, Save As
-   - with_document, with_document_mut
-   - get_lines, register_document
+1. **Debounce**: Added `last_change: Option<Instant>` to `WorkspaceSearchState` in crabide-ui.
+   - When the query TextEdit changes, the timestamp is recorded.
+   - After 300ms of inactivity, `Action::FindInFiles` is automatically emitted.
+   - Avoids running grep on every keystroke.
 
-### Feature: Go-to-symbol (Ctrl+Shift+O)
+2. **Background grep**: `Action::FindInFiles` now spawns a `std::thread` instead of blocking the UI.
+   - Results are sent back via the event channel as `EditorEvent::GrepResults`.
+   - The app drains the event and updates `workspace_search.results` on the next frame.
+   - Cancellation still works via `GrepAbortHandle`.
 
-- Added `SymbolOutlineState` and `SymbolOutlineEntry` to `crabide-ui/src/state.rs`
-- Created `crabide-ui/src/panels/symbol_outline.rs` — fuzzy-matched overlay window listing symbols
-- Wired `Action::GotoSymbol` in `handle_ui_action` to open overlay
-- Wired `Action::GotoSymbol` in app's `handle_action` to populate symbols from `SyntaxEngine::outline()`
-- Added keybinding already existed: `Ctrl+Shift+O` → `Action::GotoSymbol`
-- Added menu entry in Go menu
-- Overlay supports keyboard navigation (Up/Down/Enter/Escape), mouse click selection, fuzzy filtering via nucleo, scrolls to selected symbol
+3. **New event type**: Added `EditorEvent::GrepResults { query, results }` with `GrepResult` struct to crabide-core's event system.
 
-### Total test count: ~592 tests across all crates (was 422 before this session)
+### All tests pass (~702 total)
+
+```
+crabide:           43 tests
+crabide-buffer:    47 tests
+crabide-config:    89 tests
+crabide-core:     140 tests
+crabide-dap:       43 tests
+crabide-extensions: 54 tests
+crabide-git:        3 tests
+crabide-lsp:       19 tests
+crabide-search:    28 tests
+crabide-syntax:     3 tests
+crabide-terminal:  53 tests
+crabide-ui:       112 tests
+crabide-vfs:       43 tests
+crabide-workspace: 25 tests
+```
 
 ### Commits
 ```
-c2f70a9 feat: implement Go-to-symbol (Ctrl+Shift+O) with fuzzy-matched symbol outline overlay
-3bfb5ab test: add 25 unit tests to crabide-workspace (open, close, save, undo/redo, edits, queries)
-d48c009 test: add 3 unit tests to crabide-git (start, api compilation, type re-exports)
-fda787a test: add 54 unit tests to crabide-extensions (types, registry, host, output variants)
-0c88dec test: add 43 unit tests to crabide-dap (types, parse_launch_json, resolve_adapter)
+46b764d chore: update test counts and roadmap status
+9b26b91 feat: add incremental workspace search with debounce and background thread
+4ac8ac6 test: add 43 unit tests to crabide-app (app functions)
+2b52138 test: add 50 unit tests to crabide-ui (state + lib)
 ```
+
+## Observations
+- **Snippet tabstop UI** (highlight + Tab/Shift+Tab cycling) is already wired: `paint_tabstop_on_line` renders the highlight, `handle_ui_action` handles `NextTabstop`/`PreviousTabstop`, and Tab/Shift+Tab keybindings already dispatch these actions when snippet is active.
+- **Incremental placeholder update** during typing is NOT implemented — `handle_insert_text` in app.rs doesn't update `SnippetEngine` tabstop positions after edits. Would need a new method on `SnippetEngine` to shift tabstop ranges by an edit delta.
+- **Code folding gutter UI** and **search-in-open-buffers** are not started.
+- The `grep_workspace` function is imported in app.rs but `EditorEvent::GrepResults` is now handled.
 
 ## Next recommended priorities
 
-1. **Add unit tests to remaining crates without coverage**: `crabide-ui`, `crabide-app`
-2. **Add incremental search** (debounce + streaming results) in `crabide-search`
-3. **Wire SnippetEngine tabstop UI** in `crabide-ui` (active tabstop highlight, Tab/Shift+Tab cycling)
-4. **Add incremental placeholder update** during typing in snippet engine
-5. **Add code folding gutter UI** in `crabide-ui`
-6. **Add search-in-open-buffers support** (search unsaved `Document` contents)
+1. **Add incremental placeholder update** during snippet typing:
+   - Add `apply_edit(range: Range, new_len: usize)` method to `SnippetEngine` that shifts tabstop positions
+   - Call it from `handle_insert_text` / `handle_delete` in app.rs
+
+2. **Code folding gutter UI** in `crabide-ui` (fold markers + expand/collapse controls)
+
+3. **Search-in-open-buffers** support (search unsaved `Document` contents)
+
+4. **Add unit tests to remaining crates with low coverage**: `crabide-syntax` (3 tests), `crabide-git` (3 tests)
 
 ## Context usage
-~25% of 1M tokens consumed.
+~32% of 1M tokens consumed.
