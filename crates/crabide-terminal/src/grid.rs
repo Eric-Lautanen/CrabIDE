@@ -721,3 +721,545 @@ fn unicode_width(c: char) -> usize {
 
     1
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn grid_24x80() -> Grid {
+        Grid::new(80, 24)
+    }
+
+    // ── Grid construction ──────────────────────────────────────────────────
+
+    #[test]
+    fn grid_new_initial_state() {
+        let g = grid_24x80();
+        assert_eq!(g.cols, 80);
+        assert_eq!(g.rows, 24);
+        assert_eq!(g.cursor_col, 0);
+        assert_eq!(g.cursor_row, 0);
+        assert!(g.title.is_none());
+        assert!(g.cwd.is_none());
+        assert_eq!(g.scrollback.len(), 0);
+    }
+
+    #[test]
+    fn grid_new_all_cells_blank() {
+        let g = grid_24x80();
+        for row in 0..g.rows {
+            for col in 0..g.cols {
+                let cell = &g.screen[row as usize][col as usize];
+                assert_eq!(cell.ch, ' ', "cell at {row},{col} not blank");
+                assert_eq!(cell.width, 1);
+                assert_eq!(cell.fg, Color::Default);
+                assert_eq!(cell.bg, Color::Default);
+                assert_eq!(cell.attrs, Attrs::empty());
+            }
+        }
+    }
+
+    // ── feed / print ───────────────────────────────────────────────────────
+
+    #[test]
+    fn feed_ascii_text() {
+        let mut g = grid_24x80();
+        g.feed(b"Hello");
+        assert_eq!(g.cursor_col, 5);
+        assert_eq!(g.cursor_row, 0);
+        assert_eq!(g.screen[0][0].ch, 'H');
+        assert_eq!(g.screen[0][1].ch, 'e');
+        assert_eq!(g.screen[0][2].ch, 'l');
+        assert_eq!(g.screen[0][3].ch, 'l');
+        assert_eq!(g.screen[0][4].ch, 'o');
+    }
+
+    #[test]
+    fn feed_newline() {
+        let mut g = grid_24x80();
+        g.feed(b"ab\ncd");
+        // After 'ab': cursor at (row=0, col=2), screen[0][0]='a', screen[0][1]='b'
+        // After LF: cursor_row=1, cursor_col=2
+        // After 'cd': cursor at (row=1, col=4), screen[1][2]='c', screen[1][3]='d'
+        assert_eq!(g.cursor_row, 1);
+        assert_eq!(g.cursor_col, 4);
+        assert_eq!(g.screen[0][0].ch, 'a');
+        assert_eq!(g.screen[0][1].ch, 'b');
+        assert_eq!(g.screen[1][2].ch, 'c');
+        assert_eq!(g.screen[1][3].ch, 'd');
+    }
+
+    #[test]
+    fn feed_carriage_return() {
+        let mut g = grid_24x80();
+        g.feed(b"abc\rX");
+        assert_eq!(g.cursor_col, 1);
+        assert_eq!(g.screen[0][0].ch, 'X');
+        assert_eq!(g.screen[0][1].ch, 'b');
+    }
+
+    #[test]
+    fn feed_tab() {
+        let mut g = grid_24x80();
+        g.feed(b"\tX");
+        // Tab moves to column 8 (next multiple of 8)
+        assert_eq!(g.cursor_col, 9);
+        assert_eq!(g.screen[0][8].ch, 'X');
+    }
+
+    #[test]
+    fn feed_backspace() {
+        let mut g = grid_24x80();
+        g.feed(b"ab\x08X");
+        // 'a' at col 0, 'b' at col 1, BS moves to col 1, 'X' overwrites 'b'
+        assert_eq!(g.cursor_col, 2);
+        assert_eq!(g.screen[0][0].ch, 'a');
+        assert_eq!(g.screen[0][1].ch, 'X');
+    }
+
+    #[test]
+    fn feed_backspace_at_col_zero() {
+        let mut g = grid_24x80();
+        g.feed(b"\x08");
+        // Backspace at col 0 should be no-op
+        assert_eq!(g.cursor_col, 0);
+    }
+
+    #[test]
+    fn feed_line_wrap() {
+        let mut g = Grid::new(5, 3);
+        // Fill first line (cols 0-4)
+        g.feed(b"12345");
+        // After 5 chars on a 5-wide grid, cursor wraps to next line
+        // because after advancing from col 4 to col 5, the wrap check triggers:
+        // cursor_col (5) >= cols (5) → cursor_col=0, cursor_row=1
+        assert_eq!(g.cursor_row, 1);
+        assert_eq!(g.cursor_col, 0);
+        // The 5th char '5' is at col 4 on row 0
+        assert_eq!(g.screen[0][4].ch, '5');
+    }
+
+    #[test]
+    fn feed_scroll_when_full() {
+        let mut g = Grid::new(5, 2);
+        g.feed(b"12345"); // fill line 0
+        g.feed(b"67890"); // fill line 1, line 0 scrolls up
+                          // Cursor should be at row 1 (the last line after scroll)
+        assert_eq!(g.cursor_row, 1);
+        // Scrollback should have the first line
+        assert_eq!(g.scrollback.len(), 1);
+        // The visible screen now has line 1 content (67890) on row 0
+        // and the new line is blank
+        assert_eq!(g.screen[0][0].ch, '6');
+        assert_eq!(g.screen[1][0].ch, ' '); // blank new line
+    }
+
+    // ── CSI cursor movement ────────────────────────────────────────────────
+
+    #[test]
+    fn csi_cursor_up() {
+        let mut g = grid_24x80();
+        g.cursor_row = 5;
+        g.feed(b"\x1b[A"); // CUU
+        assert_eq!(g.cursor_row, 4);
+    }
+
+    #[test]
+    fn csi_cursor_up_clamped() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[A"); // CUU at top should clamp to 0
+        assert_eq!(g.cursor_row, 0);
+    }
+
+    #[test]
+    fn csi_cursor_down() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[B"); // CUD
+        assert_eq!(g.cursor_row, 1);
+    }
+
+    #[test]
+    fn csi_cursor_down_clamped() {
+        let mut g = grid_24x80();
+        g.cursor_row = 23;
+        g.feed(b"\x1b[B"); // CUD at bottom should clamp
+        assert_eq!(g.cursor_row, 23);
+    }
+
+    #[test]
+    fn csi_cursor_forward() {
+        let mut g = grid_24x80();
+        g.cursor_col = 10;
+        g.feed(b"\x1b[C"); // CUF
+        assert_eq!(g.cursor_col, 11);
+    }
+
+    #[test]
+    fn csi_cursor_back() {
+        let mut g = grid_24x80();
+        g.cursor_col = 10;
+        g.feed(b"\x1b[D"); // CUB
+        assert_eq!(g.cursor_col, 9);
+    }
+
+    #[test]
+    fn csi_cursor_position() {
+        let mut g = grid_24x80();
+        // CUP row;col (1-based)
+        g.feed(b"\x1b[5;10H");
+        assert_eq!(g.cursor_row, 4);
+        assert_eq!(g.cursor_col, 9);
+    }
+
+    #[test]
+    fn csi_cursor_position_alt_form() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[3;6f"); // HVP (same as CUP)
+        assert_eq!(g.cursor_row, 2);
+        assert_eq!(g.cursor_col, 5);
+    }
+
+    // ── DECSC / DECRC ────────────────────────────────────────────────────
+
+    #[test]
+    fn decsc_decrc() {
+        let mut g = grid_24x80();
+        g.cursor_col = 30;
+        g.cursor_row = 10;
+        g.feed(b"\x1b[s"); // DECSC save
+        g.cursor_col = 0;
+        g.cursor_row = 0;
+        g.feed(b"\x1b[u"); // DECRC restore
+        assert_eq!(g.cursor_col, 30);
+        assert_eq!(g.cursor_row, 10);
+    }
+
+    // ── SGR ────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn sgr_bold() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::BOLD));
+    }
+
+    #[test]
+    fn sgr_italic() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[3mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::ITALIC));
+    }
+
+    #[test]
+    fn sgr_foreground_color() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[31mX"); // red foreground
+        assert_eq!(g.screen[0][0].fg, Color::Named(NamedColor::Red));
+    }
+
+    #[test]
+    fn sgr_background_color() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[44mX"); // blue background
+        assert_eq!(g.screen[0][0].bg, Color::Named(NamedColor::Blue));
+    }
+
+    #[test]
+    fn sgr_reset() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1;31;44mX"); // bold + red fg + blue bg
+        assert!(g.screen[0][0].attrs.contains(Attrs::BOLD));
+        g.feed(b"\x1b[0mY"); // reset
+        assert!(!g.screen[0][1].attrs.contains(Attrs::BOLD));
+        assert_eq!(g.screen[0][1].fg, Color::Default);
+        assert_eq!(g.screen[0][1].bg, Color::Default);
+    }
+
+    #[test]
+    fn sgr_256_color() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[38;5;82mX"); // indexed color 82
+        assert_eq!(g.screen[0][0].fg, Color::Indexed(82));
+    }
+
+    #[test]
+    fn sgr_true_color() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[38;2;255;128;0mX"); // RGB
+        assert_eq!(g.screen[0][0].fg, Color::Rgb(255, 128, 0));
+    }
+
+    #[test]
+    fn sgr_bright_colors() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[91mX"); // bright red fg (90+1=91)
+        assert_eq!(g.screen[0][0].fg, Color::Named(NamedColor::BrightRed));
+        g.feed(b"\x1b[104mY"); // bright cyan bg (100+4=104 → BrightBlue? No...)
+                               // 104 - 100 = 4 → named_bright_fg(4) = BrightBlue
+        assert_eq!(g.screen[0][1].bg, Color::Named(NamedColor::BrightBlue));
+    }
+
+    #[test]
+    fn sgr_multiple_attributes() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1;4;7mX"); // bold + underline + reverse
+        let cell = g.screen[0][0];
+        assert!(cell.attrs.contains(Attrs::BOLD));
+        assert!(cell.attrs.contains(Attrs::UNDERLINE));
+        assert!(cell.attrs.contains(Attrs::REVERSE));
+    }
+
+    // ── Erase commands ───────────────────────────────────────────────────
+
+    #[test]
+    fn erase_in_line_to_end() {
+        let mut g = Grid::new(10, 3);
+        g.feed(b"ABCDE"); // 5 chars, cursor at col 5
+        g.feed(b"\x1b[K"); // EL 0: erase from cursor (col 5) to end of line (col 9)
+        let line = &g.screen[0];
+        assert_eq!(line[0].ch, 'A');
+        assert_eq!(line[4].ch, 'E');
+        assert_eq!(line[5].ch, ' '); // erased
+        assert_eq!(line[9].ch, ' ');
+    }
+
+    #[test]
+    fn erase_in_line_to_start() {
+        let mut g = Grid::new(10, 3);
+        g.feed(b"ABCDE");
+        g.cursor_col = 3; // position cursor at col 3 on row 0
+        g.feed(b"\x1b[1K"); // EL 1: erase from start to cursor (col 3)
+        let line = &g.screen[0];
+        assert_eq!(line[0].ch, ' ');
+        assert_eq!(line[3].ch, ' ');
+        assert_eq!(line[4].ch, 'E'); // not erased
+    }
+
+    #[test]
+    fn erase_in_line_all() {
+        let mut g = Grid::new(10, 3);
+        g.feed(b"ABCDE");
+        g.feed(b"\x1b[2K"); // EL 2: erase entire line
+        for cell in &g.screen[0] {
+            assert_eq!(cell.ch, ' ');
+        }
+    }
+
+    #[test]
+    fn erase_in_display_to_end() {
+        let mut g = Grid::new(10, 5);
+        // Fill rows with distinct content
+        g.feed(b"Row0\nRow1\nRow2\nRow3");
+        // cursor is now at row 3 (after Row3), col 4
+        g.feed(b"\x1b[2H"); // CUP to row 2 (1-based) → row=1, col=0
+        g.feed(b"\x1b[J"); // ED 0: erase from cursor to end
+                           // Row 0 should be untouched
+        assert_eq!(g.screen[0][0].ch, 'R');
+        assert_eq!(g.screen[0][1].ch, 'o');
+        // Rows 1-4 should be erased (blank)
+        assert_eq!(g.screen[1][0].ch, ' ', "row 1 should be erased");
+        assert_eq!(g.screen[4][0].ch, ' ', "row 4 should be erased");
+    }
+
+    #[test]
+    fn erase_in_display_all() {
+        let mut g = Grid::new(10, 5);
+        g.feed(b"Line1\nLine2\nLine3");
+        g.feed(b"\x1b[2J"); // ED 2: erase entire display
+        for row in 0..5 {
+            for col in 0..10 {
+                assert_eq!(
+                    g.screen[row][col].ch, ' ',
+                    "cell {row},{col} should be blank"
+                );
+            }
+        }
+        assert_eq!(g.cursor_row, 0);
+        assert_eq!(g.cursor_col, 0);
+    }
+
+    // ── Alternate screen ──────────────────────────────────────────────────
+
+    #[test]
+    fn alternate_screen_switch() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[?1049h"); // enter alt screen
+        assert!(g.alt_active);
+        g.feed(b"\x1b[?1049l"); // exit alt screen
+        assert!(!g.alt_active);
+    }
+
+    #[test]
+    fn alternate_screen_independent_buffer() {
+        let mut g = grid_24x80();
+        g.feed(b"Normal");
+        // Both screens start blank; after "Normal", primary has content
+        assert_eq!(g.screen[0][0].ch, 'N');
+        // Enter alt screen via direct flag (CSI-based switch tested separately)
+        g.alt_active = true;
+        // Write to alt screen (should not affect primary)
+        g.feed(b"AltText");
+        // After switching back, primary should still have "Normal"
+        g.alt_active = false;
+        assert_eq!(g.screen[0][0].ch, 'N');
+    }
+
+    // ── take_delta ────────────────────────────────────────────────────────
+
+    #[test]
+    fn take_delta_initial_all_dirty() {
+        let mut g = grid_24x80();
+        let delta = g.take_delta();
+        assert_eq!(delta.rows.len() as u16, g.rows);
+        assert_eq!(delta.scroll_top, 0);
+    }
+
+    #[test]
+    fn take_delta_clears_dirty() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta();
+        let delta = g.take_delta();
+        assert!(delta.rows.is_empty());
+    }
+
+    #[test]
+    fn take_delta_after_write() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta(); // clear initial dirty
+        g.feed(b"X");
+        let delta = g.take_delta();
+        assert_eq!(delta.rows.len(), 1);
+        assert_eq!(delta.rows[0].row, 0);
+        assert_eq!(delta.rows[0].cells[0].ch, 'X');
+    }
+
+    #[test]
+    fn take_delta_cursor_position() {
+        let mut g = grid_24x80();
+        g.feed(b"Hello");
+        let delta = g.take_delta();
+        assert_eq!(delta.cursor_col, 5);
+        assert_eq!(delta.cursor_row, 0);
+    }
+
+    // ── Resize ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn resize_smaller() {
+        let mut g = Grid::new(20, 10);
+        g.resize(10, 5);
+        assert_eq!(g.cols, 10);
+        assert_eq!(g.rows, 5);
+        assert_eq!(g.screen.len(), 5);
+        assert_eq!(g.screen[0].len(), 10);
+    }
+
+    #[test]
+    fn resize_larger() {
+        let mut g = Grid::new(10, 5);
+        g.resize(20, 10);
+        assert_eq!(g.cols, 20);
+        assert_eq!(g.rows, 10);
+        assert_eq!(g.screen.len(), 10);
+        assert_eq!(g.screen[0].len(), 20);
+    }
+
+    #[test]
+    fn resize_clamps_cursor() {
+        let mut g = Grid::new(80, 24);
+        g.cursor_col = 70;
+        g.cursor_row = 20;
+        g.resize(40, 10);
+        assert!(g.cursor_col < g.cols);
+        assert!(g.cursor_row < g.rows);
+        assert_eq!(g.cursor_col, 39);
+        assert_eq!(g.cursor_row, 9);
+    }
+
+    // ── OSC ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn osc_set_title() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]0;My Title\x07");
+        assert_eq!(g.title.as_deref(), Some("My Title"));
+    }
+
+    #[test]
+    fn osc_set_title_osc2() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]2;Another Title\x07");
+        assert_eq!(g.title.as_deref(), Some("Another Title"));
+    }
+
+    #[test]
+    fn osc_set_cwd() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]7;file:///home/user/project\x07");
+        assert_eq!(g.cwd.as_deref(), Some("file:///home/user/project"));
+    }
+
+    // ── Unicode width ─────────────────────────────────────────────────────
+
+    #[test]
+    fn unicode_width_ascii() {
+        assert_eq!(unicode_width('a'), 1);
+        assert_eq!(unicode_width(' '), 1);
+        assert_eq!(unicode_width('1'), 1);
+    }
+
+    #[test]
+    fn unicode_width_cjk() {
+        assert_eq!(unicode_width('\u{4e2d}'), 2); // 中
+        assert_eq!(unicode_width('\u{ff21}'), 2); // Ａ fullwidth
+    }
+
+    #[test]
+    fn unicode_width_emoji() {
+        assert_eq!(unicode_width('\u{1f600}'), 2); // 😀
+    }
+
+    // ── Color helpers ─────────────────────────────────────────────────────
+
+    #[test]
+    fn named_fg_mapping() {
+        assert_eq!(named_fg(0), NamedColor::Black);
+        assert_eq!(named_fg(1), NamedColor::Red);
+        assert_eq!(named_fg(7), NamedColor::White);
+    }
+
+    #[test]
+    fn named_bright_fg_mapping() {
+        assert_eq!(named_bright_fg(0), NamedColor::BrightBlack);
+        assert_eq!(named_bright_fg(7), NamedColor::BrightWhite);
+    }
+
+    #[test]
+    fn named_to_index_mapping() {
+        assert_eq!(named_to_index(NamedColor::Black), 0);
+        assert_eq!(named_to_index(NamedColor::BrightWhite), 15);
+    }
+
+    // ── Cell ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn cell_default_is_blank() {
+        let c = Cell::default();
+        assert_eq!(c, Cell::BLANK);
+    }
+
+    #[test]
+    fn cell_new_fields() {
+        let c = Cell {
+            ch: 'A',
+            width: 1,
+            fg: Color::Named(NamedColor::Red),
+            bg: Color::Default,
+            attrs: Attrs::BOLD,
+        };
+        assert_eq!(c.ch, 'A');
+        assert_eq!(c.fg, Color::Named(NamedColor::Red));
+    }
+}
