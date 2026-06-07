@@ -2,6 +2,7 @@
 //!
 //! # Usage
 //! ```no_run
+//! # use crabide_config::ConfigManager;
 //! let (config, rx) = ConfigManager::new(None);
 //! let settings = config.settings();
 //! let theme    = config.active_theme();

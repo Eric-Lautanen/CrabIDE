@@ -18,6 +18,8 @@
 //! `target/`, `node_modules/`, etc.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32String};
@@ -143,11 +145,37 @@ pub struct GrepMatch {
     pub match_end: usize,
 }
 
+/// A handle that allows cancelling an in-flight workspace grep.
+///
+/// Clone the handle and pass it to [`grep_workspace`] by reference. Set
+/// the abort flag to `true` to request cancellation. The search will stop
+/// at the next file boundary (it may take a moment to respond).
+#[derive(Clone, Default)]
+pub struct GrepAbortHandle(Arc<AtomicBool>);
+
+impl GrepAbortHandle {
+    pub fn new() -> Self {
+        Self(Arc::new(AtomicBool::new(false)))
+    }
+
+    /// Signal the search to abort as soon as possible.
+    pub fn abort(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    /// Returns `true` if `abort()` has been called.
+    pub fn is_aborted(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
 /// Search all text files under `roots` for `pattern`.
 ///
 /// * `use_regex` — if `false`, the pattern is treated as a literal string.
 /// * `case_sensitive` — if `false`, a `(?i)` prefix is added to the regex.
 /// * `max_results` — hard cap on the number of returned matches.
+/// * `abort` — optional [`GrepAbortHandle`]; if `abort.is_aborted()` returns
+///   `true` during iteration, the search stops early.
 ///
 /// Files are searched in parallel with Rayon.  Results are sorted by path,
 /// then line number.
@@ -157,6 +185,7 @@ pub fn grep_workspace(
     use_regex: bool,
     case_sensitive: bool,
     max_results: usize,
+    abort: Option<&GrepAbortHandle>,
 ) -> Vec<GrepMatch> {
     if pattern.is_empty() || roots.is_empty() {
         return Vec::new();
@@ -179,7 +208,16 @@ pub fn grep_workspace(
 
     let files = collect_files(roots);
 
-    let mut results: Vec<GrepMatch> = files.par_iter().flat_map(|p| search_file(p, &re)).collect();
+    let mut results: Vec<GrepMatch> = files
+        .par_iter()
+        .flat_map(|p| {
+            // Check cancellation before processing each file
+            if abort.is_some_and(|h| h.is_aborted()) {
+                return Vec::new();
+            }
+            search_file(p, &re, abort)
+        })
+        .collect();
 
     results.sort_by(|a, b| {
         a.path
@@ -316,8 +354,11 @@ fn is_text_extension(path: &Path) -> bool {
     }
 }
 
-/// Search a single file for all regex matches.
-fn search_file(path: &Path, re: &Regex) -> Vec<GrepMatch> {
+/// Search a single file for all regex matches, checking the abort handle.
+fn search_file(path: &Path, re: &Regex, abort: Option<&GrepAbortHandle>) -> Vec<GrepMatch> {
+    if abort.is_some_and(|h| h.is_aborted()) {
+        return Vec::new();
+    }
     let content = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(_) => return Vec::new(),

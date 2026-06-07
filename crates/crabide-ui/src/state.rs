@@ -24,7 +24,7 @@ use crabide_extensions::{
     ContentBlock, ContextMenuContribution, GutterMarker, InstalledExtension, NavigateTarget,
     PanelRegistration, RegistryExtension, SidebarPaneRegistration, StatusBarAlignment,
 };
-use crabide_search::{FuzzyFileFinder, GrepMatch};
+use crabide_search::{FuzzyFileFinder, GrepAbortHandle, GrepMatch};
 use crabide_syntax::HighlightSpan;
 use indexmap::IndexMap;
 
@@ -117,6 +117,9 @@ pub struct FuzzyFinderState {
     pub selected_idx: usize,
     /// Display strings parallel to `results` (e.g. relative paths).
     pub result_labels: Vec<String>,
+    /// Set to `true` when VFS file changes occur; the index should be rebuilt
+    /// on the next `open()` call.
+    pub index_stale: bool,
 }
 
 impl FuzzyFinderState {
@@ -127,6 +130,9 @@ impl FuzzyFinderState {
         self.selected_idx = 0;
         self.results.clear();
         self.result_labels.clear();
+        // If the file index is stale due to VFS changes, rebuild it on next open.
+        // The caller (app) should call `self.finder.update_index(...)` before
+        // or after `open()` if `self.index_stale` is true.
     }
 
     /// Close and reset the finder.
@@ -160,6 +166,8 @@ pub struct WorkspaceSearchState {
     pub is_searching: bool,
     /// Set to true when the panel first opens so the query field grabs focus.
     pub just_opened: bool,
+    /// Abort handle for the currently running grep (if any).
+    pub abort_handle: GrepAbortHandle,
 }
 
 // ── GotoLineState ─────────────────────────────────────────────────────────────

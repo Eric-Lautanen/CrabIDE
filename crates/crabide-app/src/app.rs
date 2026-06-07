@@ -37,7 +37,7 @@ use crabide_extensions::{
 };
 use crabide_git::GitService;
 use crabide_lsp::LspServerManager;
-use crabide_search::{grep_workspace, index_workspace_files};
+use crabide_search::{grep_workspace, index_workspace_files, GrepAbortHandle};
 use crabide_syntax::{grammar::grammar_registry, queries, SyntaxEngine};
 use crabide_terminal::{TerminalManager, TerminalProfile};
 use crabide_ui::{
@@ -1118,11 +1118,21 @@ impl crabideApp {
     fn apply_vfs_event(&mut self, event: crabide_core::event::VfsEvent) {
         use crabide_core::event::VfsEvent::*;
         match event {
-            FileModified(p) => log::trace!("modified: {}", p.display()),
-            FileCreated(p) => log::trace!("created: {}", p.display()),
-            FileDeleted(p) => log::trace!("deleted: {}", p.display()),
+            FileModified(p) => {
+                log::trace!("modified: {}", p.display());
+                self.ui_state.fuzzy_finder.index_stale = true;
+            }
+            FileCreated(p) => {
+                log::trace!("created: {}", p.display());
+                self.ui_state.fuzzy_finder.index_stale = true;
+            }
+            FileDeleted(p) => {
+                log::trace!("deleted: {}", p.display());
+                self.ui_state.fuzzy_finder.index_stale = true;
+            }
             FileRenamed { from, to } => {
-                log::trace!("renamed: {} → {}", from.display(), to.display())
+                log::trace!("renamed: {} → {}", from.display(), to.display());
+                self.ui_state.fuzzy_finder.index_stale = true;
             }
             WatchError(e) => log::warn!("file watch error: {e}"),
         }
@@ -1665,13 +1675,19 @@ impl crabideApp {
             // ── Fuzzy file finder ─────────────────────────────────────────────
             Action::FuzzyFindFile => {
                 // Populate the file index from workspace roots (move, no clone).
-                let roots = self.workspace.roots();
-                let files = index_workspace_files(&roots);
-                let is_empty = files.is_empty();
-                self.ui_state.fuzzy_finder.finder.update_index(files);
-                if is_empty {
-                    self.ui_state
-                        .set_status("Open a folder first (Ctrl+K Ctrl+O)");
+                // Re-index if the index is stale (VFS changes since last open).
+                if self.ui_state.fuzzy_finder.index_stale
+                    || !self.ui_state.fuzzy_finder.finder.has_index()
+                {
+                    let roots = self.workspace.roots();
+                    let files = index_workspace_files(&roots);
+                    let is_empty = files.is_empty();
+                    self.ui_state.fuzzy_finder.finder.update_index(files);
+                    self.ui_state.fuzzy_finder.index_stale = false;
+                    if is_empty {
+                        self.ui_state
+                            .set_status("Open a folder first (Ctrl+K Ctrl+O)");
+                    }
                 }
             }
 
@@ -1685,8 +1701,15 @@ impl crabideApp {
                 let roots = self.workspace.roots();
                 let re = self.ui_state.workspace_search.use_regex;
                 let cs = self.ui_state.workspace_search.case_sensitive;
+
+                // Cancel any previous search.
+                self.ui_state.workspace_search.abort_handle.abort();
+                // Create a fresh handle for the new search.
+                let abort_handle = GrepAbortHandle::new();
+                self.ui_state.workspace_search.abort_handle = abort_handle.clone();
+
                 self.ui_state.workspace_search.is_searching = true;
-                let results = grep_workspace(&roots, &query, re, cs, 2000);
+                let results = grep_workspace(&roots, &query, re, cs, 2000, Some(&abort_handle));
                 self.ui_state.workspace_search.results = results;
                 self.ui_state.workspace_search.is_searching = false;
                 self.ui_state.workspace_search.selected_idx = 0;
