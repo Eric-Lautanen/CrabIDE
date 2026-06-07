@@ -69,7 +69,6 @@ ropey = "1.6"
 similar = "3" # Myers/Patience diff 3.1.1 verified
 nucleo = "0.5" # Fuzzy finder from Helix editor 0.5.0 released 2024
 regex = "1.12" # Full regex for user find/replace
-regex-lite = "0.1" # Lightweight regex for internal pattern matching
 
 # Syntax Parsing
 tree-sitter = "0.26"
@@ -155,7 +154,6 @@ url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 parking_lot = "0.12" # Faster Mutex/RwLock than std
 dashmap = "6" # Concurrent hashmap for caches; 6.x is now stable
-once_cell = "1" # Lazy statics without macro magic
 smol_str = { version = "0.3", features = ["serde"] } # serde feature required for Serialize/Deserialize
 indexmap = { version = "2", features = ["serde"] }
 

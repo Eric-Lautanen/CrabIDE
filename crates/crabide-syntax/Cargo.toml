@@ -24,7 +24,6 @@ dashmap.workspace    = true
 
 smol_str.workspace   = true
 
-crossbeam-channel.workspace = true
 libloading.workspace         = true
 streaming-iterator.workspace = true
 
