@@ -108,7 +108,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 - [x] Cache compiled regex in `apply_transform` (creates new `Regex` per call)
 - [x] Add `CursorSet::remove()` / `iter()` methods
 - [x] Add `Document::clear()` / `reload()` methods
-- [ ] No unit tests in crate
+- [x] No unit tests in crate
 
 ---
 
@@ -163,9 +163,10 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Wire TriggerCompletion → LSP
 - [x] Wire ApplyCodeAction → LSP
 - [x] Wire ShowSignatureHelp → LSP
-- [ ] Add hover popup UI rendering
-- [ ] Add completion popup UI rendering
-- [ ] Add code actions popup UI rendering
+- [x] Add hover popup UI rendering
+- [x] Add completion popup UI rendering
+- [x] Add code actions popup UI rendering
+- [x] Add signature help popup UI rendering
 - [x] Add `apply_workspace_edit()` helper in crabide-app
 - [x] Add UI state fields for hover/completion/code_actions (hover_text, completion_items, completion_visible, code_actions, code_actions_visible)
 - [x] Add inlay_hints/semantic_tokens/code_lens fields to EditorTab

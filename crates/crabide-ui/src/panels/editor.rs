@@ -1660,7 +1660,8 @@ fn show_completion_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: f32)
     }
 
     let pc = popup_colors(state);
-    let items = state.completion_items.clone();
+    // Clone items to avoid borrow conflict with state mutations inside the closure.
+    let items: Vec<_> = state.completion_items.clone();
     let item_count = items.len();
 
     // Navigation: Up/Down/Enter/Escape.
@@ -1767,15 +1768,11 @@ fn show_completion_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: f32)
 
                                 // Detail text (right-aligned)
                                 if let Some(ref detail) = item.detail {
-                                    let _detail_w = ui
-                                        .painter()
-                                        .layout_no_wrap(
-                                            detail.clone(),
-                                            egui::FontId::proportional(state.font_size - 2.0),
-                                            pc.dim,
-                                        )
-                                        .rect
-                                        .width();
+                                    let _ = ui.painter().layout_no_wrap(
+                                        detail.clone(),
+                                        egui::FontId::proportional(state.font_size - 2.0),
+                                        pc.dim,
+                                    );
                                     ui.painter().text(
                                         egui::pos2(rect.right() - 4.0, rect.center().y),
                                         egui::Align2::RIGHT_CENTER,
