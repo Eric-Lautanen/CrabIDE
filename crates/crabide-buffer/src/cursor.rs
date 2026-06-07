@@ -397,7 +397,7 @@ mod tests {
         assert_eq!(c.pos(), Position::new(5, 2));
 
         c.extend_to(Position::new(1, 0));
-        assert!(c.is_reversed());
+        assert!(c.selection.is_reversed());
         assert_eq!(
             c.range(),
             Range::new(Position::new(1, 0), Position::new(5, 2))

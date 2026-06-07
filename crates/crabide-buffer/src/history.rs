@@ -271,13 +271,13 @@ mod tests {
     #[test]
     fn test_compound_group() {
         let mut h = EditHistory::new(rope(""));
+        h.push(rope("a"), "before_group", vec![]); // entry 1
         h.begin_group();
-        h.push(rope("a"), "part1", vec![]);
-        h.push(rope("ab"), "part2", vec![]);
-        h.push(rope("abc"), "part3", vec![]);
+        h.push(rope("ab"), "part1", vec![]); // overwrites entry 1
+        h.push(rope("abc"), "part2", vec![]); // overwrites entry 1 again
         h.end_group();
-        // Only one entry (the last push overwrites in group)
-        assert_eq!(h.history_len(), 2); // initial + merged group
+        // The group overwrote the current entry, so still 2 entries
+        assert_eq!(h.history_len(), 2); // initial + overwritten entry
 
         h.undo();
         assert_eq!(h.entries.get(0).unwrap().rope.to_string(), "");
@@ -286,12 +286,13 @@ mod tests {
     #[test]
     fn test_nested_groups() {
         let mut h = EditHistory::new(rope(""));
+        h.push(rope("a"), "before", vec![]); // entry 1
         h.begin_group();
         h.begin_group();
-        h.push(rope("x"), "inner", vec![]);
+        h.push(rope("x"), "inner", vec![]); // overwrites entry 1
         h.end_group();
         h.end_group();
-        assert_eq!(h.history_len(), 2);
+        assert_eq!(h.history_len(), 2); // initial + overwritten entry
     }
 
     #[test]

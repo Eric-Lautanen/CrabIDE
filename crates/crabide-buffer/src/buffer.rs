@@ -384,7 +384,12 @@ mod tests {
 
     #[test]
     fn test_from_bytes_utf8() {
-        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.rs"
+        } else {
+            "/test.rs"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let bytes = b"hello\nworld\n";
         let doc = Document::from_bytes(uri.clone(), bytes).unwrap();
         assert_eq!(doc.uri(), &uri);
@@ -395,7 +400,12 @@ mod tests {
 
     #[test]
     fn test_from_bytes_with_bom() {
-        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.rs"
+        } else {
+            "/test.rs"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut bytes = vec![0xEF, 0xBB, 0xBF];
         bytes.extend_from_slice(b"hello");
         let doc = Document::from_bytes(uri, &bytes).unwrap();
@@ -405,7 +415,12 @@ mod tests {
 
     #[test]
     fn test_from_bytes_crlf_normalised() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"line1\r\nline2\r\n").unwrap();
         assert_eq!(doc.text_content(), "line1\nline2\n");
         assert_eq!(doc.line_ending, LineEnding::CrLf);
@@ -413,7 +428,12 @@ mod tests {
 
     #[test]
     fn test_to_bytes_roundtrip() {
-        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.rs"
+        } else {
+            "/test.rs"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"hello\nworld\n").unwrap();
         let bytes = doc.to_bytes();
         assert_eq!(bytes, b"hello\nworld\n");
@@ -421,7 +441,12 @@ mod tests {
 
     #[test]
     fn test_to_bytes_crlf() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"line1\r\nline2\r\n").unwrap();
         let bytes = doc.to_bytes();
         assert_eq!(bytes, b"line1\r\nline2\r\n");
@@ -429,7 +454,12 @@ mod tests {
 
     #[test]
     fn test_to_bytes_with_bom() {
-        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.rs"
+        } else {
+            "/test.rs"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut input = vec![0xEF, 0xBB, 0xBF];
         input.extend_from_slice(b"hello");
         let doc = Document::from_bytes(uri, &input).unwrap();
@@ -449,7 +479,12 @@ mod tests {
 
     #[test]
     fn test_apply_edit_delete() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut doc = Document::from_bytes(uri, b"hello world").unwrap();
         let edit = TextEdit::delete(Range::new(Position::new(0, 5), Position::new(0, 6)));
         doc.apply_edit(&edit).unwrap();
@@ -458,7 +493,12 @@ mod tests {
 
     #[test]
     fn test_apply_edit_replace() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut doc = Document::from_bytes(uri, b"hello world").unwrap();
         let edit = TextEdit::replace(
             Range::new(Position::new(0, 0), Position::new(0, 5)),
@@ -470,7 +510,12 @@ mod tests {
 
     #[test]
     fn test_apply_edit_returns_replaced_text() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut doc = Document::from_bytes(uri, b"hello world").unwrap();
         let edit = TextEdit::replace(
             Range::new(Position::new(0, 6), Position::new(0, 11)),
@@ -483,7 +528,12 @@ mod tests {
 
     #[test]
     fn test_apply_edits_sorted_descending() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut doc = Document::from_bytes(uri, b"abcdef").unwrap();
         // Apply edits in reverse order (back-to-front)
         let edits = vec![
@@ -518,7 +568,12 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut doc = Document::from_bytes(uri, b"some content").unwrap();
         doc.clear();
         assert_eq!(doc.text_content(), "");
@@ -527,7 +582,12 @@ mod tests {
 
     #[test]
     fn test_reload() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let mut doc = Document::from_bytes(uri.clone(), b"old content").unwrap();
         doc.reload(b"new content").unwrap();
         assert_eq!(doc.text_content(), "new content");
@@ -547,7 +607,12 @@ mod tests {
 
     #[test]
     fn test_line_str() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"line1\nline2\nline3").unwrap();
         assert_eq!(doc.line_str(0).unwrap(), "line1");
         assert_eq!(doc.line_str(1).unwrap(), "line2");
@@ -557,14 +622,24 @@ mod tests {
 
     #[test]
     fn test_text_content_multiline() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"hello\nworld\n").unwrap();
         assert_eq!(doc.text_content(), "hello\nworld\n");
     }
 
     #[test]
     fn test_slice() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"hello world").unwrap();
         assert_eq!(
             doc.slice(Range::new(Position::new(0, 0), Position::new(0, 5)))
@@ -580,7 +655,12 @@ mod tests {
 
     #[test]
     fn test_position_conversion() {
-        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"hello\nworld\n").unwrap();
         // First char is at position (0,0), offset 0
         assert_eq!(doc.char_offset_to_position(0), Some(Position::new(0, 0)));
