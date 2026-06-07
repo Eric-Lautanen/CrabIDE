@@ -18,12 +18,12 @@
 | Phase 3 LSP wiring | various | 3 more done | UI fields, apply_workspace_edit, EditorTab fields |
 
 ## Next recommended priorities
-1. **Remove `regex-lite`** from workspace `Cargo.toml` (line 72) — unused dep
-2. **Remove `crossbeam-channel`** from `crates/crabide-syntax/Cargo.toml` (line 27) — unused dep
-3. **Implement real app icon loading** in `crates/crabide-app/src/main.rs` (`load_icon()` function) — assets/ has real icons but placeholder used
-4. **Add unit tests** to at least one crate (e.g., crabide-core or crabide-buffer)
-5. **Wire ShowSignatureHelp → LSP** (last unwired LSP action)
-6. **Add hover/completion/code_actions popup UI rendering** in crabide-ui
+1. [x] **Remove `regex-lite`** from workspace `Cargo.toml` — done in `76cbbf0`
+2. [x] **Remove `crossbeam-channel`** from `crates/crabide-syntax/Cargo.toml` — done in `76cbbf0`
+3. [x] **Implement real app icon loading** — done in this session: used Python+PIL to decode icon-32.png to raw RGBA, embedded via include_bytes!, no new deps
+4. [ ] **Add unit tests** to at least one crate (e.g., crabide-core or crabide-buffer)
+5. [ ] **Wire ShowSignatureHelp → LSP** (last unwired LSP action)
+6. [ ] **Add hover/completion/code_actions popup UI rendering** in crabide-ui
 
 ## Context usage
 ~99% of 1M tokens consumed. Handing off.

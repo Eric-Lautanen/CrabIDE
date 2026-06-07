@@ -30,6 +30,7 @@
 //! - Removes the entire wgpu dependency subtree from the binary
 
 mod app;
+mod icon_data;
 
 use anyhow::Result;
 use eframe::NativeOptions;
@@ -196,16 +197,12 @@ fn default_log_level() -> &'static str {
     }
 }
 
-/// Returns a default application icon.
-/// Replace with actual icon bytes before shipping a release build.
+/// Returns the application icon from assets/icon-32.png.
+/// Pre-decoded to raw RGBA at compile time via tools/gen_icon.py.
 fn load_icon() -> egui::IconData {
-    // A 2×2 amber pixel icon placeholder until real icon assets are added.
-    // Format: RGBA, row-major.
     egui::IconData {
-        rgba: vec![
-            232, 197, 71, 255, 232, 197, 71, 255, 232, 197, 71, 255, 232, 197, 71, 255,
-        ],
-        width: 2,
-        height: 2,
+        rgba: icon_data::ICON_RGBA.to_vec(),
+        width: icon_data::ICON_WIDTH,
+        height: icon_data::ICON_HEIGHT,
     }
 }

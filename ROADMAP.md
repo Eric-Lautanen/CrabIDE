@@ -323,7 +323,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 ### crabide-app — PARTIAL (~60%)
 
 **Remaining items:**
-- [ ] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
+- [x] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
 - [x] CLI argument parsing (clap/structopt instead of manual `args().skip(1)`)
 - [x] `Ctrl+C` signal handler for graceful shutdown
 - [ ] Window state persistence (size, position, maximized state)
