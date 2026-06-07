@@ -1,33 +1,31 @@
-# RESUME — Session 7
+# RESUME — Session 8
 
 ## What was done
 
-### Unit tests added to 2 remaining crates (155 total new tests)
+### 1. Incremental placeholder update during snippet typing
+- Added `SnippetEngine::apply_edit(&mut self, edit: &TextEdit)` that adjusts all active tabstop ranges when text is inserted or deleted in the document.
+- Calls `apply_edit` from both `handle_insert_text` and `handle_delete` in app.rs.
+- Added `TextEdit::range_len_chars()` helper to compute approximate character length of an edit range.
 
-1. **crabide-ui** (112 tests total — 62 in state.rs + 50 in lib.rs)
-   - `state.rs`: FindReplaceState, FuzzyFinderState, GotoLineState, SymbolOutlineState, DapPanelState, TerminalInstance, TerminalPanelState, EditorTab, UiState, cfg_to_egui, DisplayCell, SymbolOutlineEntry, FileExplorerState, GitPanelState, ExtensionsPanelState, SidebarTab, ExtensionsPanelTab, LspStatus, GitDecoration, FileNode, CommandPaletteState, WorkspaceSearchState
-   - `lib.rs`: egui_key_to_chord, is_word_char, word_left, word_right, compute_new_position, line_char_count, handle_ui_action (12 action handlers tested), PaneKind derive
-   - Total: 112 tests (was 0 before this session)
+### 2. Code folding gutter UI
+- Added `folding_ranges: Vec<FoldingRange>` and `collapsed_folds: Vec<usize>` fields to `EditorTab` in crabide-ui state.
+- Updated gutter (`gutter.rs`) to render fold markers (▶ collapsed / ▼ expanded) on lines that start a folding range.
+- Changed `show_line` return type from `bool` to `GutterAction` enum to support both breakpoint toggle and fold toggle.
+- Updated editor rendering to skip lines hidden by collapsed folds (both word-wrap and virtual-row modes).
+- Fold toggles collected after scroll area and applied to `EditorTab.collapsed_folds`.
 
-2. **crabide-app** (43 tests — all in app.rs)
-   - word_at_cursor, find_next_occurrence, extract_text, selected_text, bracket_close_pair, leading_whitespace, line_comment_prefix, matching_close/open, find_forward/backward, compute_bracket_match, clamp_cursors_to_content
-   - Total: 43 tests (was 1 before this session)
+### 3. Search-in-open-buffers support
+- Added `grep_buffers()` function to `crabide-search` that searches in-memory text lines (open documents) instead of reading from disk.
+- Supports regex, case sensitivity, abort handle, and max results.
+- 10 new tests for `grep_buffers`.
 
-### Feature: Incremental workspace search (debounce + background thread)
+### 4. Unit tests added to crabide-syntax (51 new tests)
+- `highlight.rs`: 20 tests for `scope_to_vscode` (all scope mappings)
+- `grammar.rs`: 5 tests for `GrammarRegistry` (new, empty, register, default)
+- `queries.rs`: 12 tests for `highlights_query_for` (all bundled languages)
+- `fold.rs`: 18 tests for `fold_kind_for`, `region_marker`, `extract_region_folds`
 
-1. **Debounce**: Added `last_change: Option<Instant>` to `WorkspaceSearchState` in crabide-ui.
-   - When the query TextEdit changes, the timestamp is recorded.
-   - After 300ms of inactivity, `Action::FindInFiles` is automatically emitted.
-   - Avoids running grep on every keystroke.
-
-2. **Background grep**: `Action::FindInFiles` now spawns a `std::thread` instead of blocking the UI.
-   - Results are sent back via the event channel as `EditorEvent::GrepResults`.
-   - The app drains the event and updates `workspace_search.results` on the next frame.
-   - Cancellation still works via `GrepAbortHandle`.
-
-3. **New event type**: Added `EditorEvent::GrepResults { query, results }` with `GrepResult` struct to crabide-core's event system.
-
-### All tests pass (~702 total)
+### All tests pass (~763 total, up from ~702)
 
 ```
 crabide:           43 tests
@@ -38,8 +36,8 @@ crabide-dap:       43 tests
 crabide-extensions: 54 tests
 crabide-git:        3 tests
 crabide-lsp:       19 tests
-crabide-search:    28 tests
-crabide-syntax:     3 tests
+crabide-search:    38 tests  (+10)
+crabide-syntax:    54 tests  (+51)
 crabide-terminal:  53 tests
 crabide-ui:       112 tests
 crabide-vfs:       43 tests
@@ -48,29 +46,24 @@ crabide-workspace: 25 tests
 
 ### Commits
 ```
-46b764d chore: update test counts and roadmap status
-9b26b91 feat: add incremental workspace search with debounce and background thread
-4ac8ac6 test: add 43 unit tests to crabide-app (app functions)
-2b52138 test: add 50 unit tests to crabide-ui (state + lib)
+710defc test: add 51 unit tests to crabide-syntax and 10 to crabide-search
+fa86ec2 feat: add grep_buffers function for searching in-memory open documents
+098bbe3 feat: add code folding gutter UI with fold markers and collapsed line skipping
+3119aac feat: add incremental placeholder update during snippet typing
 ```
 
 ## Observations
-- **Snippet tabstop UI** (highlight + Tab/Shift+Tab cycling) is already wired: `paint_tabstop_on_line` renders the highlight, `handle_ui_action` handles `NextTabstop`/`PreviousTabstop`, and Tab/Shift+Tab keybindings already dispatch these actions when snippet is active.
-- **Incremental placeholder update** during typing is NOT implemented — `handle_insert_text` in app.rs doesn't update `SnippetEngine` tabstop positions after edits. Would need a new method on `SnippetEngine` to shift tabstop ranges by an edit delta.
-- **Code folding gutter UI** and **search-in-open-buffers** are not started.
-- The `grep_workspace` function is imported in app.rs but `EditorEvent::GrepResults` is now handled.
+- Code folding assumes folding ranges are already computed by the syntax engine and stored in `EditorTab.folding_ranges`. Currently there's no LSP or tree-sitter integration that populates this field — that would be the next step (wire `SyntaxEngine::folding_ranges()` into the app's event loop).
+- The `grep_buffers` function is ready but not yet wired into the `FindInFiles` action handler (which doesn't exist yet in app.rs). The workspace search state exists in UiState but the actual grep invocation in a background thread hasn't been wired.
+- Snippet `apply_edit` uses `range_len_chars()` which is approximate for multi-line ranges. This is fine for snippet placeholders which are usually on a single line.
 
 ## Next recommended priorities
 
-1. **Add incremental placeholder update** during snippet typing:
-   - Add `apply_edit(range: Range, new_len: usize)` method to `SnippetEngine` that shifts tabstop positions
-   - Call it from `handle_insert_text` / `handle_delete` in app.rs
-
-2. **Code folding gutter UI** in `crabide-ui` (fold markers + expand/collapse controls)
-
-3. **Search-in-open-buffers** support (search unsaved `Document` contents)
-
-4. **Add unit tests to remaining crates with low coverage**: `crabide-syntax` (3 tests), `crabide-git` (3 tests)
+1. **Wire folding ranges from syntax engine**: call `SyntaxEngine::folding_ranges()` in the app and populate `EditorTab.folding_ranges` so the fold UI actually has data.
+2. **Wire FindInFiles**: create the background grep thread using `grep_workspace` and `grep_buffers`, send results via `EditorEvent::GrepResults`.
+3. **Custom fold markers** (`// #region` / `// #endregion`): the parser exists in `fold.rs` (`extract_region_folds`), but needs to be called and merged.
+4. **Breadcrumbs**: path bar above editor showing symbol hierarchy.
+5. **Inlay hints**: render LSP inlay hints inline.
 
 ## Context usage
-~32% of 1M tokens consumed.
+~20% of 1M tokens consumed.

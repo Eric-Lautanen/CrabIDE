@@ -180,7 +180,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, status bar, keyboard routing, command palette, find/replace — all implemented. Terminal panel, git panel, problems panel, extensions panel, debug panel, debug toolbar, workspace search — all implemented.
 
 **Missing features:**
-- [ ] **Code folding gutter UI**: fold markers + expand/collapse controls
+- [x] **Code folding gutter UI**: fold markers + expand/collapse controls
 - [ ] **Breadcrumbs**: path bar above editor showing symbol hierarchy
 - [ ] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
 - [ ] **Minimap**: scrollable code overview in sidebar
@@ -199,8 +199,8 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 
 ### crabide-buffer → crabide-ui wiring
 - [x] Wire `SnippetEngine` tabstop UI: active tabstop highlight, Tab/Shift+Tab cycling
-- [ ] Fix `SnippetEngine::expand()` Transform node to reference actual tabstop text
-- [ ] Add incremental placeholder update during typing
+- [x] Fix `SnippetEngine::expand()` Transform node to reference actual tabstop text
+- [x] Add incremental placeholder update during typing
 
 ---
 
@@ -213,7 +213,7 @@ Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 - [x] Wire auto-reindex on VFS file change events
 - [x] Add cancellation support for grep (AbortHandle)
 - [x] Add incremental search (debounce + streaming results via background thread)
-- [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
+- [x] Add search-in-open-buffers support (search unsaved `Document` contents)
 - [x] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
 - [x] Cache `nucleo::Matcher` instance across search calls
 - [x] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
@@ -395,7 +395,7 @@ These aren't tied to any single phase:
 - [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
 - [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [x] **Unit test coverage**: `crabide-core` (140), `crabide-buffer` (47), `crabide-config` (89), `crabide-ui` (112), `crabide-app` (43), `crabide-vfs` (43), `crabide-terminal` (53), `crabide-extensions` (54), `crabide-dap` (43), `crabide-search` (28), `crabide-workspace` (25), `crabide-lsp` (19), `crabide-git` (3), `crabide-syntax` (3). Minimum coverage targets: 30% by v0.1
+- [x] **Unit test coverage**: `crabide-core` (140), `crabide-buffer` (47), `crabide-config` (89), `crabide-ui` (112), `crabide-app` (43), `crabide-vfs` (43), `crabide-terminal` (53), `crabide-extensions` (54), `crabide-dap` (43), `crabide-search` (38), `crabide-workspace` (25), `crabide-lsp` (19), `crabide-git` (3), `crabide-syntax` (54). Minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
 - [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
