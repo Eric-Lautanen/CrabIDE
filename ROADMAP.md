@@ -4,7 +4,7 @@ Build order follows dependency direction. Each phase builds on the phases before
 
 **Legend:** ✅ = done (verified), 🔶 = partial, ❌ = not started
 
-> **Audit date:** 2026-06-07. All statuses verified against actual source code. See git log for latest changes.
+> **Audit date:** 2026-06-08. All statuses verified against actual source code. See git log for latest changes.
 
 ## Crate & Dependency Minimization
 
@@ -85,8 +85,8 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 
 **Gaps:**
 - [x] Implement `KeybindingEngine::when` condition evaluation context system
-- [x] Add per-language settings overlay (`[language.rust] tab_size = 4`)
-- [x] Complete `all_actions()` with all ~50 missing Action variants
+- [ ] Add per-language settings overlay (`[language.rust] tab_size = 4`) — NOT YET IMPLEMENTED (roadmap was incorrectly marked done)
+- [x] Complete `all_actions()` with all ~80 Action variants (verified: 2-column enum + IndexMap)
 - [x] Remove dead `once_cell` dependency
 - [ ] Add action registry API for extensions to register custom actions
 - [ ] Add `keybindings.json` (VS Code format) import compatibility
@@ -127,7 +127,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
 - [ ] Add custom fold marker support (`// #region` / `// #endregion`)
 - [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
-- [ ] No unit tests in crate
+- [ ] No unit tests in crate (has 2 test modules in `indent.rs` and `locals.rs` — needs more coverage)
 
 ---
 
@@ -325,7 +325,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 
 **Remaining items:**
 - [x] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
-- [x] CLI argument parsing (clap/structopt instead of manual `args().skip(1)`)
+- [x] CLI argument parsing (manual parser with `-h`/`-V`/`--log` support — NOT using clap to minimize deps)
 - [x] `Ctrl+C` signal handler for graceful shutdown
 - [ ] Window state persistence (size, position, maximized state)
 - [ ] Session restore (reopen files from last session)
@@ -397,4 +397,4 @@ These aren't tied to any single phase:
 - [ ] **Unit test coverage**: `crabide-buffer` has unit tests for buffer, cursor, history. `crabide-syntax` has unit tests for indent, locals. All other crates have zero tests. Minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
-- [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management) but is not mentioned in any phase. Should be tracked.
+- [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
