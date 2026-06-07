@@ -643,6 +643,30 @@ impl LspClient {
         });
     }
 
+    /// Execute a workspace command via `workspace/executeCommand`.
+    /// This is used for code actions that have a `command` field.
+    /// Results are fire-and-forget (no response event is emitted).
+    pub fn execute_command(&self, command: String, arguments: Vec<Value>, _request_id: u32) {
+        let client = self.clone();
+        tokio::spawn(async move {
+            let params = json!({
+                "command": command,
+                "arguments": arguments,
+            });
+            match client
+                .inner
+                .transport
+                .request("workspace/executeCommand", params)
+                .await
+            {
+                Ok(_result) => {
+                    log::info!("workspace/executeCommand succeeded for command: {command}");
+                }
+                Err(e) => log::warn!("workspace/executeCommand failed: {e}"),
+            }
+        });
+    }
+
     /// Request a rename. Result arrives as `LspEvent::RenameReady`.
     pub fn rename(&self, uri: DocumentUri, position: Position, new_name: String, request_id: u32) {
         let client = self.clone();

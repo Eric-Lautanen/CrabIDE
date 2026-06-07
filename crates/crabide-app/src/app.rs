@@ -3156,6 +3156,47 @@ impl crabideApp {
         }
     }
 
+    /// Apply the selected code action (selected from the popup by index).
+    fn apply_selected_code_action(&mut self, idx: usize) {
+        let Some(actions) = self.ui_state.code_actions.get(idx) else {
+            self.ui_state.set_status("Code action unavailable");
+            return;
+        };
+        let action = actions.clone();
+
+        // If the code action has an associated edit, apply it.
+        if let Some(edit) = action.edit {
+            self.apply_workspace_edit(edit);
+            self.ui_state
+                .set_status(format!("Applied: {}", action.title));
+        } else if let Some(ref cmd) = action.command {
+            // Execute the command via LSP.
+            if let Some(idx) = self.ui_state.active_tab {
+                let tab = &self.ui_state.tabs[idx];
+                let lang = tab.language.clone();
+                if let Some(client) = self.lsp_manager.get_client(&lang) {
+                    let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+                    client.execute_command(cmd.clone(), vec![], req_id);
+                    self.ui_state
+                        .set_status(format!("Executing: {}", action.title));
+                } else {
+                    self.ui_state
+                        .set_status("No language server for code action");
+                }
+            } else {
+                self.ui_state
+                    .set_status("No active document for code action");
+            }
+        } else {
+            self.ui_state
+                .set_status(format!("Code action: {}", action.title));
+        }
+
+        // Clear the code actions popup.
+        self.ui_state.code_actions.clear();
+        self.ui_state.code_actions_visible = false;
+    }
+
     /// Re-sync a tab's lines snapshot after an edit was applied to the workspace.
     fn sync_tab_after_edit(&mut self, uri: &DocumentUri) {
         if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, uri) {
@@ -3192,6 +3233,17 @@ impl eframe::App for crabideApp {
         }
         let actions = crabide_ui::render(ui, &mut self.ui_state);
         self.dispatch_actions(actions, &ctx);
+
+        // ── LSP popup pending actions ─────────────────────────────────────────
+        // Completion insert — convert to InsertText action.
+        if let Some(insert_text) = self.ui_state.pending_completion_insert.take() {
+            self.handle_insert_text(insert_text, &ctx);
+            self.ui_state.set_status("");
+        }
+        // Code action — look up the selected action and apply via the LSP client.
+        if let Some(idx) = self.ui_state.pending_code_action_idx.take() {
+            self.apply_selected_code_action(idx);
+        }
 
         // ── Extension panel navigation ────────────────────────────────────────
         if let Some(nav) = self.ui_state.pending_navigate.take() {

@@ -915,6 +915,16 @@ pub struct UiState {
     pub code_actions_visible: bool,
     /// Signature help result from the LSP server (set by SignatureHelpReady).
     pub signature_help: Option<crabide_core::event::SignatureHelp>,
+
+    // ── LSP popup selection state ─────────────────────────────────────────
+    /// Currently selected completion item index (for keyboard navigation).
+    pub completion_selected_idx: usize,
+    /// Currently selected code action index (for keyboard navigation).
+    pub code_actions_selected_idx: usize,
+    /// Pending completion insert text (set by popup, drained by app).
+    pub pending_completion_insert: Option<String>,
+    /// Pending code action index (set by popup, drained by app).
+    pub pending_code_action_idx: Option<usize>,
 }
 
 impl UiState {
@@ -960,6 +970,10 @@ impl UiState {
             code_actions: Vec::new(),
             code_actions_visible: false,
             signature_help: None,
+            completion_selected_idx: 0,
+            code_actions_selected_idx: 0,
+            pending_completion_insert: None,
+            pending_code_action_idx: None,
         }
     }
 

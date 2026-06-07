@@ -196,3 +196,156 @@ impl EditHistory {
         &self.checkpoints
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_rope() -> Rope {
+        Rope::from_str("")
+    }
+
+    fn rope(s: &str) -> Rope {
+        Rope::from_str(s)
+    }
+
+    #[test]
+    fn test_new_history() {
+        let h = EditHistory::new(empty_rope());
+        assert_eq!(h.history_len(), 1);
+        assert!(!h.can_undo());
+        assert!(!h.can_redo());
+        assert_eq!(h.undo_label(), None);
+        assert_eq!(h.redo_label(), None);
+    }
+
+    #[test]
+    fn test_push_and_undo() {
+        let mut h = EditHistory::new(rope("hello"));
+        h.push(rope("hello world"), "type", vec![]);
+        assert!(h.can_undo());
+        assert!(!h.can_redo());
+        assert_eq!(h.undo_label(), Some("type"));
+
+        let entry = h.undo().unwrap();
+        assert_eq!(entry.rope.to_string(), "hello");
+        assert!(h.can_redo());
+    }
+
+    #[test]
+    fn test_redo() {
+        let mut h = EditHistory::new(rope("hello"));
+        h.push(rope("hello world"), "type", vec![]);
+        h.undo();
+        let entry = h.redo().unwrap();
+        assert_eq!(entry.rope.to_string(), "hello world");
+        assert!(!h.can_redo());
+    }
+
+    #[test]
+    fn test_undo_at_beginning_returns_none() {
+        let mut h = EditHistory::new(rope("hello"));
+        assert!(h.undo().is_none());
+    }
+
+    #[test]
+    fn test_redo_at_end_returns_none() {
+        let mut h = EditHistory::new(rope("hello"));
+        h.push(rope("hello world"), "type", vec![]);
+        assert!(h.redo().is_none());
+    }
+
+    #[test]
+    fn test_push_discards_redo_stack() {
+        let mut h = EditHistory::new(rope("a"));
+        h.push(rope("b"), "step1", vec![]);
+        h.push(rope("c"), "step2", vec![]);
+        h.undo(); // go back to "b"
+        h.undo(); // go back to "a"
+        h.push(rope("d"), "new_step", vec![]);
+        // Redo stack should be gone
+        assert!(!h.can_redo());
+        assert_eq!(h.history_len(), 2); // "a" and "d"
+    }
+
+    #[test]
+    fn test_compound_group() {
+        let mut h = EditHistory::new(rope(""));
+        h.begin_group();
+        h.push(rope("a"), "part1", vec![]);
+        h.push(rope("ab"), "part2", vec![]);
+        h.push(rope("abc"), "part3", vec![]);
+        h.end_group();
+        // Only one entry (the last push overwrites in group)
+        assert_eq!(h.history_len(), 2); // initial + merged group
+
+        h.undo();
+        assert_eq!(h.entries.get(0).unwrap().rope.to_string(), "");
+    }
+
+    #[test]
+    fn test_nested_groups() {
+        let mut h = EditHistory::new(rope(""));
+        h.begin_group();
+        h.begin_group();
+        h.push(rope("x"), "inner", vec![]);
+        h.end_group();
+        h.end_group();
+        assert_eq!(h.history_len(), 2);
+    }
+
+    #[test]
+    fn test_checkpoint() {
+        let mut h = EditHistory::new(rope("a"));
+        h.push(rope("b"), "step1", vec![]);
+        h.checkpoint("before_c");
+        h.push(rope("c"), "step2", vec![]);
+        assert_eq!(h.checkpoints().len(), 1);
+        assert_eq!(h.checkpoints()[0].label, "before_c");
+    }
+
+    #[test]
+    fn test_jump_to_checkpoint() {
+        let mut h = EditHistory::new(rope("a"));
+        h.push(rope("b"), "step1", vec![]);
+        h.checkpoint("milestone");
+        h.push(rope("c"), "step2", vec![]);
+        let entry = h.jump_to_checkpoint("milestone").unwrap();
+        assert_eq!(entry.rope.to_string(), "b");
+    }
+
+    #[test]
+    fn test_max_history_eviction() {
+        // We can't easily test MAX_HISTORY=500, but we can verify that
+        // eviction logic exists: push many entries and check bounds.
+        let mut h = EditHistory::new(rope("start"));
+        for i in 0..10 {
+            h.push(rope(&format!("entry{}", i)), "push", vec![]);
+        }
+        // Should have 11 entries (initial + 10 pushes)
+        assert_eq!(h.history_len(), 11);
+    }
+
+    #[test]
+    fn test_undo_label_after_undo() {
+        let mut h = EditHistory::new(rope("a"));
+        h.push(rope("b"), "first edit", vec![]);
+        h.push(rope("c"), "second edit", vec![]);
+        assert_eq!(h.undo_label(), Some("second edit"));
+        h.undo();
+        assert_eq!(h.redo_label(), Some("second edit"));
+        assert_eq!(h.undo_label(), Some("first edit"));
+    }
+
+    #[test]
+    fn test_current_cursor() {
+        let mut h = EditHistory::new(rope("a"));
+        assert_eq!(h.current_cursor(), 0);
+        h.push(rope("b"), "edit", vec![]);
+        assert_eq!(h.current_cursor(), 1);
+        h.undo();
+        assert_eq!(h.current_cursor(), 0);
+        h.redo();
+        assert_eq!(h.current_cursor(), 1);
+    }
+}

@@ -649,6 +649,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             }
             state.caret_visible = true;
             state.last_blink_toggle = now;
+
+            // Click in the editor dismisses LSP popups.
+            state.hover_text = None;
+            state.completion_visible = false;
+            state.code_actions_visible = false;
+            state.signature_help = None;
         }
         Some(PointerEvent::Drag { pos }) => {
             let tab = &mut state.tabs[active_idx];
@@ -669,6 +675,24 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 state.tabs[active_idx].drag_anchor = None;
             }
         }
+    }
+
+    // ── LSP popup overlays (rendered after scroll area, positioned near cursor) ─
+    if let Some(tab) = state.tabs.get(active_idx) {
+        let cursor_pos = tab.cursors.primary().pos();
+
+        // Compute approximate screen position for the popups.
+        // We use the scroll area's known geometry: content starts at `text_left_x`
+        // (after gutter) and each line is `line_height` pixels tall.
+        // For the initial implementation we position near the cursor line.
+        let screen_rect = ui.ctx().content_rect();
+        let popup_x = screen_rect.left() + 80.0; // approximate gutter width + some padding
+        let popup_y = screen_rect.top() + 100.0 + cursor_pos.line as f32 * line_height;
+
+        show_hover_popup(ui, state, popup_x, popup_y);
+        show_completion_popup(ui, state, popup_x, popup_y + line_height + 4.0);
+        show_code_actions_popup(ui, state, popup_x, popup_y + line_height + 4.0);
+        show_signature_help_popup(ui, state, popup_x, popup_y);
     }
 }
 
@@ -1492,4 +1516,598 @@ pub fn pointer_to_position(
     let line_len = lines.get(line).map(|l| l.chars().count()).unwrap_or(0);
     let col = ((rel_x / char_width).round() as usize).min(line_len);
     Position::new(line as u32, col as u32)
+}
+
+// ── LSP popup overlay renderers ───────────────────────────────────────────────
+
+/// Theme-consistent popup background/fg/style settings.
+struct PopupColors {
+    bg: egui::Color32,
+    fg: egui::Color32,
+    dim: egui::Color32,
+    selected_bg: egui::Color32,
+    border: egui::Color32,
+    keyword: egui::Color32,
+}
+
+fn popup_colors(state: &UiState) -> PopupColors {
+    PopupColors {
+        bg: cfg_to_egui(state.theme.ui_or(
+            "dropdown.background",
+            crabide_config::Color::rgb(0x25, 0x25, 0x26),
+        )),
+        fg: cfg_to_egui(state.theme.ui_or(
+            "editor.foreground",
+            crabide_config::Color::rgb(0xd4, 0xd4, 0xd4),
+        )),
+        dim: cfg_to_egui(state.theme.ui_or(
+            "editorLineNumber.foreground",
+            crabide_config::Color::rgb(0x85, 0x85, 0x85),
+        )),
+        selected_bg: cfg_to_egui(state.theme.ui_or(
+            "list.activeSelectionBackground",
+            crabide_config::Color::rgb(0x09, 0x47, 0x71),
+        )),
+        border: cfg_to_egui(
+            state
+                .theme
+                .ui_or("panel.border", crabide_config::Color::rgb(0x45, 0x45, 0x45)),
+        ),
+        keyword: cfg_to_egui(state.theme.ui_or(
+            "textLink.foreground",
+            crabide_config::Color::rgb(0x37, 0x95, 0xff),
+        )),
+    }
+}
+
+/// Render the hover popup (shows `hover_text` as a floating overlay).
+fn show_hover_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: f32) {
+    let Some(ref hover_text) = state.hover_text else {
+        return;
+    };
+    if hover_text.is_empty() {
+        state.hover_text = None;
+        return;
+    }
+
+    let hover_text = hover_text.clone();
+    let pc = popup_colors(state);
+    let max_w = 400.0_f32.min(ui.ctx().content_rect().width() * 0.6);
+
+    egui::Area::new(egui::Id::new("lsp_hover_popup"))
+        .fixed_pos(egui::pos2(
+            x.min(ui.ctx().content_rect().right() - max_w - 20.0),
+            y,
+        ))
+        .order(egui::Order::Foreground)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::default()
+                .fill(pc.bg)
+                .stroke(egui::Stroke::new(1.0, pc.border))
+                .corner_radius(egui::CornerRadius::same(4))
+                .inner_margin(egui::Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.set_max_width(max_w);
+                    // Handle Escape to close.
+                    let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                    if escape {
+                        state.hover_text = None;
+                        return;
+                    }
+
+                    // Parse markdown-like hover content (simple line-based rendering).
+                    let mut first = true;
+                    for line in hover_text.lines() {
+                        if !first {
+                            ui.add_space(2.0);
+                        }
+                        first = false;
+                        let line = line.trim();
+                        if line.is_empty() {
+                            continue;
+                        }
+                        // Code blocks (```) are just skipped in this simple renderer.
+                        if line.starts_with("```") {
+                            continue;
+                        }
+                        // Simple markdown formatting: **bold** and `code`
+                        let has_code = line.contains('`');
+                        if has_code {
+                            // Split on backticks and style code segments.
+                            let mut in_code = false;
+                            for segment in line.split('`') {
+                                if in_code {
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(segment)
+                                                .code()
+                                                .color(pc.keyword)
+                                                .size(state.font_size - 1.0),
+                                        )
+                                        .wrap(),
+                                    );
+                                } else {
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(segment)
+                                                .color(pc.fg)
+                                                .size(state.font_size - 1.0),
+                                        )
+                                        .wrap(),
+                                    );
+                                }
+                                in_code = !in_code;
+                            }
+                        } else {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(line)
+                                        .color(pc.fg)
+                                        .size(state.font_size - 1.0),
+                                )
+                                .wrap(),
+                            );
+                        }
+                    }
+                });
+        });
+}
+
+/// Render the completion item popup (dropdown list).
+fn show_completion_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: f32) {
+    if !state.completion_visible || state.completion_items.is_empty() {
+        return;
+    }
+
+    let pc = popup_colors(state);
+    let items = state.completion_items.clone();
+    let item_count = items.len();
+
+    // Navigation: Up/Down/Enter/Escape.
+    let (pressed_up, pressed_down, pressed_enter, pressed_escape) = ui.input(|i| {
+        (
+            i.key_pressed(egui::Key::ArrowUp),
+            i.key_pressed(egui::Key::ArrowDown),
+            i.key_pressed(egui::Key::Enter),
+            i.key_pressed(egui::Key::Escape),
+        )
+    });
+
+    if pressed_escape {
+        state.completion_visible = false;
+        state.completion_items.clear();
+        state.completion_selected_idx = 0;
+        return;
+    }
+
+    if pressed_up && state.completion_selected_idx > 0 {
+        state.completion_selected_idx -= 1;
+    }
+    if pressed_down && state.completion_selected_idx + 1 < item_count {
+        state.completion_selected_idx += 1;
+    }
+
+    if pressed_enter && !items.is_empty() {
+        let idx = state.completion_selected_idx.min(item_count - 1);
+        let item = &items[idx];
+        let insert = item
+            .insert_text
+            .as_deref()
+            .unwrap_or(&item.label)
+            .to_owned();
+        // Close popup and insert the selected completion text.
+        state.completion_visible = false;
+        state.completion_items.clear();
+        state.completion_selected_idx = 0;
+        // We can't push to actions here (not in scope), so instead we queue
+        // the text via an InsertText action stored in a dedicated pending field.
+        state.pending_completion_insert = Some(insert);
+        return;
+    }
+
+    let max_visible = 8.min(item_count);
+    let item_h = 22.0_f32;
+    let popup_w = 320.0_f32.min(ui.ctx().content_rect().width() * 0.4);
+
+    egui::Area::new(egui::Id::new("lsp_completion_popup"))
+        .fixed_pos(egui::pos2(
+            x.min(ui.ctx().content_rect().right() - popup_w - 20.0),
+            y,
+        ))
+        .order(egui::Order::Foreground)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::default()
+                .fill(pc.bg)
+                .stroke(egui::Stroke::new(1.0, pc.border))
+                .corner_radius(egui::CornerRadius::same(4))
+                .show(ui, |ui| {
+                    ui.set_min_width(popup_w);
+                    ui.set_max_width(popup_w);
+                    let avail = ui.available_height();
+                    let needed = item_h * max_visible as f32 + 8.0;
+                    ui.set_max_height(needed.min(avail));
+
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            for (i, item) in items.iter().enumerate() {
+                                let is_selected = i == state.completion_selected_idx;
+                                let label_bg = if is_selected {
+                                    pc.selected_bg
+                                } else {
+                                    egui::Color32::TRANSPARENT
+                                };
+                                let label_fg = if is_selected {
+                                    egui::Color32::WHITE
+                                } else {
+                                    pc.fg
+                                };
+
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(popup_w, item_h),
+                                    egui::Sense::click(),
+                                );
+                                if !ui.is_rect_visible(rect) {
+                                    continue;
+                                }
+
+                                // Fill background
+                                ui.painter().rect_filled(rect, 0.0, label_bg);
+
+                                // Kind icon / label
+                                let kind_str = completion_kind_icon(item.kind);
+                                let left_x = rect.left() + 4.0;
+                                ui.painter().text(
+                                    egui::pos2(left_x, rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    format!("{kind_str} {}", item.label),
+                                    egui::FontId::proportional(state.font_size - 1.0),
+                                    label_fg,
+                                );
+
+                                // Detail text (right-aligned)
+                                if let Some(ref detail) = item.detail {
+                                    let _detail_w = ui
+                                        .painter()
+                                        .layout_no_wrap(
+                                            detail.clone(),
+                                            egui::FontId::proportional(state.font_size - 2.0),
+                                            pc.dim,
+                                        )
+                                        .rect
+                                        .width();
+                                    ui.painter().text(
+                                        egui::pos2(rect.right() - 4.0, rect.center().y),
+                                        egui::Align2::RIGHT_CENTER,
+                                        detail.clone(),
+                                        egui::FontId::proportional(state.font_size - 2.0),
+                                        pc.dim,
+                                    );
+                                }
+
+                                if resp.clicked() {
+                                    let insert = item
+                                        .insert_text
+                                        .as_deref()
+                                        .unwrap_or(&item.label)
+                                        .to_owned();
+                                    state.completion_visible = false;
+                                    state.completion_items.clear();
+                                    state.completion_selected_idx = 0;
+                                    state.pending_completion_insert = Some(insert);
+                                }
+                            }
+                        });
+                });
+        });
+}
+
+/// Render the code actions popup (dropdown list).
+fn show_code_actions_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: f32) {
+    if !state.code_actions_visible || state.code_actions.is_empty() {
+        return;
+    }
+
+    let pc = popup_colors(state);
+    let items = state.code_actions.clone();
+    let item_count = items.len();
+
+    let (pressed_up, pressed_down, pressed_enter, pressed_escape) = ui.input(|i| {
+        (
+            i.key_pressed(egui::Key::ArrowUp),
+            i.key_pressed(egui::Key::ArrowDown),
+            i.key_pressed(egui::Key::Enter),
+            i.key_pressed(egui::Key::Escape),
+        )
+    });
+
+    if pressed_escape {
+        state.code_actions_visible = false;
+        state.code_actions.clear();
+        state.code_actions_selected_idx = 0;
+        return;
+    }
+
+    if pressed_up && state.code_actions_selected_idx > 0 {
+        state.code_actions_selected_idx -= 1;
+    }
+    if pressed_down && state.code_actions_selected_idx + 1 < item_count {
+        state.code_actions_selected_idx += 1;
+    }
+
+    if pressed_enter && !items.is_empty() {
+        let idx = state.code_actions_selected_idx.min(item_count - 1);
+        // Queue the selected code action index for the app to process.
+        state.pending_code_action_idx = Some(idx);
+        state.code_actions_visible = false;
+        state.code_actions_selected_idx = 0;
+        return;
+    }
+
+    let max_visible = 8.min(item_count);
+    let item_h = 22.0_f32;
+    let popup_w = 360.0_f32.min(ui.ctx().content_rect().width() * 0.5);
+
+    egui::Area::new(egui::Id::new("lsp_code_actions_popup"))
+        .fixed_pos(egui::pos2(
+            x.min(ui.ctx().content_rect().right() - popup_w - 20.0),
+            y,
+        ))
+        .order(egui::Order::Foreground)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::default()
+                .fill(pc.bg)
+                .stroke(egui::Stroke::new(1.0, pc.border))
+                .corner_radius(egui::CornerRadius::same(4))
+                .show(ui, |ui| {
+                    ui.set_min_width(popup_w);
+                    ui.set_max_width(popup_w);
+                    let avail = ui.available_height();
+                    let needed = item_h * max_visible as f32 + 8.0;
+                    ui.set_max_height(needed.min(avail));
+
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            for (i, item) in items.iter().enumerate() {
+                                let is_selected = i == state.code_actions_selected_idx;
+                                let label_bg = if is_selected {
+                                    pc.selected_bg
+                                } else {
+                                    egui::Color32::TRANSPARENT
+                                };
+                                let label_fg = if is_selected {
+                                    egui::Color32::WHITE
+                                } else {
+                                    pc.fg
+                                };
+
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(popup_w, item_h),
+                                    egui::Sense::click(),
+                                );
+                                if !ui.is_rect_visible(rect) {
+                                    continue;
+                                }
+
+                                ui.painter().rect_filled(rect, 0.0, label_bg);
+
+                                // Kind badge (optional)
+                                let kind_prefix = item
+                                    .kind
+                                    .as_deref()
+                                    .map(|k| format!("[{k}] "))
+                                    .unwrap_or_default();
+                                ui.painter().text(
+                                    egui::pos2(rect.left() + 4.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    format!("{kind_prefix}{}", item.title),
+                                    egui::FontId::proportional(state.font_size - 1.0),
+                                    label_fg,
+                                );
+
+                                if resp.clicked() {
+                                    state.pending_code_action_idx = Some(i);
+                                    state.code_actions_visible = false;
+                                    state.code_actions.clear();
+                                    state.code_actions_selected_idx = 0;
+                                }
+                            }
+                        });
+                });
+        });
+}
+
+/// Render the signature help popup (shows function signature overlay).
+fn show_signature_help_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: f32) {
+    let Some(ref sig) = state.signature_help else {
+        return;
+    };
+    if sig.signatures.is_empty() {
+        state.signature_help = None;
+        return;
+    }
+
+    let pc = popup_colors(state);
+    let active_sig_idx = sig.active_signature.unwrap_or(0) as usize;
+    let active_sig = sig
+        .signatures
+        .get(active_sig_idx.min(sig.signatures.len() - 1));
+    let Some(sig_info) = active_sig else {
+        return;
+    };
+
+    // Clone data needed inside the closure to avoid borrow conflicts.
+    let sig_info = sig_info.clone();
+    let active_param = sig.active_parameter.map(|p| p as usize);
+
+    let max_w = 450.0_f32.min(ui.ctx().content_rect().width() * 0.6);
+
+    egui::Area::new(egui::Id::new("lsp_signature_help_popup"))
+        .fixed_pos(egui::pos2(
+            x.min(ui.ctx().content_rect().right() - max_w - 20.0),
+            y - 60.0, // show above the cursor line
+        ))
+        .order(egui::Order::Foreground)
+        .show(ui.ctx(), |ui| {
+            egui::Frame::default()
+                .fill(pc.bg)
+                .stroke(egui::Stroke::new(1.0, pc.border))
+                .corner_radius(egui::CornerRadius::same(4))
+                .inner_margin(egui::Margin::symmetric(10, 8))
+                .show(ui, |ui| {
+                    ui.set_max_width(max_w);
+
+                    // Escape closes.
+                    let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                    if escape {
+                        state.signature_help = None;
+                        return;
+                    }
+
+                    // Show signature label with active parameter highlighted.
+                    let full_label = &sig_info.label;
+
+                    // Highlight the active parameter if we can split on paren/commas.
+                    // Simple approach: split by parameter boundaries or show raw label.
+                    if let Some(param_idx) = active_param {
+                        if let Some(param) = sig_info.parameters.get(param_idx) {
+                            let param_label = match &param.label {
+                                crabide_core::event::ParameterLabel::Simple(s) => s.clone(),
+                                crabide_core::event::ParameterLabel::Offsets(s, e) => {
+                                    let s = *s as usize;
+                                    let e = (*e as usize).min(full_label.len());
+                                    if s < e {
+                                        full_label[s..e].to_owned()
+                                    } else {
+                                        String::new()
+                                    }
+                                }
+                            };
+                            // Show the signature with the active parameter emphasized.
+                            if !param_label.is_empty() {
+                                if let Some(pos) = full_label.find(&param_label) {
+                                    let before = &full_label[..pos];
+                                    let after = &full_label[pos + param_label.len()..];
+                                    ui.horizontal(|ui| {
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(before)
+                                                    .color(pc.fg)
+                                                    .size(state.font_size - 1.0),
+                                            )
+                                            .wrap(),
+                                        );
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(&param_label)
+                                                    .color(pc.keyword)
+                                                    .strong()
+                                                    .size(state.font_size - 1.0),
+                                            )
+                                            .wrap(),
+                                        );
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(after)
+                                                    .color(pc.fg)
+                                                    .size(state.font_size - 1.0),
+                                            )
+                                            .wrap(),
+                                        );
+                                    });
+                                } else {
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(full_label)
+                                                .color(pc.fg)
+                                                .size(state.font_size - 1.0),
+                                        )
+                                        .wrap(),
+                                    );
+                                }
+                            } else {
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(full_label)
+                                            .color(pc.fg)
+                                            .size(state.font_size - 1.0),
+                                    )
+                                    .wrap(),
+                                );
+                            }
+                        } else {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(full_label)
+                                        .color(pc.fg)
+                                        .size(state.font_size - 1.0),
+                                )
+                                .wrap(),
+                            );
+                        }
+                    } else {
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(full_label)
+                                    .color(pc.fg)
+                                    .size(state.font_size - 1.0),
+                            )
+                            .wrap(),
+                        );
+                    }
+
+                    // Show documentation below the signature.
+                    if let Some(ref docs) = sig_info.documentation {
+                        for line in docs.lines() {
+                            let line = line.trim();
+                            if line.is_empty() {
+                                continue;
+                            }
+                            ui.add_space(4.0);
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(line)
+                                        .color(pc.dim)
+                                        .size(state.font_size - 2.0),
+                                )
+                                .wrap(),
+                            );
+                        }
+                    }
+                });
+        });
+}
+
+/// Return a short icon/emoji string for a completion kind.
+fn completion_kind_icon(kind: Option<crabide_core::event::CompletionKind>) -> &'static str {
+    use crabide_core::event::CompletionKind;
+    match kind {
+        None => "",
+        Some(CompletionKind::Text) => "",
+        Some(CompletionKind::Method) => "▣",
+        Some(CompletionKind::Function) => "ƒ",
+        Some(CompletionKind::Constructor) => "◈",
+        Some(CompletionKind::Field) => "◎",
+        Some(CompletionKind::Variable) => "●",
+        Some(CompletionKind::Class) => "◆",
+        Some(CompletionKind::Interface) => "◇",
+        Some(CompletionKind::Module) => "◻",
+        Some(CompletionKind::Property) => "■",
+        Some(CompletionKind::Unit) => "□",
+        Some(CompletionKind::Value) => "•",
+        Some(CompletionKind::Enum) => "◉",
+        Some(CompletionKind::Keyword) => "🔑",
+        Some(CompletionKind::Snippet) => "✂",
+        Some(CompletionKind::Color) => "🎨",
+        Some(CompletionKind::File) => "📄",
+        Some(CompletionKind::Reference) => "→",
+        Some(CompletionKind::Folder) => "📁",
+        Some(CompletionKind::EnumMember) => "◉",
+        Some(CompletionKind::Constant) => "π",
+        Some(CompletionKind::Struct) => "◈",
+        Some(CompletionKind::Event) => "⚡",
+        Some(CompletionKind::Operator) => "⊕",
+        Some(CompletionKind::TypeParameter) => "τ",
+    }
 }

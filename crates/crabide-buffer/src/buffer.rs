@@ -367,3 +367,228 @@ impl TextBuffer for Document {
         self.id
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crabide_core::types::Position;
+
+    #[test]
+    fn test_new_untitled() {
+        let doc = Document::new_untitled(Language::RUST);
+        assert_eq!(doc.language, Language::RUST);
+        assert!(!doc.is_dirty);
+        assert_eq!(doc.version(), 0);
+        assert_eq!(doc.text_content(), "");
+    }
+
+    #[test]
+    fn test_from_bytes_utf8() {
+        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let bytes = b"hello\nworld\n";
+        let doc = Document::from_bytes(uri.clone(), bytes).unwrap();
+        assert_eq!(doc.uri(), &uri);
+        assert_eq!(doc.language, Language::RUST);
+        assert_eq!(doc.text_content(), "hello\nworld\n");
+        assert!(!doc.is_dirty);
+    }
+
+    #[test]
+    fn test_from_bytes_with_bom() {
+        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(b"hello");
+        let doc = Document::from_bytes(uri, &bytes).unwrap();
+        assert_eq!(doc.text_content(), "hello");
+        assert_eq!(doc.encoding, Encoding::Utf8Bom);
+    }
+
+    #[test]
+    fn test_from_bytes_crlf_normalised() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let doc = Document::from_bytes(uri, b"line1\r\nline2\r\n").unwrap();
+        assert_eq!(doc.text_content(), "line1\nline2\n");
+        assert_eq!(doc.line_ending, LineEnding::CrLf);
+    }
+
+    #[test]
+    fn test_to_bytes_roundtrip() {
+        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let doc = Document::from_bytes(uri, b"hello\nworld\n").unwrap();
+        let bytes = doc.to_bytes();
+        assert_eq!(bytes, b"hello\nworld\n");
+    }
+
+    #[test]
+    fn test_to_bytes_crlf() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let doc = Document::from_bytes(uri, b"line1\r\nline2\r\n").unwrap();
+        let bytes = doc.to_bytes();
+        assert_eq!(bytes, b"line1\r\nline2\r\n");
+    }
+
+    #[test]
+    fn test_to_bytes_with_bom() {
+        let uri = DocumentUri::parse("file:///test.rs").unwrap();
+        let mut input = vec![0xEF, 0xBB, 0xBF];
+        input.extend_from_slice(b"hello");
+        let doc = Document::from_bytes(uri, &input).unwrap();
+        let bytes = doc.to_bytes();
+        assert_eq!(bytes, input);
+    }
+
+    #[test]
+    fn test_apply_edit_insert() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        let edit = TextEdit::insert(Position::ZERO, "hello".to_string());
+        doc.apply_edit(&edit).unwrap();
+        assert_eq!(doc.text_content(), "hello");
+        assert!(doc.is_dirty);
+        assert_eq!(doc.version(), 1);
+    }
+
+    #[test]
+    fn test_apply_edit_delete() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let mut doc = Document::from_bytes(uri, b"hello world").unwrap();
+        let edit = TextEdit::delete(Range::new(Position::new(0, 5), Position::new(0, 6)));
+        doc.apply_edit(&edit).unwrap();
+        assert_eq!(doc.text_content(), "helloworld");
+    }
+
+    #[test]
+    fn test_apply_edit_replace() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let mut doc = Document::from_bytes(uri, b"hello world").unwrap();
+        let edit = TextEdit::replace(
+            Range::new(Position::new(0, 0), Position::new(0, 5)),
+            "hi".to_string(),
+        );
+        doc.apply_edit(&edit).unwrap();
+        assert_eq!(doc.text_content(), "hi world");
+    }
+
+    #[test]
+    fn test_apply_edit_returns_replaced_text() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let mut doc = Document::from_bytes(uri, b"hello world").unwrap();
+        let edit = TextEdit::replace(
+            Range::new(Position::new(0, 6), Position::new(0, 11)),
+            "there".to_string(),
+        );
+        let removed = doc.apply_edit(&edit).unwrap();
+        assert_eq!(removed, "world");
+        assert_eq!(doc.text_content(), "hello there");
+    }
+
+    #[test]
+    fn test_apply_edits_sorted_descending() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let mut doc = Document::from_bytes(uri, b"abcdef").unwrap();
+        // Apply edits in reverse order (back-to-front)
+        let edits = vec![
+            TextEdit::replace(
+                Range::new(Position::new(0, 3), Position::new(0, 6)),
+                "DEF".to_string(),
+            ),
+            TextEdit::replace(
+                Range::new(Position::new(0, 0), Position::new(0, 3)),
+                "ABC".to_string(),
+            ),
+        ];
+        doc.apply_edits(&edits).unwrap();
+        assert_eq!(doc.text_content(), "ABCDEF");
+    }
+
+    #[test]
+    fn test_apply_edits_wrong_order() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        let edits = vec![
+            TextEdit::replace(
+                Range::new(Position::new(0, 0), Position::new(0, 1)),
+                "a".to_string(),
+            ),
+            TextEdit::replace(
+                Range::new(Position::new(0, 2), Position::new(0, 3)),
+                "b".to_string(),
+            ),
+        ];
+        assert!(doc.apply_edits(&edits).is_err());
+    }
+
+    #[test]
+    fn test_clear() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let mut doc = Document::from_bytes(uri, b"some content").unwrap();
+        doc.clear();
+        assert_eq!(doc.text_content(), "");
+        assert!(doc.is_dirty);
+    }
+
+    #[test]
+    fn test_reload() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let mut doc = Document::from_bytes(uri.clone(), b"old content").unwrap();
+        doc.reload(b"new content").unwrap();
+        assert_eq!(doc.text_content(), "new content");
+        assert!(!doc.is_dirty);
+        assert_eq!(doc.version(), 0);
+    }
+
+    #[test]
+    fn test_mark_saved() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        doc.apply_edit(&TextEdit::insert(Position::ZERO, "text".to_string()))
+            .unwrap();
+        assert!(doc.is_dirty);
+        doc.mark_saved();
+        assert!(!doc.is_dirty);
+    }
+
+    #[test]
+    fn test_line_str() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let doc = Document::from_bytes(uri, b"line1\nline2\nline3").unwrap();
+        assert_eq!(doc.line_str(0).unwrap(), "line1");
+        assert_eq!(doc.line_str(1).unwrap(), "line2");
+        assert_eq!(doc.line_str(2).unwrap(), "line3");
+        assert!(doc.line_str(5).is_none());
+    }
+
+    #[test]
+    fn test_text_content_multiline() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let doc = Document::from_bytes(uri, b"hello\nworld\n").unwrap();
+        assert_eq!(doc.text_content(), "hello\nworld\n");
+    }
+
+    #[test]
+    fn test_slice() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let doc = Document::from_bytes(uri, b"hello world").unwrap();
+        assert_eq!(
+            doc.slice(Range::new(Position::new(0, 0), Position::new(0, 5)))
+                .unwrap(),
+            "hello"
+        );
+        assert_eq!(
+            doc.slice(Range::new(Position::new(0, 6), Position::new(0, 11)))
+                .unwrap(),
+            "world"
+        );
+    }
+
+    #[test]
+    fn test_position_conversion() {
+        let uri = DocumentUri::parse("file:///test.txt").unwrap();
+        let doc = Document::from_bytes(uri, b"hello\nworld\n").unwrap();
+        // First char is at position (0,0), offset 0
+        assert_eq!(doc.char_offset_to_position(0), Some(Position::new(0, 0)));
+        // 'h' at offset 0
+        assert_eq!(doc.position_to_char_offset(Position::new(0, 0)), Some(0));
+        // newline at offset 5
+        assert_eq!(doc.char_offset_to_position(5), Some(Position::new(0, 5)));
+        // 'w' is at line 1, col 0, offset 6
+        assert_eq!(doc.position_to_char_offset(Position::new(1, 0)), Some(6));
+    }
+}

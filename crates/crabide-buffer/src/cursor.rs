@@ -254,3 +254,169 @@ impl Default for CursorSet {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crabide_core::types::Position;
+
+    #[test]
+    fn test_cursor_set_new() {
+        let cs = CursorSet::new();
+        assert_eq!(cs.count(), 1);
+        assert_eq!(cs.primary().pos(), Position::ZERO);
+        assert_eq!(cs.mode(), SelectionMode::Normal);
+    }
+
+    #[test]
+    fn test_cursor_set_with_cursor() {
+        let pos = Position::new(5, 3);
+        let cs = CursorSet::with_cursor(pos);
+        assert_eq!(cs.count(), 1);
+        assert_eq!(cs.primary().pos(), pos);
+    }
+
+    #[test]
+    fn test_add_cursor() {
+        let mut cs = CursorSet::new();
+        cs.add(Position::new(10, 0));
+        assert_eq!(cs.count(), 2);
+        // Last added is primary
+        assert_eq!(cs.primary().pos(), Position::new(10, 0));
+    }
+
+    #[test]
+    fn test_add_duplicate_cursor_is_deduped() {
+        let mut cs = CursorSet::new();
+        cs.add(Position::ZERO); // same as existing
+        assert_eq!(cs.count(), 1);
+    }
+
+    #[test]
+    fn test_set_single() {
+        let mut cs = CursorSet::new();
+        cs.add(Position::new(5, 0));
+        cs.add(Position::new(10, 0));
+        assert_eq!(cs.count(), 3);
+        cs.set_single(Position::new(2, 2));
+        assert_eq!(cs.count(), 1);
+        assert_eq!(cs.primary().pos(), Position::new(2, 2));
+        assert_eq!(cs.mode(), SelectionMode::Normal);
+    }
+
+    #[test]
+    fn test_remove_cursor() {
+        let mut cs = CursorSet::with_cursor(Position::new(1, 0));
+        cs.add(Position::new(2, 0));
+        cs.add(Position::new(3, 0));
+        assert_eq!(cs.count(), 3);
+        cs.remove(1); // remove middle
+        assert_eq!(cs.count(), 2);
+    }
+
+    #[test]
+    fn test_remove_last_cursor_resets_to_origin() {
+        let mut cs = CursorSet::with_cursor(Position::new(5, 5));
+        // Only one cursor; removing it should reset to origin
+        cs.remove(0);
+        assert_eq!(cs.count(), 1);
+        assert_eq!(cs.primary().pos(), Position::ZERO);
+    }
+
+    #[test]
+    fn test_collapse_all() {
+        let mut cs = CursorSet::new();
+        cs.primary_mut().extend_to(Position::new(0, 5));
+        assert!(cs.primary().has_selection());
+        cs.collapse_all();
+        assert!(!cs.primary().has_selection());
+    }
+
+    #[test]
+    fn test_iter() {
+        let mut cs = CursorSet::new();
+        cs.add(Position::new(2, 0));
+        cs.add(Position::new(1, 0));
+        let positions: Vec<Position> = cs.iter().map(|c| c.pos()).collect();
+        // Should be sorted
+        assert_eq!(
+            positions,
+            vec![Position::ZERO, Position::new(1, 0), Position::new(2, 0),]
+        );
+    }
+
+    #[test]
+    fn test_all_returns_sorted() {
+        let mut cs = CursorSet::new();
+        cs.add(Position::new(3, 0));
+        cs.add(Position::new(1, 0));
+        cs.add(Position::new(2, 0));
+        let all = cs.all();
+        assert_eq!(all.len(), 4);
+        // Check sorted order
+        for w in all.windows(2) {
+            assert!(w[0].pos() <= w[1].pos());
+        }
+    }
+
+    #[test]
+    fn test_set_multi_selection() {
+        let mut cs = CursorSet::new();
+        let ranges = vec![
+            Range::new(Position::new(0, 0), Position::new(0, 5)),
+            Range::new(Position::new(1, 0), Position::new(1, 10)),
+        ];
+        cs.set_multi_selection(&ranges);
+        assert_eq!(cs.count(), 2);
+        assert!(cs.primary().has_selection());
+    }
+
+    #[test]
+    fn test_map_cursors() {
+        let mut cs = CursorSet::new();
+        cs.add(Position::new(1, 0));
+        cs.map_cursors(|c| c.move_to(Position::new(c.pos().line, c.pos().character + 1)));
+        assert_eq!(cs.primary().pos(), Position::new(1, 1));
+    }
+
+    #[test]
+    fn test_cursor_operations() {
+        let mut c = Cursor::at(Position::new(3, 7));
+        assert_eq!(c.pos(), Position::new(3, 7));
+        assert!(!c.has_selection());
+
+        c.extend_to(Position::new(5, 2));
+        assert!(c.has_selection());
+        assert_eq!(
+            c.range(),
+            Range::new(Position::new(3, 7), Position::new(5, 2))
+        );
+
+        c.collapse();
+        assert!(!c.has_selection());
+        assert_eq!(c.pos(), Position::new(5, 2));
+
+        c.extend_to(Position::new(1, 0));
+        assert!(c.is_reversed());
+        assert_eq!(
+            c.range(),
+            Range::new(Position::new(1, 0), Position::new(5, 2))
+        );
+
+        c.collapse_to_start();
+        assert_eq!(c.pos(), Position::new(1, 0));
+
+        c.move_to(Position::new(0, 0));
+        assert_eq!(c.pos(), Position::ZERO);
+    }
+
+    #[test]
+    fn test_selection_mode() {
+        let mut cs = CursorSet::new();
+        assert_eq!(cs.mode(), SelectionMode::Normal);
+        cs.set_mode(SelectionMode::Line);
+        assert_eq!(cs.mode(), SelectionMode::Line);
+        cs.set_mode(SelectionMode::Column);
+        assert_eq!(cs.mode(), SelectionMode::Column);
+    }
+}

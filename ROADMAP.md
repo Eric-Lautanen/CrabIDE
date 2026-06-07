@@ -162,7 +162,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Wire ShowHover → LSP
 - [x] Wire TriggerCompletion → LSP
 - [x] Wire ApplyCodeAction → LSP
-- [ ] Wire ShowSignatureHelp → LSP
+- [x] Wire ShowSignatureHelp → LSP
 - [ ] Add hover popup UI rendering
 - [ ] Add completion popup UI rendering
 - [ ] Add code actions popup UI rendering
