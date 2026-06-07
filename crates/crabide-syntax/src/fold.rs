@@ -248,3 +248,136 @@ fn fold_kind_for(kind: &str) -> Option<FoldKind> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fold_kind_for_block() {
+        assert_eq!(fold_kind_for("block"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("declaration_list"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("function_item"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("class_definition"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("if_statement"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("for_statement"), Some(FoldKind::Region));
+    }
+
+    #[test]
+    fn fold_kind_for_comment() {
+        assert_eq!(fold_kind_for("block_comment"), Some(FoldKind::Comment));
+        assert_eq!(fold_kind_for("line_comment"), Some(FoldKind::Comment));
+        assert_eq!(fold_kind_for("doc_comment"), Some(FoldKind::Comment));
+        assert_eq!(fold_kind_for("multiline_comment"), Some(FoldKind::Comment));
+    }
+
+    #[test]
+    fn fold_kind_for_imports() {
+        assert_eq!(fold_kind_for("use_declaration"), Some(FoldKind::Imports));
+        assert_eq!(fold_kind_for("import_statement"), Some(FoldKind::Imports));
+        assert_eq!(fold_kind_for("import_group"), Some(FoldKind::Imports));
+    }
+
+    #[test]
+    fn fold_kind_for_unknown_returns_none() {
+        assert_eq!(fold_kind_for("identifier"), None);
+        assert_eq!(fold_kind_for("number_literal"), None);
+        assert_eq!(fold_kind_for(""), None);
+    }
+
+    #[test]
+    fn region_marker_start() {
+        assert!(region_marker("// #region").is_some_and(|m| matches!(m, RegionMarker::Start)));
+        assert!(region_marker("# #region").is_some_and(|m| matches!(m, RegionMarker::Start)));
+        assert!(region_marker("-- #region").is_some_and(|m| matches!(m, RegionMarker::Start)));
+        assert!(region_marker("; #region").is_some_and(|m| matches!(m, RegionMarker::Start)));
+    }
+
+    #[test]
+    fn region_marker_end() {
+        assert!(region_marker("// #endregion").is_some_and(|m| matches!(m, RegionMarker::End)));
+        assert!(region_marker("# #endregion").is_some_and(|m| matches!(m, RegionMarker::End)));
+        assert!(region_marker("-- #endregion").is_some_and(|m| matches!(m, RegionMarker::End)));
+    }
+
+    #[test]
+    fn region_marker_case_insensitive() {
+        assert!(region_marker("// #REGION").is_some_and(|m| matches!(m, RegionMarker::Start)));
+        assert!(region_marker("// #endregion").is_some_and(|m| matches!(m, RegionMarker::End)));
+    }
+
+    #[test]
+    fn region_marker_no_prefix_returns_none() {
+        assert!(region_marker("#region").is_none());
+        assert!(region_marker("foo // #region").is_none());
+    }
+
+    #[test]
+    fn region_marker_no_marker_returns_none() {
+        assert!(region_marker("// some random comment").is_none());
+        assert!(region_marker("").is_none());
+    }
+
+    #[test]
+    fn extract_region_folds_empty_source() {
+        let folds = extract_region_folds("");
+        assert!(folds.is_empty());
+    }
+
+    #[test]
+    fn extract_region_folds_single_region() {
+        let source = "// #region\ninside\n// #endregion";
+        let folds = extract_region_folds(source);
+        assert_eq!(folds.len(), 1);
+        assert_eq!(folds[0].start_line, 0);
+        assert_eq!(folds[0].end_line, 2);
+        assert_eq!(folds[0].kind, FoldKind::Region);
+    }
+
+    #[test]
+    fn extract_region_folds_nested_regions() {
+        let source = "// #region outer\nouter content\n// #region inner\ninner content\n// #endregion\n// #endregion";
+        let folds = extract_region_folds(source);
+        assert_eq!(folds.len(), 2);
+        // Inner region
+        assert_eq!(folds[0].start_line, 2);
+        assert_eq!(folds[0].end_line, 4);
+        // Outer region
+        assert_eq!(folds[1].start_line, 0);
+        assert_eq!(folds[1].end_line, 5);
+    }
+
+    #[test]
+    fn extract_region_folds_unclosed_region_closes_at_eof() {
+        let source = "// #region\nsome content\nno end marker";
+        let folds = extract_region_folds(source);
+        assert_eq!(folds.len(), 1);
+        assert_eq!(folds[0].start_line, 0);
+        assert_eq!(folds[0].end_line, 2);
+    }
+
+    #[test]
+    fn extract_region_folds_multiple_prefix_styles() {
+        let source = "# #region (python style)\ncontent\n# #endregion\n; #region (lisp style)\nmore\n; #endregion";
+        let folds = extract_region_folds(source);
+        assert_eq!(folds.len(), 2);
+    }
+
+    #[test]
+    fn extract_region_folds_ignores_non_region_comments() {
+        let source = "// just a comment\n// another comment";
+        let folds = extract_region_folds(source);
+        assert!(folds.is_empty());
+    }
+
+    #[test]
+    fn fold_kind_for_c_and_cpp_nodes() {
+        assert_eq!(fold_kind_for("compound_statement"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("struct_specifier"), Some(FoldKind::Region));
+        assert_eq!(
+            fold_kind_for("namespace_definition"),
+            Some(FoldKind::Region)
+        );
+        assert_eq!(fold_kind_for("translation_unit"), Some(FoldKind::Region));
+    }
+}

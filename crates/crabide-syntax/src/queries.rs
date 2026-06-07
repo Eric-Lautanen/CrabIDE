@@ -429,3 +429,87 @@ pub fn highlights_query_for(lang: &Language) -> &'static str {
         _ => "",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn highlights_query_for_rust() {
+        let q = highlights_query_for(&Language::RUST);
+        assert!(!q.is_empty());
+        assert!(q.contains("@keyword"));
+        assert!(q.contains("@string"));
+    }
+
+    #[test]
+    fn highlights_query_for_python() {
+        let q = highlights_query_for(&Language::PYTHON);
+        assert!(!q.is_empty());
+        assert!(q.contains("def"));
+    }
+
+    #[test]
+    fn highlights_query_for_javascript() {
+        let q = highlights_query_for(&Language::JAVASCRIPT);
+        assert!(!q.is_empty());
+        assert!(q.contains("function"));
+    }
+
+    #[test]
+    fn highlights_query_for_typescript() {
+        let q = highlights_query_for(&Language::TYPESCRIPT);
+        assert!(!q.is_empty());
+        assert!(q.contains("interface"));
+    }
+
+    #[test]
+    fn highlights_query_for_go() {
+        let q = highlights_query_for(&Language::GO);
+        assert!(!q.is_empty());
+        assert!(q.contains("func"));
+    }
+
+    #[test]
+    fn highlights_query_for_c() {
+        let q = highlights_query_for(&Language::C);
+        assert!(!q.is_empty());
+        assert!(q.contains("NULL"));
+    }
+
+    #[test]
+    fn highlights_query_for_cpp() {
+        let q = highlights_query_for(&Language::CPP);
+        assert!(!q.is_empty());
+        assert!(q.contains("class"));
+    }
+
+    #[test]
+    fn highlights_query_for_json() {
+        let q = highlights_query_for(&Language::JSON);
+        assert!(!q.is_empty());
+        assert!(q.contains("string"));
+    }
+
+    #[test]
+    fn highlights_query_for_toml() {
+        let q = highlights_query_for(&Language::TOML);
+        assert!(!q.is_empty());
+        assert!(q.contains("table"));
+    }
+
+    #[test]
+    fn highlights_query_for_markdown() {
+        let q = highlights_query_for(&Language::MARKDOWN);
+        assert!(!q.is_empty());
+        assert!(q.contains("heading"));
+    }
+
+    #[test]
+    fn highlights_query_for_unknown_returns_empty() {
+        let q = highlights_query_for(&Language::PLAIN_TEXT);
+        assert!(q.is_empty());
+        let q = highlights_query_for(&Language::new("unknown_lang_xyz"));
+        assert!(q.is_empty());
+    }
+}
