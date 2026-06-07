@@ -4,7 +4,7 @@ Build order follows dependency direction. Each phase builds on the phases before
 
 **Legend:** ✅ = done (verified), 🔶 = partial, ❌ = not started
 
-> **Audit date:** 2026-06-06. All statuses verified against actual source code. See git log for latest changes.
+> **Audit date:** 2026-06-07. All statuses verified against actual source code. See git log for latest changes.
 
 ## Crate & Dependency Minimization
 
@@ -12,7 +12,7 @@ Every external crate adds compile time, binary size, memory use, and supply-chai
 
 - **Prefer a 20-line local helper over pulling a crate.** Before adding any dependency, ask: can I write this in ≤50 lines? If yes, do that instead.
 - **If a crate has only one use site, inline it.** One function from `once_cell`? Use `std::sync::OnceLock` (stable since Rust 1.70). One use of `regex-lite`? Fold the logic.
-- **Granular crates are fine for separation of concerns but only when they reduce coupling.** If crate A and B always change together, merge them. The current 14 crates should be scrutinized: could some collapse?
+- **Granular crates are fine for separation of concerns but only when they reduce coupling.** If crate A and B always change together, merge them. The current 15 crates should be scrutinized: could some collapse?
 - **Every `[dependencies]` entry must carry a brief rationale comment** explaining why a local helper wouldn't suffice. Uncommented deps will be removed.
 - **Run `cargo-udeps` periodically** to find unused crates. Any crate declared but never imported gets deleted.
 - **Feature flags are the right way to gate heavy dependencies** (wasmtime, bollard, russh, wry). Default build must stay lean.
@@ -86,7 +86,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 **Gaps:**
 - [x] Implement `KeybindingEngine::when` condition evaluation context system
 - [x] Add per-language settings overlay (`[language.rust] tab_size = 4`)
-- [ ] Complete `all_actions()` with all ~50 missing Action variants
+- [x] Complete `all_actions()` with all ~50 missing Action variants
 - [x] Remove dead `once_cell` dependency
 - [ ] Add action registry API for extensions to register custom actions
 - [ ] Add `keybindings.json` (VS Code format) import compatibility
@@ -213,7 +213,7 @@ Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 - [ ] Add cancellation support for grep (AbortHandle)
 - [ ] Add incremental search (debounce + streaming results)
 - [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
-- [ ] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
+- [x] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
 - [x] Cache `nucleo::Matcher` instance across search calls
 - [ ] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
 
@@ -340,7 +340,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [ ] Windows installer (NSIS or WiX)
 - [ ] macOS `.app` bundle + code signing + notarization
 - [ ] Linux `.AppImage` + `.deb` / `.rpm`
-- [ ] CI release artifacts (`.github/workflows/ci.yml` already scaffolded)
+- [ ] CI release artifacts (`.github/workflows/` dir exists but no workflow file — needs scaffolding)
 - [ ] Performance pass: egui frame time, LSP round-trip latency, heap profiling
 - [ ] README, docs site
 
@@ -392,8 +392,9 @@ test: add integration test for SshVfs round-trip
 These aren't tied to any single phase:
 
 - [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
-- [ ] **Workspace-level dep cleanup**: `regex-lite` still declared in workspace `Cargo.toml` (line 72) but unused in any crate. `crossbeam-channel` still declared in `crabide-syntax/Cargo.toml` but unused in syntax source.
+- [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [ ] **Unit test coverage**: No crate has any unit tests, integration tests, or doc tests — minimum coverage targets: 30% by v0.1
+- [ ] **Unit test coverage**: `crabide-buffer` has unit tests for buffer, cursor, history. `crabide-syntax` has unit tests for indent, locals. All other crates have zero tests. Minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
+- [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management) but is not mentioned in any phase. Should be tracked.
