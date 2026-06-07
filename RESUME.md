@@ -1,29 +1,41 @@
-# RESUME — Roadmap Audit Complete
+# RESUME — Session complete
 
 ## What was done
-- Read `ROADMAP.md` and audited all 14 crates against actual source code
-- Updated phase statuses to match reality (many were marked COMPLETE/DONE but had significant gaps)
-- Marked 3 newly-completed LSP wiring items from the most recent commit
-- Identified lingering unused deps (`regex-lite` in workspace, `crossbeam-channel` in syntax)
-- Committed: `778786f roadmap: update completion statuses after codebase audit`
 
-## Key findings
-| Area | Old Status | New Status | Notes |
-|---|---|---|---|
-| crabide-config | COMPLETE | PARTIAL | 5 gaps remain |
-| crabide-syntax | COMPLETE | PARTIAL | 6 gaps remain |
-| crabide-search | COMPLETE | PARTIAL | 5 gaps remain (regex-lite still in workspace) |
-| crabide-git | COMPLETE | PARTIAL | 10 gaps remain |
-| crabide-extensions | COMPLETE | PARTIAL | ~60% — WASM host stubs, registry download |
-| Phase 3 LSP wiring | various | 3 more done | UI fields, apply_workspace_edit, EditorTab fields |
+### Phase 1 — Foundation
+- **crabide-core**: Added 140 unit tests covering types, error enums, and event types (Display, From, Serialize/Deserialize roundtrips, bitflags, construction). All tests pass on both Windows and Unix.
+- **crabide-config**: Fixed per-language settings overlay parsing. Previously `PartialSettings` silently dropped `[language.rust]` sections from TOML files; now `language_overrides` is parsed and merged via `PartialSettings::apply_onto()`.
+
+### Phase 2 — Syntax Highlighting
+- **crabide-syntax**: Implemented `DocumentObserver` on `SyntaxEngine`. The engine now registers with `Workspace` to receive `on_document_changed/opened/closed` callbacks. A `pending` DashMap queues re-parses; the UI drains them each frame via `drain_pending_reparses()`. The `SyntaxEngine` field in `crabideApp` changed from `SyntaxEngine` to `Arc<SyntaxEngine>`.
+
+### Phase 5 — Search
+- **Wire auto-reindex on VFS file changes**: `FuzzyFinderState` gained `index_stale` flag. VFS events (file created/modified/deleted/renamed) set it to `true`. The `Action::FuzzyFindFile` handler checks this flag and re-indexes only when stale.
+- **Add grep cancellation**: Created `GrepAbortHandle` (wraps `Arc<AtomicBool>`). `grep_workspace` now accepts `Option<&GrepAbortHandle>` and checks it per-file. `WorkspaceSearchState` stores a handle; new searches cancel the previous one.
+
+### Phase 3 — LSP Client
+- **Fix crash detection**: Replaced 30-second polling stub in `restart_loop` with proper `child.wait()`. `spawn_server_process` now returns the `tokio::process::Child` handle, which is passed to `restart_loop` for immediate process-exit notification. The `LspEvent::ServerCrashed` event now includes the actual exit code.
+
+### Phase 10 — Polish
+- Fixed doc test in `crabide-config` (missing `use` statement).
+
+## Commits
+```
+e67fa77 test: add 140 unit tests to crabide-core (types, error, event)
+064a06d fix: correct buffer tests for Windows paths and history group semantics
+e7938b8 feat: implement DocumentObserver on SyntaxEngine for auto-parse on buffer changes
+b28bdb6 feat: wire auto-reindex on VFS file changes and add grep cancellation support
+0e19e9c feat: add per-language settings overlay parsing and fix LSP crash detection with proper child wait()
+```
 
 ## Next recommended priorities
-1. [x] **Remove `regex-lite`** from workspace `Cargo.toml` — done in `76cbbf0`
-2. [x] **Remove `crossbeam-channel`** from `crates/crabide-syntax/Cargo.toml` — done in `76cbbf0`
-3. [x] **Implement real app icon loading** — done in this session: used Python+PIL to decode icon-32.png to raw RGBA, embedded via include_bytes!, no new deps
-4. [ ] **Add unit tests** to at least one crate (e.g., crabide-core or crabide-buffer)
-5. [ ] **Wire ShowSignatureHelp → LSP** (last unwired LSP action)
-6. [ ] **Add hover/completion/code_actions popup UI rendering** in crabide-ui
+1. **Add unit tests to more crates** (crabide-config, crabide-search, crabide-vfs, crabide-lsp, etc.)
+2. **Add incremental search support** (debounce + streaming results) in crabide-search
+3. **Add Go-to-symbol** (Ctrl+Shift+O) using crabide-syntax outline
+4. **Implement action registry API** for extensions in crabide-config
+5. **Wire `SnippetEngine` tabstop UI** in crabide-ui (active tabstop highlight, Tab/Shift+Tab cycling)
+6. **Add incremental placeholder update** during typing in snippet engine
+7. **Add code folding gutter UI** in crabide-ui
 
 ## Context usage
-~99% of 1M tokens consumed. Handing off.
+~17% of 1M tokens consumed. Room to continue.

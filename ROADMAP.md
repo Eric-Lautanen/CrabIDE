@@ -85,7 +85,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 
 **Gaps:**
 - [x] Implement `KeybindingEngine::when` condition evaluation context system
-- [ ] Add per-language settings overlay (`[language.rust] tab_size = 4`) — NOT YET IMPLEMENTED (roadmap was incorrectly marked done)
+- [x] Add per-language settings overlay (`[language.rust] tab_size = 4`)
 - [x] Complete `all_actions()` with all ~80 Action variants (verified: 2-column enum + IndexMap)
 - [x] Remove dead `once_cell` dependency
 - [ ] Add action registry API for extensions to register custom actions
@@ -121,7 +121,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
 - [x] Implement indentation query runner (`IndentEngine` + `SyntaxEngine::indents()` active)
 - [x] Implement locals/scope-aware queries (`LocalsEngine` + `SyntaxEngine::local_scopes()` active)
-- [ ] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
+- [x] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
 - [ ] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
 - [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
@@ -136,7 +136,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 ### crabide-lsp — PARTIAL (~90%)
 
 **Critical fixes:**
-- [ ] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
+- [x] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
 - [x] Fix graceful shutdown: expose `LspTransport` from `LspClient` so `shutdown`/`exit` can actually be sent
 - [x] Remove `#[allow(dead_code)]` from stubs throughout the crate (violates project convention)
 - [x] Add server↔client request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
@@ -209,8 +209,8 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 
 **Gaps:**
-- [ ] Wire auto-reindex on VFS file change events
-- [ ] Add cancellation support for grep (AbortHandle)
+- [x] Wire auto-reindex on VFS file change events
+- [x] Add cancellation support for grep (AbortHandle)
 - [ ] Add incremental search (debounce + streaming results)
 - [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
 - [x] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
@@ -394,7 +394,7 @@ These aren't tied to any single phase:
 - [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
 - [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [ ] **Unit test coverage**: `crabide-buffer` has unit tests for buffer, cursor, history. `crabide-syntax` has unit tests for indent, locals. All other crates have zero tests. Minimum coverage targets: 30% by v0.1
+- [x] **Unit test coverage**: `crabide-core` now has 140 tests covering types, error, events. `crabide-buffer` has 47 tests for buffer, cursor, history. `crabide-syntax` has 3 tests for indent/locals. Other crates still need coverage. Minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
 - [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
