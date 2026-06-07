@@ -7,7 +7,8 @@ use crabide_core::{
     event::{
         CodeAction, CodeLens, CompletionItem, CompletionKind, Diagnostic, DiagnosticRelated,
         DiagnosticSeverity, DiagnosticTag, DocumentEdit, InlayHint, InlayHintKind, Location,
-        SemanticToken, WorkspaceEdit,
+        ParameterInformation, ParameterLabel, SemanticToken, SignatureHelp, SignatureInformation,
+        WorkspaceEdit,
     },
     types::{DocumentUri, Position, Range, TextEdit},
 };
@@ -349,5 +350,49 @@ pub fn from_lsp_code_lens(cl: lsp_types::CodeLens) -> CodeLens {
             .map(|c| c.title.clone())
             .unwrap_or_default(),
         command: cl.command.map(|c| c.command),
+    }
+}
+
+// ── SignatureHelp ────────────────────────────────────────────────────────────
+
+/// Convert an lsp_types::SignatureHelp into our internal type.
+pub fn from_lsp_signature_help(sh: lsp_types::SignatureHelp) -> SignatureHelp {
+    SignatureHelp {
+        signatures: sh.signatures.into_iter().map(from_lsp_si).collect(),
+        active_signature: sh.active_signature,
+        active_parameter: sh.active_parameter,
+    }
+}
+
+fn from_lsp_si(si: lsp_types::SignatureInformation) -> SignatureInformation {
+    let doc = si.documentation.map(|d| match d {
+        lsp_types::Documentation::String(s) => s,
+        lsp_types::Documentation::MarkupContent(m) => m.value,
+    });
+    SignatureInformation {
+        label: si.label,
+        documentation: doc,
+        parameters: si
+            .parameters
+            .unwrap_or_default()
+            .into_iter()
+            .map(from_lsp_pi)
+            .collect(),
+    }
+}
+
+fn from_lsp_pi(pi: lsp_types::ParameterInformation) -> ParameterInformation {
+    let doc = pi.documentation.map(|d| match d {
+        lsp_types::Documentation::String(s) => s,
+        lsp_types::Documentation::MarkupContent(m) => m.value,
+    });
+    ParameterInformation {
+        label: match pi.label {
+            lsp_types::ParameterLabel::Simple(s) => ParameterLabel::Simple(s),
+            lsp_types::ParameterLabel::LabelOffsets([start, end]) => {
+                ParameterLabel::Offsets(start, end)
+            }
+        },
+        documentation: doc,
     }
 }

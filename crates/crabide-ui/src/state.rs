@@ -913,6 +913,8 @@ pub struct UiState {
     pub code_actions: Vec<crabide_core::event::CodeAction>,
     /// Whether the code actions popup is visible.
     pub code_actions_visible: bool,
+    /// Signature help result from the LSP server (set by SignatureHelpReady).
+    pub signature_help: Option<crabide_core::event::SignatureHelp>,
 }
 
 impl UiState {
@@ -957,6 +959,7 @@ impl UiState {
             completion_visible: false,
             code_actions: Vec::new(),
             code_actions_visible: false,
+            signature_help: None,
         }
     }
 

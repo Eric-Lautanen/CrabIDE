@@ -108,6 +108,12 @@ pub enum LspEvent {
         actions: Vec<CodeAction>,
     },
 
+    /// Signature help result (in response to textDocument/signatureHelp).
+    SignatureHelpReady {
+        request_id: u32,
+        signature_help: Option<SignatureHelp>,
+    },
+
     /// Log message from the language server (shows in Output panel).
     LogMessage { language: Language, message: String },
 }
@@ -754,6 +760,20 @@ impl fmt::Display for LspEvent {
                 write!(f, "code actions #{request_id}: {} actions", actions.len())
             }
             LspEvent::LogMessage { language, .. } => write!(f, "LSP log: {language}"),
+            LspEvent::SignatureHelpReady {
+                request_id,
+                signature_help,
+            } => {
+                write!(
+                    f,
+                    "signature help #{request_id}: {}",
+                    if signature_help.is_some() {
+                        "ok"
+                    } else {
+                        "empty"
+                    }
+                )
+            }
         }
     }
 }

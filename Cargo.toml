@@ -163,6 +163,13 @@ async-trait = "0.1"
 libloading = "0.9"
 streaming-iterator = "0.1"
 
+# Image Loading
+# Used only by crabide-app to decode application icon PNGs into RGBA pixels
+# for eframe window icon. Limited to PNG decoder only (no JPEG/GIF/etc).
+# A 20-line local helper won't suffice — PNG format requires a DEFLATE decoder
+# (~500 LOC as a standalone implementation).
+image = { version = "0.25", default-features = false, features = ["png"] }
+
 rfd = "0.17" # Native file/folder open dialogs (rfd = Rust File Dialog)
 
 # Ctrl+C handler

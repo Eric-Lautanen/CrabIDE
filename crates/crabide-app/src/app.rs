@@ -1029,6 +1029,16 @@ impl crabideApp {
                     tab.code_lens = items;
                 }
             }
+            SignatureHelpReady {
+                request_id: _,
+                signature_help,
+            } => {
+                if signature_help.is_some() {
+                    self.ui_state.signature_help = signature_help;
+                } else {
+                    self.ui_state.set_status("No signature help available");
+                }
+            }
         }
     }
 
@@ -1788,8 +1798,7 @@ impl crabideApp {
                 self.lsp_complete();
             }
             Action::ShowSignatureHelp => {
-                self.ui_state
-                    .set_status("Signature help — not yet implemented");
+                self.lsp_signature_help();
             }
             Action::ApplyCodeAction => {
                 self.lsp_code_actions();
@@ -3037,6 +3046,26 @@ impl crabideApp {
         let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
         client.hover(uri, pos, req_id);
         self.ui_state.set_status("Requesting hover…");
+    }
+
+    /// Request signature help from the LSP server.
+    fn lsp_signature_help(&mut self) {
+        let Some((uri, pos)) = self.active_uri_and_position() else {
+            self.ui_state.set_status("No active document");
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            self.ui_state.set_status("Unknown language");
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        client.signature_help(uri, pos, req_id);
+        self.ui_state.set_status("Requesting signature help…");
     }
 
     /// Request completion from the LSP server.

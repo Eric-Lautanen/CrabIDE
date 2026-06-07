@@ -159,6 +159,12 @@ impl LspClient {
                                     "references": {},
                                     "implementation": {},
                     "inlayHint": {},
+                    "signatureHelp": {
+                        "context": {
+                            "isRetrigger": false,
+                            "triggerKind": 1
+                        }
+                    },
                     "codeAction": {
                         "codeActionLiteralSupport": {
                             "codeActionKind": {
@@ -481,6 +487,41 @@ impl LspClient {
                     );
                 }
                 Err(e) => log::warn!("hover failed: {e}"),
+            }
+        });
+    }
+
+    /// Request signature help at a position. Result arrives as `LspEvent::SignatureHelpReady`.
+    pub fn signature_help(&self, uri: DocumentUri, position: Position, request_id: u32) {
+        let client = self.clone();
+        tokio::spawn(async move {
+            let params = json!({
+                "textDocument": { "uri": to_lsp_uri(&uri).as_str() },
+                "position": { "line": position.line, "character": position.character }
+            });
+            match client
+                .inner
+                .transport
+                .request("textDocument/signatureHelp", params)
+                .await
+            {
+                Ok(result) => {
+                    let signature_help = if result.is_null() {
+                        None
+                    } else {
+                        serde_json::from_value::<lsp_types::SignatureHelp>(result)
+                            .ok()
+                            .map(convert::from_lsp_signature_help)
+                    };
+                    let _ = client.inner.event_tx.send(
+                        LspEvent::SignatureHelpReady {
+                            request_id,
+                            signature_help,
+                        }
+                        .into(),
+                    );
+                }
+                Err(e) => log::warn!("signatureHelp failed: {e}"),
             }
         });
     }
