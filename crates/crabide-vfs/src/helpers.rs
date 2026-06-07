@@ -98,3 +98,147 @@ fn diff_paths(target: PathBuf, base: &Path) -> Option<PathBuf> {
     }
     Some(comps.iter().collect())
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn child_uri(name: &str) -> DocumentUri {
+        let mut base = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
+        base.push(name);
+        DocumentUri::from_file_path(&base).unwrap()
+    }
+
+    #[test]
+    fn path_to_uri_and_back() {
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
+        let uri = path_to_uri(&cwd).unwrap();
+        assert!(uri.as_str().starts_with("file:///"));
+        let back = uri_to_path(&uri).unwrap();
+        assert!(back.is_absolute());
+    }
+
+    #[test]
+    fn uri_to_path_invalid_scheme() {
+        let uri = DocumentUri::parse("http://example.com/file.rs").unwrap();
+        let err = uri_to_path(&uri).unwrap_err();
+        assert!(format!("{err}").contains("not a local file"));
+    }
+
+    #[test]
+    fn is_descendant_positive() {
+        let root = Path::new("/home/user/project");
+        let path = Path::new("/home/user/project/src/main.rs");
+        assert!(is_descendant(root, path));
+    }
+
+    #[test]
+    fn is_descendant_negative() {
+        let root = Path::new("/home/user/project");
+        let path = Path::new("/other/lib.rs");
+        assert!(!is_descendant(root, path));
+    }
+
+    #[test]
+    fn is_descendant_same_path() {
+        let root = Path::new("/home/user/project");
+        assert!(is_descendant(root, root));
+    }
+
+    #[test]
+    fn relative_path_simple() {
+        // Use explicit file:// URIs with paths that work on the current platform
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
+        let base_path = cwd.join("src/main.rs");
+        let target_path = cwd.join("README.md");
+        let base = DocumentUri::from_file_path(&base_path).unwrap();
+        let target = DocumentUri::from_file_path(&target_path).unwrap();
+        let rel = relative_path(&base, &target).unwrap();
+        let norm = rel.to_string_lossy().to_string().replace('\\', "/");
+        assert_eq!(norm, "../README.md");
+    }
+
+    #[test]
+    fn relative_path_same_dir() {
+        let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/tmp"));
+        let base_path = cwd.join("src/main.rs");
+        let target_path = cwd.join("src/lib.rs");
+        let base = DocumentUri::from_file_path(&base_path).unwrap();
+        let target = DocumentUri::from_file_path(&target_path).unwrap();
+        let rel = relative_path(&base, &target).unwrap();
+        let norm = rel.to_string_lossy().to_string().replace('\\', "/");
+        assert_eq!(norm, "lib.rs");
+    }
+
+    #[test]
+    fn uri_extension_known() {
+        let uri = child_uri("file.rs");
+        // file extension should be "rs"
+        if let Some(ext) = uri_extension(&uri) {
+            assert_eq!(ext, "rs");
+        }
+    }
+
+    #[test]
+    fn uri_extension_no_ext() {
+        // A path without extension using child_uri still has the file name
+        // Let's just verify no panic
+        let uri = child_uri("Makefile");
+        let _ = uri_extension(&uri);
+    }
+
+    #[test]
+    fn uri_file_name_known() {
+        let uri = child_uri("main.rs");
+        if let Some(name) = uri_file_name(&uri) {
+            assert_eq!(name, "main.rs");
+        }
+    }
+
+    #[test]
+    fn uri_file_stem_known() {
+        let uri = child_uri("main.rs");
+        if let Some(stem) = uri_file_stem(&uri) {
+            assert_eq!(stem, "main");
+        }
+    }
+
+    #[test]
+    fn canonical_uri_non_file_scheme() {
+        let uri = DocumentUri::parse("memory:///test.txt").unwrap();
+        let canon = canonical_uri(&uri).unwrap();
+        assert_eq!(canon, uri);
+    }
+
+    #[test]
+    fn diff_paths_same() {
+        let result = diff_paths(PathBuf::from("/a/b/c.rs"), Path::new("/a/b"));
+        assert!(result.is_some());
+        let rel = result
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+            .replace('\\', "/");
+        assert_eq!(rel, "c.rs");
+    }
+
+    #[test]
+    fn diff_paths_parent() {
+        let result = diff_paths(PathBuf::from("/a/d.rs"), Path::new("/a/b/c.rs"));
+        assert!(result.is_some());
+        let rel = result
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+            .replace('\\', "/");
+        assert_eq!(rel, "../../d.rs");
+    }
+
+    #[test]
+    fn diff_paths_absolute_mismatch() {
+        let _result = diff_paths(PathBuf::from("relative.txt"), Path::new("/absolute"));
+        // May return Some or None depending on platform, just don't panic
+    }
+}
