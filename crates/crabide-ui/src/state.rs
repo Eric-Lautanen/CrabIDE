@@ -939,6 +939,8 @@ pub struct WorkspaceSearchState {
     pub just_opened: bool,
     /// Abort handle for the currently running grep (if any).
     pub abort_handle: GrepAbortHandle,
+    /// Timestamp of the last query change (for debounce). `None` if unchanged since last search.
+    pub last_change: Option<std::time::Instant>,
 }
 
 // ── GotoLineState ─────────────────────────────────────────────────────────────

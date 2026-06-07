@@ -670,6 +670,22 @@ pub enum EditorEvent {
     Git(GitEvent),
     Vfs(VfsEvent),
     Extension(ExtensionEvent),
+    /// Results from a background workspace grep.
+    GrepResults {
+        query: String,
+        /// Path and matching line info.
+        results: Vec<GrepResult>,
+    },
+}
+
+/// A single match from a workspace grep search.
+#[derive(Debug, Clone)]
+pub struct GrepResult {
+    pub path: std::path::PathBuf,
+    pub line_number: usize,
+    pub line_text: String,
+    pub match_start: usize,
+    pub match_end: usize,
 }
 
 impl From<LspEvent> for EditorEvent {
@@ -930,6 +946,9 @@ impl fmt::Display for EditorEvent {
             EditorEvent::Git(e) => e.fmt(f),
             EditorEvent::Vfs(e) => e.fmt(f),
             EditorEvent::Extension(e) => e.fmt(f),
+            EditorEvent::GrepResults { query, results } => {
+                write!(f, "GrepResults({}, {} hits)", query, results.len())
+            }
         }
     }
 }

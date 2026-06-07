@@ -901,7 +901,32 @@ impl crabideApp {
             EditorEvent::Dap(dap) => self.apply_dap_event(dap),
             EditorEvent::Terminal(t) => self.apply_terminal_event(t),
             EditorEvent::Extension(ext) => self.apply_extension_event(ext),
+            EditorEvent::GrepResults { query, results } => {
+                self.apply_grep_results(query, results);
+            }
         }
+    }
+
+    fn apply_grep_results(&mut self, query: String, results: Vec<crabide_core::event::GrepResult>) {
+        // Convert to GrepMatch and update UI state.
+        let matches: Vec<_> = results
+            .into_iter()
+            .map(|r| crabide_search::GrepMatch {
+                path: r.path,
+                line_number: r.line_number,
+                line_text: r.line_text,
+                match_start: r.match_start,
+                match_end: r.match_end,
+            })
+            .collect();
+        self.ui_state.workspace_search.is_searching = false;
+        self.ui_state.workspace_search.results = matches;
+        self.ui_state.workspace_search.selected_idx = 0;
+        let count = self.ui_state.workspace_search.results.len();
+        self.ui_state.set_status(format!(
+            "{count} result{} for \"{query}\"",
+            if count == 1 { "" } else { "s" }
+        ));
     }
 
     fn apply_lsp_event(&mut self, event: LspEvent) {
@@ -1713,15 +1738,31 @@ impl crabideApp {
                 self.ui_state.workspace_search.abort_handle = abort_handle.clone();
 
                 self.ui_state.workspace_search.is_searching = true;
-                let results = grep_workspace(&roots, &query, re, cs, 2000, Some(&abort_handle));
-                self.ui_state.workspace_search.results = results;
-                self.ui_state.workspace_search.is_searching = false;
-                self.ui_state.workspace_search.selected_idx = 0;
-                let count = self.ui_state.workspace_search.results.len();
-                self.ui_state.set_status(format!(
-                    "{count} result{} for \"{query}\"",
-                    if count == 1 { "" } else { "s" }
-                ));
+                let event_tx = self.event_tx.clone();
+
+                // Spawn grep on a background thread to avoid blocking the UI.
+                std::thread::Builder::new()
+                    .name("workspace-grep".into())
+                    .spawn(move || {
+                        let results =
+                            grep_workspace(&roots, &query, re, cs, 2000, Some(&abort_handle));
+                        // Convert to event-friendly type.
+                        let grep_results: Vec<crabide_core::event::GrepResult> = results
+                            .into_iter()
+                            .map(|m| crabide_core::event::GrepResult {
+                                path: m.path,
+                                line_number: m.line_number,
+                                line_text: m.line_text,
+                                match_start: m.match_start,
+                                match_end: m.match_end,
+                            })
+                            .collect();
+                        let _ = event_tx.send(EditorEvent::GrepResults {
+                            query,
+                            results: grep_results,
+                        });
+                    })
+                    .expect("failed to spawn grep thread");
             }
 
             // ── Go to line ────────────────────────────────────────────────────

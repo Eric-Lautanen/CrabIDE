@@ -99,6 +99,24 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                     state.workspace_search.just_opened = false;
                 }
 
+                // Track query changes for debounced auto-search.
+                if query_resp.changed() {
+                    state.workspace_search.last_change = Some(std::time::Instant::now());
+                }
+
+                // Auto-trigger search after debounce (300 ms of inactivity).
+                const DEBOUNCE_MS: u64 = 300;
+                if let Some(t) = state.workspace_search.last_change {
+                    if t.elapsed().as_millis() >= DEBOUNCE_MS as u128 {
+                        if !state.workspace_search.query.is_empty()
+                            && !state.workspace_search.is_searching
+                        {
+                            actions.push(Action::FindInFiles);
+                        }
+                        state.workspace_search.last_change = None;
+                    }
+                }
+
                 // Flags
                 flag_toggle(ui, &mut state.workspace_search.use_regex, ".*", "Regex");
                 flag_toggle(
