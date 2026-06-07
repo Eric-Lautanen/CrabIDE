@@ -11,11 +11,11 @@ license.workspace      = true
 repository.workspace   = true
 
 [dependencies]
-crabide-core.workspace   = true
+crabide-core.workspace = true
+# crabide-buffer: needed for TextBuffer trait impl on SyntaxDocumentObserver
 crabide-buffer.workspace = true
 
 tree-sitter.workspace = true
-
 
 anyhow.workspace     = true
 log.workspace        = true

@@ -78,7 +78,7 @@ pub struct crabideApp {
     clipboard: String,
 
     /// Tree-sitter syntax engine for parsing and highlight-span generation.
-    syntax: SyntaxEngine,
+    syntax: Arc<SyntaxEngine>,
 
     /// Debounced VFS watcher; `None` if the OS watcher is unavailable.
     vfs_watcher: Option<VfsWatcher>,
@@ -146,7 +146,8 @@ impl crabideApp {
 
         // Register tree-sitter grammars once at startup.
         register_grammars();
-        let syntax = SyntaxEngine::new();
+        let syntax = Arc::new(SyntaxEngine::new());
+        workspace.add_observer(syntax.clone());
 
         let terminal_manager = TerminalManager::new(event_tx.clone(), rt.clone());
 
