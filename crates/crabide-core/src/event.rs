@@ -933,3 +933,619 @@ impl fmt::Display for EditorEvent {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── EditorEvent From conversions ───────────────────────────────────────
+
+    #[test]
+    fn editor_event_from_lsp() {
+        let lsp = LspEvent::ServerReady {
+            language: Language::RUST,
+        };
+        let evt: EditorEvent = lsp.into();
+        assert!(matches!(
+            evt,
+            EditorEvent::Lsp(LspEvent::ServerReady { .. })
+        ));
+    }
+
+    #[test]
+    fn editor_event_from_dap() {
+        let dap = DapEvent::Initialized;
+        let evt: EditorEvent = dap.into();
+        assert!(matches!(evt, EditorEvent::Dap(DapEvent::Initialized)));
+    }
+
+    #[test]
+    fn editor_event_from_terminal() {
+        let term = TerminalEvent::Exited {
+            terminal_id: 1,
+            code: Some(0),
+        };
+        let evt: EditorEvent = term.into();
+        assert!(matches!(evt, EditorEvent::Terminal(_)));
+    }
+
+    #[test]
+    fn editor_event_from_git() {
+        let git = GitEvent::OperationCompleted {
+            operation: "commit".to_owned(),
+        };
+        let evt: EditorEvent = git.into();
+        assert!(matches!(evt, EditorEvent::Git(_)));
+    }
+
+    #[test]
+    fn editor_event_from_vfs() {
+        let vfs = VfsEvent::FileCreated(PathBuf::from("/foo.rs"));
+        let evt: EditorEvent = vfs.into();
+        assert!(matches!(evt, EditorEvent::Vfs(_)));
+    }
+
+    #[test]
+    fn editor_event_from_extension() {
+        let ext = ExtensionEvent::Loaded(ExtensionId::new("pub", "ext", "1.0"));
+        let evt: EditorEvent = ext.into();
+        assert!(matches!(evt, EditorEvent::Extension(_)));
+    }
+
+    // ── Display impls ─────────────────────────────────────────────────────
+
+    #[test]
+    fn lsp_event_display_server_ready() {
+        let evt = LspEvent::ServerReady {
+            language: Language::RUST,
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("rust"), "display should mention language: {s}");
+    }
+
+    #[test]
+    fn lsp_event_display_server_crashed() {
+        let evt = LspEvent::ServerCrashed {
+            language: Language::PYTHON,
+            code: Some(1),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("python") && s.contains("1"), "display: {s}");
+    }
+
+    #[test]
+    fn lsp_event_display_diagnostics() {
+        let path = if cfg!(windows) {
+            r"C:\foo.rs"
+        } else {
+            "/foo.rs"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        let evt = LspEvent::DiagnosticsPublished {
+            uri,
+            diagnostics: vec![],
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("0 items"), "display: {s}");
+    }
+
+    #[test]
+    fn lsp_event_display_completion_ready() {
+        let evt = LspEvent::CompletionReady {
+            request_id: 42,
+            items: vec![CompletionItem {
+                label: "foo".to_owned(),
+                kind: Some(CompletionKind::Function),
+                detail: None,
+                documentation: None,
+                insert_text: None,
+                sort_text: None,
+                filter_text: None,
+                preselect: false,
+                deprecated: false,
+            }],
+            is_incomplete: true,
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("42") && s.contains("incomplete"), "display: {s}");
+    }
+
+    #[test]
+    fn lsp_event_display_hover_ready_some() {
+        let evt = LspEvent::HoverReady {
+            request_id: 1,
+            contents: Some("docs".to_owned()),
+            range: None,
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("ok"), "display: {s}");
+    }
+
+    #[test]
+    fn lsp_event_display_hover_ready_none() {
+        let evt = LspEvent::HoverReady {
+            request_id: 1,
+            contents: None,
+            range: None,
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("empty"), "display: {s}");
+    }
+
+    #[test]
+    fn lsp_event_display_signature_help() {
+        let evt = LspEvent::SignatureHelpReady {
+            request_id: 5,
+            signature_help: Some(SignatureHelp {
+                signatures: vec![],
+                active_signature: None,
+                active_parameter: None,
+            }),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("ok"), "display: {s}");
+    }
+
+    #[test]
+    fn dap_event_display_initialized() {
+        let evt = DapEvent::Initialized;
+        assert!(format!("{evt}").contains("initialized"));
+    }
+
+    #[test]
+    fn dap_event_display_stopped() {
+        let evt = DapEvent::Stopped {
+            reason: StopReason::Breakpoint,
+            thread_id: Some(1),
+            hit_breakpoint_ids: vec![],
+            description: None,
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("Breakpoint"), "display: {s}");
+    }
+
+    #[test]
+    fn dap_event_display_terminated() {
+        let evt = DapEvent::Terminated;
+        assert!(format!("{evt}").contains("terminated"));
+    }
+
+    #[test]
+    fn terminal_event_display_output() {
+        let evt = TerminalEvent::Output {
+            terminal_id: 3,
+            delta: TerminalGridDelta {
+                rows: vec![],
+                cursor_col: 0,
+                cursor_row: 0,
+                scroll_top: 0,
+            },
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("3"), "display: {s}");
+    }
+
+    #[test]
+    fn terminal_event_display_title_changed() {
+        let evt = TerminalEvent::TitleChanged {
+            terminal_id: 1,
+            title: "bash".to_owned(),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("bash"), "display: {s}");
+    }
+
+    #[test]
+    fn terminal_event_display_link_detected() {
+        let evt = TerminalEvent::LinkDetected {
+            terminal_id: 1,
+            range: TerminalRange {
+                start_row: 0,
+                start_col: 0,
+                end_row: 0,
+                end_col: 5,
+            },
+            url: "https://example.com".to_owned(),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("https://example.com"), "display: {s}");
+    }
+
+    #[test]
+    fn git_event_display_status_refreshed() {
+        let evt = GitEvent::StatusRefreshed { statuses: vec![] };
+        let s = format!("{evt}");
+        assert!(s.contains("0 files"), "display: {s}");
+    }
+
+    #[test]
+    fn git_event_display_head_changed() {
+        let evt = GitEvent::HeadChanged {
+            branch: Some("main".to_owned()),
+            commit: "abc123".to_owned(),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("main") && s.contains("abc123"), "display: {s}");
+    }
+
+    #[test]
+    fn git_event_display_head_changed_detached() {
+        let evt = GitEvent::HeadChanged {
+            branch: None,
+            commit: "def456".to_owned(),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("detached"), "display: {s}");
+    }
+
+    #[test]
+    fn vfs_event_display_file_created() {
+        let evt = VfsEvent::FileCreated(PathBuf::from("/new.rs"));
+        let s = format!("{evt}");
+        assert!(
+            s.contains("created") && s.contains("new.rs"),
+            "display: {s}"
+        );
+    }
+
+    #[test]
+    fn vfs_event_display_file_renamed() {
+        let evt = VfsEvent::FileRenamed {
+            from: PathBuf::from("/a.rs"),
+            to: PathBuf::from("/b.rs"),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("a.rs") && s.contains("b.rs"), "display: {s}");
+    }
+
+    #[test]
+    fn extension_event_display_loaded() {
+        let evt = ExtensionEvent::Loaded(ExtensionId::new("pub", "ext", "1.0"));
+        let s = format!("{evt}");
+        assert!(s.contains("pub.ext@1.0"), "display: {s}");
+    }
+
+    #[test]
+    fn extension_event_display_crashed() {
+        let evt = ExtensionEvent::Crashed {
+            id: ExtensionId::new("pub", "ext", "1.0"),
+            error: "oom".to_owned(),
+        };
+        let s = format!("{evt}");
+        assert!(s.contains("oom"), "display: {s}");
+    }
+
+    #[test]
+    fn editor_event_display_delegates() {
+        let evt = EditorEvent::Lsp(LspEvent::ServerReady {
+            language: Language::GO,
+        });
+        let s = format!("{evt}");
+        assert!(s.contains("go"), "display: {s}");
+    }
+
+    // ── CellAttrs bitflags ─────────────────────────────────────────────────
+
+    #[test]
+    fn cell_attrs_bitflags() {
+        let attrs = CellAttrs::BOLD | CellAttrs::ITALIC;
+        assert!(attrs.contains(CellAttrs::BOLD));
+        assert!(attrs.contains(CellAttrs::ITALIC));
+        assert!(!attrs.contains(CellAttrs::UNDERLINE));
+    }
+
+    #[test]
+    fn terminal_color_variants() {
+        assert_eq!(TerminalColor::Default, TerminalColor::Default);
+        assert_eq!(TerminalColor::Indexed(1), TerminalColor::Indexed(1));
+        assert_eq!(TerminalColor::Rgb(255, 0, 0), TerminalColor::Rgb(255, 0, 0));
+        assert_ne!(TerminalColor::Indexed(1), TerminalColor::Indexed(2));
+    }
+
+    // ── Shared types construction ──────────────────────────────────────────
+
+    #[test]
+    fn diagnostic_construction() {
+        let d = Diagnostic {
+            range: Range::new(Position::ZERO, Position::new(0, 5)),
+            severity: DiagnosticSeverity::Error,
+            code: Some("E0001".to_owned()),
+            source: Some("rustc".to_owned()),
+            message: "type mismatch".to_owned(),
+            related_information: vec![],
+            tags: vec![],
+        };
+        assert_eq!(d.severity, DiagnosticSeverity::Error);
+    }
+
+    #[test]
+    fn diagnostic_severity_ordering() {
+        assert!(DiagnosticSeverity::Error < DiagnosticSeverity::Warning);
+        assert!(DiagnosticSeverity::Warning < DiagnosticSeverity::Information);
+        assert!(DiagnosticSeverity::Information < DiagnosticSeverity::Hint);
+    }
+
+    #[test]
+    fn completion_item_construction() {
+        let item = CompletionItem {
+            label: "foo".to_owned(),
+            kind: Some(CompletionKind::Function),
+            detail: Some("fn foo()".to_owned()),
+            documentation: None,
+            insert_text: Some("foo()".to_owned()),
+            sort_text: None,
+            filter_text: None,
+            preselect: true,
+            deprecated: false,
+        };
+        assert!(item.preselect);
+        assert!(!item.deprecated);
+    }
+
+    #[test]
+    fn inlay_hint_construction() {
+        let hint = InlayHint {
+            position: Position::new(0, 5),
+            label: ": i32".to_owned(),
+            kind: Some(InlayHintKind::Type),
+            tooltip: None,
+            padding_left: true,
+            padding_right: false,
+        };
+        assert_eq!(hint.kind, Some(InlayHintKind::Type));
+    }
+
+    #[test]
+    fn workspace_edit_construction() {
+        let path = if cfg!(windows) {
+            r"C:\foo.rs"
+        } else {
+            "/foo.rs"
+        };
+        let edit = WorkspaceEdit {
+            document_changes: vec![DocumentEdit {
+                uri: DocumentUri::from_file_path(path).unwrap(),
+                edits: vec![crate::types::TextEdit::insert(
+                    Position::ZERO,
+                    "x".to_owned(),
+                )],
+            }],
+        };
+        assert_eq!(edit.document_changes.len(), 1);
+    }
+
+    #[test]
+    fn signature_help_construction() {
+        let sh = SignatureHelp {
+            signatures: vec![SignatureInformation {
+                label: "fn(x: i32)".to_owned(),
+                documentation: None,
+                parameters: vec![ParameterInformation {
+                    label: ParameterLabel::Simple("x: i32".to_owned()),
+                    documentation: None,
+                }],
+            }],
+            active_signature: Some(0),
+            active_parameter: Some(0),
+        };
+        assert_eq!(sh.signatures.len(), 1);
+    }
+
+    #[test]
+    fn parameter_label_offsets() {
+        let label = ParameterLabel::Offsets(3, 6);
+        assert!(matches!(label, ParameterLabel::Offsets(3, 6)));
+    }
+
+    #[test]
+    fn folding_range_construction() {
+        let fr = FoldingRange {
+            start_line: 0,
+            start_character: Some(0),
+            end_line: 5,
+            end_character: None,
+            kind: Some(FoldingRangeKind::Comment),
+        };
+        assert_eq!(fr.kind, Some(FoldingRangeKind::Comment));
+    }
+
+    #[test]
+    fn selection_range_with_parent() {
+        let child = SelectionRange {
+            range: Range::new(Position::ZERO, Position::new(0, 10)),
+            parent: Some(Box::new(SelectionRange {
+                range: Range::new(Position::ZERO, Position::new(5, 0)),
+                parent: None,
+            })),
+        };
+        assert!(child.parent.is_some());
+    }
+
+    #[test]
+    fn inline_completion_item() {
+        let item = InlineCompletionItem {
+            insert_text: "hello".to_owned(),
+            range: None,
+            command: None,
+        };
+        assert_eq!(item.insert_text, "hello");
+    }
+
+    // ── DAP types ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn breakpoint_state_construction() {
+        let bp = BreakpointState {
+            id: Some(1),
+            verified: true,
+            message: None,
+            source_path: Some(PathBuf::from("/main.rs")),
+            line: Some(10),
+            column: None,
+        };
+        assert!(bp.verified);
+    }
+
+    #[test]
+    fn stack_frame_construction() {
+        let frame = StackFrame {
+            id: 1,
+            name: "main".to_owned(),
+            source_path: Some(PathBuf::from("/main.rs")),
+            line: 5,
+            column: 1,
+        };
+        assert_eq!(frame.name, "main");
+    }
+
+    #[test]
+    fn variable_construction() {
+        let v = Variable {
+            name: "x".to_owned(),
+            value: "42".to_owned(),
+            type_name: Some("i32".to_owned()),
+            variables_reference: 0,
+            named_variables: None,
+            indexed_variables: None,
+        };
+        assert_eq!(v.value, "42");
+    }
+
+    // ── Git types ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn file_status_construction() {
+        let fs = FileStatus {
+            path: PathBuf::from("src/main.rs"),
+            index_status: StatusKind::Modified,
+            worktree_status: StatusKind::Unmodified,
+        };
+        assert_eq!(fs.index_status, StatusKind::Modified);
+    }
+
+    #[test]
+    fn diff_hunk_construction() {
+        let hunk = DiffHunk {
+            old_start: 1,
+            old_lines: 3,
+            new_start: 1,
+            new_lines: 5,
+            kind: HunkKind::Modified,
+        };
+        assert_eq!(hunk.kind, HunkKind::Modified);
+    }
+
+    #[test]
+    fn blame_line_construction() {
+        let bl = BlameLine {
+            line: 1,
+            commit_hash: "abc123".to_owned(),
+            author: "Alice".to_owned(),
+            author_email: "alice@example.com".to_owned(),
+            commit_time: 1700000000,
+            summary: "initial commit".to_owned(),
+        };
+        assert_eq!(bl.author, "Alice");
+    }
+
+    // ── Stop/Output categories ─────────────────────────────────────────────
+
+    #[test]
+    fn stop_reason_variants() {
+        assert_ne!(StopReason::Breakpoint, StopReason::Step);
+        assert_ne!(StopReason::Exception, StopReason::Pause);
+    }
+
+    #[test]
+    fn output_category_variants() {
+        assert_ne!(OutputCategory::Console, OutputCategory::Stdout);
+        assert_ne!(OutputCategory::Stderr, OutputCategory::Telemetry);
+    }
+
+    // ── Serialization roundtrips for event types ───────────────────────────
+
+    #[test]
+    fn diagnostic_serde_roundtrip() {
+        let d = Diagnostic {
+            range: Range::new(Position::ZERO, Position::new(0, 5)),
+            severity: DiagnosticSeverity::Warning,
+            code: Some("W001".to_owned()),
+            source: None,
+            message: "unused variable".to_owned(),
+            related_information: vec![],
+            tags: vec![DiagnosticTag::Unnecessary],
+        };
+        let json = serde_json::to_string(&d).unwrap();
+        let back: Diagnostic = serde_json::from_str(&json).unwrap();
+        assert_eq!(d.message, back.message);
+        assert_eq!(d.severity, back.severity);
+    }
+
+    #[test]
+    fn completion_item_serde_roundtrip() {
+        let item = CompletionItem {
+            label: "foo".to_owned(),
+            kind: Some(CompletionKind::Function),
+            detail: None,
+            documentation: None,
+            insert_text: None,
+            sort_text: None,
+            filter_text: None,
+            preselect: false,
+            deprecated: false,
+        };
+        let json = serde_json::to_string(&item).unwrap();
+        let back: CompletionItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(item.label, back.label);
+        assert_eq!(item.kind, back.kind);
+    }
+
+    #[test]
+    fn code_action_serde_roundtrip() {
+        let action = CodeAction {
+            title: "Fix".to_owned(),
+            kind: Some("quickfix".to_owned()),
+            diagnostics: vec![],
+            edit: None,
+            command: None,
+            is_preferred: true,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: CodeAction = serde_json::from_str(&json).unwrap();
+        assert_eq!(action.title, back.title);
+        assert!(back.is_preferred);
+    }
+
+    #[test]
+    fn signature_help_serde_roundtrip() {
+        let sh = SignatureHelp {
+            signatures: vec![],
+            active_signature: None,
+            active_parameter: None,
+        };
+        let json = serde_json::to_string(&sh).unwrap();
+        let back: SignatureHelp = serde_json::from_str(&json).unwrap();
+        assert_eq!(sh.signatures.len(), back.signatures.len());
+    }
+
+    #[test]
+    fn file_status_serde_roundtrip() {
+        let fs = FileStatus {
+            path: PathBuf::from("main.rs"),
+            index_status: StatusKind::Added,
+            worktree_status: StatusKind::Untracked,
+        };
+        let json = serde_json::to_string(&fs).unwrap();
+        let back: FileStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(fs.index_status, back.index_status);
+        assert_eq!(fs.worktree_status, back.worktree_status);
+    }
+
+    #[test]
+    fn stop_reason_serde_roundtrip() {
+        let reason = StopReason::Breakpoint;
+        let json = serde_json::to_string(&reason).unwrap();
+        let back: StopReason = serde_json::from_str(&json).unwrap();
+        assert_eq!(reason, back);
+    }
+}
