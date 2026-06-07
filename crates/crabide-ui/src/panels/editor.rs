@@ -153,6 +153,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
         }
     }
 
+    // ── Breadcrumb bar ──────────────────────────────────────────────────────
+    crate::panels::breadcrumbs::show(ui, state);
+
     // ── Compute display metrics ───────────────────────────────────────────────
     let font_id = egui::FontId::monospace(state.font_size);
     let line_height = ui.fonts_mut(|f| f.row_height(&font_id));
