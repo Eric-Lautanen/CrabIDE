@@ -124,7 +124,7 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Implement locals/scope-aware queries (`LocalsEngine` + `SyntaxEngine::local_scopes()` active)
 - [x] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
 - [x] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
-- [ ] Add injection language support (embedded JS in HTML, Rust in Markdown)
+- [x] Add injection language support (embedded JS in HTML, Rust in Markdown)
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
 - [x] Add custom fold marker support (`// #region` / `// #endregion`)
 - [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP

@@ -32,6 +32,9 @@ pub struct GrammarEntry {
     pub locals_query: Arc<str>,
     /// Tree-sitter indents query.
     pub indents_query: Arc<str>,
+    /// Tree-sitter injection query source for embedded languages.
+    /// Maps capture names (e.g. `@injection.content`) to language IDs.
+    pub injections_query: Arc<str>,
 }
 
 impl GrammarEntry {
@@ -46,6 +49,24 @@ impl GrammarEntry {
             highlights_query: Arc::from(highlights_query),
             locals_query: Arc::from(locals_query),
             indents_query: Arc::from(indents_query),
+            injections_query: Arc::from(""),
+        }
+    }
+
+    /// Create a `GrammarEntry` with an injection query for embedded languages.
+    pub fn with_injections(
+        language: tree_sitter::Language,
+        highlights_query: &str,
+        locals_query: &str,
+        indents_query: &str,
+        injections_query: &str,
+    ) -> Self {
+        Self {
+            language,
+            highlights_query: Arc::from(highlights_query),
+            locals_query: Arc::from(locals_query),
+            indents_query: Arc::from(indents_query),
+            injections_query: Arc::from(injections_query),
         }
     }
 }
@@ -84,6 +105,32 @@ impl GrammarRegistry {
         self.grammars.insert(
             language,
             GrammarEntry::new(ts_language, highlights_query, locals_query, indents_query),
+        );
+    }
+
+    /// Register a grammar with injection support for embedded languages.
+    ///
+    /// Like [`register`](Self::register), but also provides an injection query
+    /// that tells the highlight engine how to switch languages inside a
+    /// document (e.g. JavaScript inside `<script>` tags in HTML).
+    pub fn register_with_injections(
+        &self,
+        language: Language,
+        ts_language: tree_sitter::Language,
+        highlights_query: &str,
+        locals_query: &str,
+        indents_query: &str,
+        injections_query: &str,
+    ) {
+        self.grammars.insert(
+            language,
+            GrammarEntry::with_injections(
+                ts_language,
+                highlights_query,
+                locals_query,
+                indents_query,
+                injections_query,
+            ),
         );
     }
 
