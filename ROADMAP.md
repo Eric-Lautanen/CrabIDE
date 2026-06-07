@@ -216,7 +216,7 @@ Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 - [ ] Add search-in-open-buffers support (search unsaved `Document` contents)
 - [x] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
 - [x] Cache `nucleo::Matcher` instance across search calls
-- [ ] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
+- [x] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
 
 ---
 
