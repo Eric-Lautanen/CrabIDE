@@ -1999,6 +1999,10 @@ impl crabideApp {
                 // pending_kill set by the UI; drain handles it.
             }
 
+            // ── Snippet tabstop cycling ────────────────────────────────────────
+            Action::NextTabstop => self.handle_next_tabstop(),
+            Action::PreviousTabstop => self.handle_prev_tabstop(),
+
             // ── Git enable / disable ──────────────────────────────────────────
             Action::ToggleGit => {
                 if self.ui_state.git_enabled {
@@ -2173,6 +2177,16 @@ impl crabideApp {
             }
         }
 
+        // Update snippet tabstop positions (edits were applied highest-first).
+        if self.ui_state.tabs[active_idx].snippet_engine.is_active() {
+            let tab = &mut self.ui_state.tabs[active_idx];
+            // edits are in reverse cursor order (highest position first), matching
+            // the order Workspace::apply_edits applied them.
+            for edit in &edits {
+                tab.snippet_engine.apply_edit(edit);
+            }
+        }
+
         // Auto-close bracket pairs for single-character insertions.
         if text.chars().count() == 1 {
             let ch = text.chars().next().unwrap();
@@ -2269,6 +2283,14 @@ impl crabideApp {
             }
         }
 
+        // Update snippet tabstop positions.
+        if self.ui_state.tabs[active_idx].snippet_engine.is_active() && !edits.is_empty() {
+            let tab = &mut self.ui_state.tabs[active_idx];
+            for edit in &edits {
+                tab.snippet_engine.apply_edit(edit);
+            }
+        }
+
         self.update_bracket_match(active_idx);
     }
 
@@ -2343,6 +2365,42 @@ impl crabideApp {
         self.ui_state.tabs[active_idx]
             .cursors
             .set_single(Position::new(new_line, 0));
+    }
+
+    // ── Snippet tabstop cycling ───────────────────────────────────────────────
+
+    fn handle_next_tabstop(&mut self) {
+        let Some(idx) = self.ui_state.active_tab else {
+            return;
+        };
+        let range = {
+            let tab = &mut self.ui_state.tabs[idx];
+            tab.snippet_engine.next_tabstop().map(|ts| ts.range)
+        };
+        if let Some(range) = range {
+            let tab = &mut self.ui_state.tabs[idx];
+            tab.cursors.set_single(range.start);
+            if range.start != range.end {
+                tab.cursors.primary_mut().extend_to(range.end);
+            }
+        }
+    }
+
+    fn handle_prev_tabstop(&mut self) {
+        let Some(idx) = self.ui_state.active_tab else {
+            return;
+        };
+        let range = {
+            let tab = &mut self.ui_state.tabs[idx];
+            tab.snippet_engine.prev_tabstop().map(|ts| ts.range)
+        };
+        if let Some(range) = range {
+            let tab = &mut self.ui_state.tabs[idx];
+            tab.cursors.set_single(range.start);
+            if range.start != range.end {
+                tab.cursors.primary_mut().extend_to(range.end);
+            }
+        }
     }
 
     fn handle_move_line(&mut self, direction: i32) {

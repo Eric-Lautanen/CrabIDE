@@ -644,6 +644,44 @@ fn collect_text(nodes: &[Node]) -> String {
         .collect()
 }
 
+/// Shift `range` by `delta` characters (signed) if the edit at `offset` affects it.
+fn apply_delta_to_range(range: &mut crabide_core::types::Range, offset: Position, delta: i64) {
+    use crabide_core::types::Position;
+
+    /// Convert a Position to a linear offset (used for delta computation).
+    /// We approximate: line * 1000000 + character, which is sufficient for
+    /// relative re-ordering within a single file (no file has >1M chars per line).
+    fn linear(p: Position) -> i64 {
+        p.line as i64 * 1_000_000 + p.character as i64
+    }
+
+    let off_lin = linear(offset);
+    let start_lin = linear(range.start);
+    let end_lin = linear(range.end);
+
+    if start_lin >= off_lin {
+        // Whole range is after the edit point.
+        if delta > 0 {
+            range.start.character += delta as u32;
+            range.end.character += delta as u32;
+        } else {
+            let abs = (-delta) as u32;
+            // Avoid underflow.
+            range.start.character = range.start.character.saturating_sub(abs);
+            range.end.character = range.end.character.saturating_sub(abs);
+        }
+    } else if end_lin > off_lin {
+        // Edit point is inside the range — extend the end only.
+        if delta > 0 {
+            range.end.character += delta as u32;
+        } else {
+            let abs = (-delta) as u32;
+            range.end.character = range.end.character.saturating_sub(abs);
+        }
+    }
+    // else: range is entirely before the edit — no change.
+}
+
 // ── SnippetEngine ─────────────────────────────────────────────────────────────
 
 /// Manages snippet expansion and tabstop cycling for one editor view.
@@ -746,6 +784,28 @@ impl SnippetEngine {
     /// Cancel the active snippet expansion (e.g. user pressed Escape).
     pub fn cancel(&mut self) {
         self.active_expansion = None;
+    }
+
+    /// Apply an edit delta to all active tabstop ranges.
+    ///
+    /// Call this after inserting or deleting text in the document while a snippet
+    /// is active.  Shifts any tabstop range whose start is at or after `edit`'s
+    /// offset by `new_text.chars().count() - edit.range_len_chars()`.  Also shifts
+    /// ranges that *contain* the edit point so the placeholder boundary moves.
+    pub fn apply_edit(&mut self, edit: &crabide_core::types::TextEdit) {
+        let Some(ref mut exp) = self.active_expansion else {
+            return;
+        };
+        let old_len = edit.range_len_chars();
+        let new_len = edit.new_text.chars().count();
+        let delta = (new_len as i64) - (old_len as i64);
+        if delta == 0 {
+            return;
+        }
+        let offset = edit.range.start;
+        for ts in &mut exp.tabstops {
+            apply_delta_to_range(&mut ts.range, offset, delta);
+        }
     }
 }
 

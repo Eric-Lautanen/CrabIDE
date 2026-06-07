@@ -271,6 +271,24 @@ impl TextEdit {
     pub fn replace(range: Range, new_text: String) -> Self {
         Self { range, new_text }
     }
+
+    /// Return the approximate number of characters in the range being replaced.
+    ///
+    /// This is a rough estimate: for single-line ranges this is exact
+    /// (`end.character - start.character`). For multi-line ranges the
+    /// count is approximate (line delta × average line length).
+    pub fn range_len_chars(&self) -> usize {
+        if self.range.start.line == self.range.end.line {
+            (self.range.end.character - self.range.start.character) as usize
+        } else {
+            // Approximate: count full lines between start and end.
+            let line_delta = (self.range.end.line - self.range.start.line) as usize;
+            // Assume ~80 chars per line plus the partial start and end lines.
+            line_delta * 80
+                + (self.range.start.character as usize)
+                + (self.range.end.character as usize)
+        }
+    }
 }
 
 // ── Language ──────────────────────────────────────────────────────────────────
