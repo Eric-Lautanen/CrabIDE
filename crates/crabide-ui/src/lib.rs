@@ -2168,3 +2168,437 @@ pub(crate) fn render_extension_panel(
 fn line_char_count(lines: &[String], line_idx: usize) -> usize {
     lines.get(line_idx).map(|l| l.chars().count()).unwrap_or(0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crabide_config::{Key, KeyChord, Modifiers};
+
+    // ── egui_key_to_chord tests ─────────────────────────────────────────
+
+    #[test]
+    fn egui_key_to_chord_simple() {
+        let chord = egui_key_to_chord(egui::Key::A, egui::Modifiers::default());
+        assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::Char('a')));
+    }
+
+    #[test]
+    fn egui_key_to_chord_ctrl_a() {
+        let chord = egui_key_to_chord(
+            egui::Key::A,
+            egui::Modifiers { ctrl: true, ..Default::default() },
+        );
+        assert_eq!(chord, KeyChord::new(Modifiers::CTRL, Key::Char('a')));
+    }
+
+    #[test]
+    fn egui_key_to_chord_ctrl_shift_a() {
+        let chord = egui_key_to_chord(
+            egui::Key::A,
+            egui::Modifiers { ctrl: true, shift: true, ..Default::default() },
+        );
+        assert_eq!(
+            chord,
+            KeyChord::new(Modifiers::CTRL | Modifiers::SHIFT, Key::Char('a'))
+        );
+    }
+
+    #[test]
+    fn egui_key_to_chord_arrow_keys() {
+        let chord = egui_key_to_chord(egui::Key::ArrowUp, egui::Modifiers::default());
+        assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::Up));
+
+        let chord = egui_key_to_chord(egui::Key::ArrowDown, egui::Modifiers::default());
+        assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::Down));
+
+        let chord = egui_key_to_chord(egui::Key::ArrowLeft, egui::Modifiers::default());
+        assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::Left));
+
+        let chord = egui_key_to_chord(egui::Key::ArrowRight, egui::Modifiers::default());
+        assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::Right));
+    }
+
+    #[test]
+    fn egui_key_to_chord_function_keys() {
+        for i in 1..=12 {
+            let egui_key = match i {
+                1 => egui::Key::F1,
+                2 => egui::Key::F2,
+                3 => egui::Key::F3,
+                4 => egui::Key::F4,
+                5 => egui::Key::F5,
+                6 => egui::Key::F6,
+                7 => egui::Key::F7,
+                8 => egui::Key::F8,
+                9 => egui::Key::F9,
+                10 => egui::Key::F10,
+                11 => egui::Key::F11,
+                12 => egui::Key::F12,
+                _ => unreachable!(),
+            };
+            let chord = egui_key_to_chord(egui_key, egui::Modifiers::default());
+            assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::F(i)));
+        }
+    }
+
+    #[test]
+    fn egui_key_to_chord_unknown_key() {
+        let chord = egui_key_to_chord(egui::Key::Minus, egui::Modifiers::default());
+        assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::Char('-')));
+    }
+
+    // ── is_word_char tests ──────────────────────────────────────────────
+
+    #[test]
+    fn word_char_alphanumeric() {
+        assert!(is_word_char('a'));
+        assert!(is_word_char('Z'));
+        assert!(is_word_char('5'));
+        assert!(is_word_char('_'));
+    }
+
+    #[test]
+    fn word_char_non_word() {
+        assert!(!is_word_char(' '));
+        assert!(!is_word_char('.'));
+        assert!(!is_word_char('-'));
+        assert!(!is_word_char('!'));
+    }
+
+    // ── word_left tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn word_left_middle_of_word() {
+        // col=6 points to 'w' in "hello world" -> skips back to start (0)
+        let result = word_left("hello world", 6);
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn word_left_from_whitespace() {
+        // "hello   world", col=8 points inside whitespace -> goes to prev word start
+        let result = word_left("hello   world", 8);
+        assert_eq!(result, 0); // goes to start of "hello"
+    }
+
+    #[test]
+    fn word_left_at_start() {
+        let result = word_left("hello", 0);
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn word_left_after_word() {
+        let result = word_left("hello world", 11);
+        assert_eq!(result, 6);
+    }
+
+    #[test]
+    fn word_left_empty_line() {
+        let result = word_left("", 0);
+        assert_eq!(result, 0);
+    }
+
+    // ── word_right tests ────────────────────────────────────────────────
+
+    #[test]
+    fn word_right_from_word_start() {
+        // "hello world", col=0 -> moves to end of "hello" + whitespace = 6
+        let result = word_right("hello world", 0);
+        assert_eq!(result, 6);
+    }
+
+    #[test]
+    fn word_right_from_whitespace() {
+        // "hello   world", col=8 -> moves to end of string (13)
+        let result = word_right("hello   world", 8);
+        assert_eq!(result, 13);
+    }
+
+    #[test]
+    fn word_right_at_end() {
+        let result = word_right("hello", 5);
+        assert_eq!(result, 5);
+    }
+
+    #[test]
+    fn word_right_empty_line() {
+        let result = word_right("", 0);
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn word_right_past_end() {
+        let result = word_right("hi", 10);
+        assert_eq!(result, 2);
+    }
+
+    // ── compute_new_position tests ──────────────────────────────────────
+
+    fn lines() -> Vec<String> {
+        vec![
+            "hello world".into(),
+            "rust".into(),
+            "a".into(),
+            "".into(),
+            "last".into(),
+        ]
+    }
+
+    #[test]
+    fn compute_left_within_line() {
+        let pos = Position::new(0, 5);
+        let new = compute_new_position(pos, &MoveKind::Left, &lines(), 5, 0);
+        assert_eq!(new, Position::new(0, 4));
+    }
+
+    #[test]
+    fn compute_left_wrap_to_prev_line() {
+        let pos = Position::new(1, 0);
+        let new = compute_new_position(pos, &MoveKind::Left, &lines(), 5, 0);
+        assert_eq!(new, Position::new(0, 11));
+    }
+
+    #[test]
+    fn compute_left_at_file_start() {
+        let pos = Position::new(0, 0);
+        let new = compute_new_position(pos, &MoveKind::Left, &lines(), 5, 0);
+        assert_eq!(new, Position::ZERO);
+    }
+
+    #[test]
+    fn compute_right_within_line() {
+        let pos = Position::new(0, 0);
+        let new = compute_new_position(pos, &MoveKind::Right, &lines(), 5, 0);
+        assert_eq!(new, Position::new(0, 1));
+    }
+
+    #[test]
+    fn compute_right_wrap_to_next_line() {
+        let pos = Position::new(0, 11);
+        let new = compute_new_position(pos, &MoveKind::Right, &lines(), 5, 0);
+        assert_eq!(new, Position::new(1, 0));
+    }
+
+    #[test]
+    fn compute_right_at_file_end() {
+        let pos = Position::new(4, 4);
+        let new = compute_new_position(pos, &MoveKind::Right, &lines(), 5, 0);
+        assert_eq!(new, Position::new(4, 4));
+    }
+
+    #[test]
+    fn compute_up() {
+        let pos = Position::new(2, 3);
+        let new = compute_new_position(pos, &MoveKind::Up(1), &lines(), 5, 3);
+        assert_eq!(new, Position::new(1, 3));
+    }
+
+    #[test]
+    fn compute_up_clamps_to_line_length() {
+        let pos = Position::new(1, 10);
+        let new = compute_new_position(pos, &MoveKind::Up(1), &lines(), 5, 10);
+        assert_eq!(new, Position::new(0, 10)); // line 0 has length 11, so col 10 is OK
+    }
+
+    #[test]
+    fn compute_up_at_file_start() {
+        let pos = Position::new(0, 0);
+        let new = compute_new_position(pos, &MoveKind::Up(1), &lines(), 5, 0);
+        assert_eq!(new, Position::ZERO);
+    }
+
+    #[test]
+    fn compute_down() {
+        let pos = Position::new(0, 0);
+        let new = compute_new_position(pos, &MoveKind::Down(1), &lines(), 5, 0);
+        assert_eq!(new, Position::new(1, 0));
+    }
+
+    #[test]
+    fn compute_down_at_file_end() {
+        let pos = Position::new(4, 0);
+        let new = compute_new_position(pos, &MoveKind::Down(1), &lines(), 5, 0);
+        assert_eq!(new, Position::new(4, 0));
+    }
+
+    #[test]
+    fn compute_line_start() {
+        let pos = Position::new(2, 3);
+        let new = compute_new_position(pos, &MoveKind::LineStart, &lines(), 5, 0);
+        assert_eq!(new, Position::new(2, 0));
+    }
+
+    #[test]
+    fn compute_line_end() {
+        let pos = Position::new(0, 0);
+        let new = compute_new_position(pos, &MoveKind::LineEnd, &lines(), 5, 0);
+        assert_eq!(new, Position::new(0, 11));
+    }
+
+    #[test]
+    fn compute_file_start() {
+        let pos = Position::new(3, 1);
+        let new = compute_new_position(pos, &MoveKind::FileStart, &lines(), 5, 0);
+        assert_eq!(new, Position::ZERO);
+    }
+
+    #[test]
+    fn compute_file_end() {
+        let pos = Position::ZERO;
+        let new = compute_new_position(pos, &MoveKind::FileEnd, &lines(), 5, 0);
+        assert_eq!(new, Position::new(4, 4));
+    }
+
+    #[test]
+    fn compute_word_left_wraps_line() {
+        let pos = Position::new(1, 0);
+        let new = compute_new_position(pos, &MoveKind::WordLeft, &lines(), 5, 0);
+        assert_eq!(new, Position::new(0, 11));
+    }
+
+    #[test]
+    fn compute_word_right_wraps_line() {
+        let pos = Position::new(4, 4);
+        let new = compute_new_position(pos, &MoveKind::WordRight, &lines(), 5, 0);
+        assert_eq!(new, Position::new(4, 4));
+    }
+
+    // ── line_char_count tests ───────────────────────────────────────────
+
+    #[test]
+    fn line_char_count_returns_length() {
+        assert_eq!(line_char_count(&lines(), 0), 11);
+        assert_eq!(line_char_count(&lines(), 1), 4);
+        assert_eq!(line_char_count(&lines(), 2), 1);
+        assert_eq!(line_char_count(&lines(), 3), 0);
+        assert_eq!(line_char_count(&lines(), 4), 4);
+    }
+
+    #[test]
+    fn line_char_count_out_of_bounds() {
+        assert_eq!(line_char_count(&lines(), 10), 0);
+    }
+
+    // ── handle_ui_action tests ──────────────────────────────────────────
+
+    fn make_ui_state() -> UiState {
+        let theme = crabide_config::ColorTheme {
+            id: "test".into(),
+            name: "Test".into(),
+            theme_type: crabide_config::ThemeType::Dark,
+            ui_colors: indexmap::IndexMap::new(),
+            token_colors: Vec::new(),
+        };
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        UiState::new(theme, keybindings)
+    }
+
+    #[test]
+    fn handle_command_palette_toggle() {
+        let mut state = make_ui_state();
+        assert!(!state.command_palette.visible);
+        assert!(handle_ui_action(Action::CommandPalette, &mut state));
+        assert!(state.command_palette.visible);
+        assert!(handle_ui_action(Action::CommandPalette, &mut state));
+        assert!(!state.command_palette.visible);
+    }
+
+    #[test]
+    fn handle_toggle_sidebar() {
+        let mut state = make_ui_state();
+        assert!(state.sidebar_visible);
+        assert!(handle_ui_action(Action::ToggleSidebar, &mut state));
+        assert!(!state.sidebar_visible);
+    }
+
+    #[test]
+    fn handle_zoom_in_out_reset() {
+        let mut state = make_ui_state();
+        state.font_size = 14.0;
+        assert!(handle_ui_action(Action::ZoomIn, &mut state));
+        assert_eq!(state.font_size, 15.0);
+        assert!(handle_ui_action(Action::ZoomOut, &mut state));
+        assert_eq!(state.font_size, 14.0);
+        assert!(handle_ui_action(Action::ZoomReset, &mut state));
+        assert_eq!(state.font_size, 14.0);
+    }
+
+    #[test]
+    fn handle_toggle_word_wrap() {
+        let mut state = make_ui_state();
+        assert!(!state.word_wrap);
+        assert!(handle_ui_action(Action::ToggleWordWrap, &mut state));
+        assert!(state.word_wrap);
+    }
+
+    #[test]
+    fn handle_toggle_terminal() {
+        let mut state = make_ui_state();
+        assert!(!state.terminal.visible);
+        assert!(handle_ui_action(Action::ToggleTerminal, &mut state));
+        assert!(state.terminal.visible);
+        assert!(state.terminal.has_focus);
+    }
+
+    #[test]
+    fn handle_next_prev_tab_empty() {
+        let mut state = make_ui_state();
+        // No tabs — no-op.
+        assert!(handle_ui_action(Action::NextTab, &mut state));
+        assert!(handle_ui_action(Action::PreviousTab, &mut state));
+    }
+
+    #[test]
+    fn handle_fuzzy_find_file_opens() {
+        let mut state = make_ui_state();
+        let handled = handle_ui_action(Action::FuzzyFindFile, &mut state);
+        assert!(!handled); // forwarded to app
+        assert!(state.fuzzy_finder.visible);
+    }
+
+    #[test]
+    fn handle_goto_line_open() {
+        let mut state = make_ui_state();
+        assert!(handle_ui_action(Action::GotoLine, &mut state));
+        assert!(state.goto_line.visible);
+    }
+
+    #[test]
+    fn handle_find_opens_panel() {
+        let mut state = make_ui_state();
+        assert!(handle_ui_action(Action::Find, &mut state));
+        assert!(state.find_replace.visible);
+        assert!(!state.find_replace.replace_visible);
+    }
+
+    #[test]
+    fn handle_find_replace_opens_panel() {
+        let mut state = make_ui_state();
+        assert!(handle_ui_action(Action::FindReplace, &mut state));
+        assert!(state.find_replace.visible);
+        assert!(state.find_replace.replace_visible);
+    }
+
+    #[test]
+    fn handle_toggle_panel_returns_false() {
+        let mut state = make_ui_state();
+        assert!(!handle_ui_action(Action::TogglePanel, &mut state));
+        assert!(!handle_ui_action(Action::ToggleOutputPanel, &mut state));
+    }
+
+    #[test]
+    fn handle_unhandled_action_returns_false() {
+        let mut state = make_ui_state();
+        assert!(!handle_ui_action(Action::SaveFile, &mut state));
+        assert!(!handle_ui_action(Action::OpenFile, &mut state));
+        assert!(!handle_ui_action(Action::Quit, &mut state));
+    }
+
+    // ── PaneKind tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn pane_kind_derives() {
+        assert_ne!(PaneKind::Editor, PaneKind::FileExplorer);
+    }
+}

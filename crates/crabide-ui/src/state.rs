@@ -100,6 +100,793 @@ impl FindReplaceState {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // ── FindReplaceState tests ───────────────────────────────────────────
+
+    #[test]
+    fn find_replace_default() {
+        let state = FindReplaceState::default();
+        assert!(!state.visible);
+        assert!(!state.replace_visible);
+        assert!(state.query.is_empty());
+        assert!(state.match_ranges.is_empty());
+        assert_eq!(state.current_match_idx, 0);
+        assert!(!state.has_matches());
+    }
+
+    #[test]
+    fn find_replace_has_matches_empty_query() {
+        let state = FindReplaceState {
+            query: String::new(),
+            match_ranges: vec![Range::new(Position::ZERO, Position::new(0, 1))],
+            ..Default::default()
+        };
+        assert!(!state.has_matches());
+    }
+
+    #[test]
+    fn find_replace_has_matches_empty_ranges() {
+        let state = FindReplaceState {
+            query: "test".into(),
+            match_ranges: vec![],
+            ..Default::default()
+        };
+        assert!(!state.has_matches());
+    }
+
+    #[test]
+    fn find_replace_has_matches_ok() {
+        let state = FindReplaceState {
+            query: "test".into(),
+            match_ranges: vec![Range::new(Position::ZERO, Position::new(0, 4))],
+            ..Default::default()
+        };
+        assert!(state.has_matches());
+    }
+
+    #[test]
+    fn find_replace_next_match_wraps() {
+        let mut state = FindReplaceState {
+            query: "a".into(),
+            match_ranges: vec![
+                Range::new(Position::ZERO, Position::new(0, 1)),
+                Range::new(Position::new(0, 2), Position::new(0, 3)),
+                Range::new(Position::new(0, 5), Position::new(0, 6)),
+            ],
+            current_match_idx: 2,
+            ..Default::default()
+        };
+        state.next_match();
+        assert_eq!(state.current_match_idx, 0);
+    }
+
+    #[test]
+    fn find_replace_prev_match_wraps() {
+        let mut state = FindReplaceState {
+            query: "a".into(),
+            match_ranges: vec![
+                Range::new(Position::ZERO, Position::new(0, 1)),
+                Range::new(Position::new(0, 2), Position::new(0, 3)),
+            ],
+            current_match_idx: 0,
+            ..Default::default()
+        };
+        state.prev_match();
+        assert_eq!(state.current_match_idx, 1);
+    }
+
+    #[test]
+    fn find_replace_next_match_empty_noop() {
+        let mut state = FindReplaceState::default();
+        state.next_match();
+        assert_eq!(state.current_match_idx, 0);
+    }
+
+    #[test]
+    fn find_replace_current_match() {
+        let state = FindReplaceState {
+            query: "a".into(),
+            match_ranges: vec![Range::new(Position::ZERO, Position::new(0, 1))],
+            ..Default::default()
+        };
+        assert_eq!(
+            state.current_match(),
+            Some(Range::new(Position::ZERO, Position::new(0, 1)))
+        );
+    }
+
+    #[test]
+    fn find_replace_current_match_none() {
+        let state = FindReplaceState::default();
+        assert_eq!(state.current_match(), None);
+    }
+
+    // ── FuzzyFinderState tests ──────────────────────────────────────────
+
+    #[test]
+    fn fuzzy_finder_default() {
+        let state = FuzzyFinderState::default();
+        assert!(!state.visible);
+        assert!(state.query.is_empty());
+        assert!(state.results.is_empty());
+        assert_eq!(state.selected_idx, 0);
+        assert!(!state.index_stale);
+    }
+
+    #[test]
+    fn fuzzy_finder_open_resets() {
+        let mut state = FuzzyFinderState {
+            query: "old".into(),
+            selected_idx: 5,
+            results: vec![PathBuf::from("test.rs")],
+            result_labels: vec!["test.rs".into()],
+            ..Default::default()
+        };
+        state.open();
+        assert!(state.visible);
+        assert!(state.query.is_empty());
+        assert_eq!(state.selected_idx, 0);
+        assert!(state.results.is_empty());
+        assert!(state.result_labels.is_empty());
+    }
+
+    #[test]
+    fn fuzzy_finder_close_resets() {
+        let mut state = FuzzyFinderState {
+            visible: true,
+            query: "test".into(),
+            selected_idx: 2,
+            results: vec![PathBuf::from("main.rs")],
+            result_labels: vec!["main.rs".into()],
+            ..Default::default()
+        };
+        state.close();
+        assert!(!state.visible);
+        assert!(state.query.is_empty());
+        assert_eq!(state.selected_idx, 0);
+        assert!(state.results.is_empty());
+        assert!(state.result_labels.is_empty());
+    }
+
+    // ── GotoLineState tests ─────────────────────────────────────────────
+
+    #[test]
+    fn goto_line_default() {
+        let state = GotoLineState::default();
+        assert!(!state.visible);
+        assert!(state.query.is_empty());
+    }
+
+    #[test]
+    fn goto_line_target_line_ok() {
+        let state = GotoLineState {
+            query: "3".into(),
+            ..Default::default()
+        };
+        assert_eq!(state.target_line(10), Some(2)); // 0-based
+    }
+
+    #[test]
+    fn goto_line_target_line_zero() {
+        let state = GotoLineState {
+            query: "0".into(),
+            ..Default::default()
+        };
+        assert_eq!(state.target_line(10), None);
+    }
+
+    #[test]
+    fn goto_line_target_line_out_of_range() {
+        let state = GotoLineState {
+            query: "20".into(),
+            ..Default::default()
+        };
+        assert_eq!(state.target_line(10), None);
+    }
+
+    #[test]
+    fn goto_line_target_line_not_a_number() {
+        let state = GotoLineState {
+            query: "abc".into(),
+            ..Default::default()
+        };
+        assert_eq!(state.target_line(10), None);
+    }
+
+    #[test]
+    fn goto_line_target_line_trimmed() {
+        let state = GotoLineState {
+            query: "  5  ".into(),
+            ..Default::default()
+        };
+        assert_eq!(state.target_line(10), Some(4));
+    }
+
+    #[test]
+    fn goto_line_target_line_empty() {
+        let state = GotoLineState::default();
+        assert_eq!(state.target_line(10), None);
+    }
+
+    // ── SymbolOutlineState tests ────────────────────────────────────────
+
+    #[test]
+    fn symbol_outline_default() {
+        let state = SymbolOutlineState::default();
+        assert!(!state.visible);
+        assert!(state.query.is_empty());
+        assert!(state.entries.is_empty());
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    // ── DapPanelState tests ─────────────────────────────────────────────
+
+    #[test]
+    fn dap_panel_default() {
+        let state = DapPanelState::default();
+        assert!(!state.visible);
+        assert!(!state.enabled);
+        assert!(!state.session_active);
+        assert!(!state.paused);
+        assert!(state.call_stack.is_empty());
+        assert!(state.variables.is_empty());
+        assert!(state.watch_expressions.is_empty());
+        assert!(state.console_lines.is_empty());
+        assert!(state.pending_launch == false);
+    }
+
+    #[test]
+    fn dap_panel_append_console_capped() {
+        let mut state = DapPanelState::default();
+        for i in 0..2000 {
+            state.append_console(OutputCategory::Stdout, format!("line {i}"));
+        }
+        assert_eq!(state.console_lines.len(), 2000);
+        state.append_console(OutputCategory::Stdout, "overflow".into());
+        assert_eq!(state.console_lines.len(), 2000);
+        assert_eq!(state.console_lines[0].1, "line 1");
+        assert_eq!(state.console_lines[1999].1, "overflow");
+    }
+
+    #[test]
+    fn dap_panel_append_console_splits_newlines() {
+        let mut state = DapPanelState::default();
+        state.append_console(OutputCategory::Stdout, "line1\nline2\nline3".into());
+        assert_eq!(state.console_lines.len(), 3);
+        assert_eq!(state.console_lines[0].1, "line1");
+        assert_eq!(state.console_lines[1].1, "line2");
+        assert_eq!(state.console_lines[2].1, "line3");
+    }
+
+    #[test]
+    fn dap_panel_append_console_sets_scroll_flag() {
+        let mut state = DapPanelState::default();
+        state.console_scroll_to_bottom = false;
+        state.append_console(OutputCategory::Stdout, "hello".into());
+        assert!(state.console_scroll_to_bottom);
+    }
+
+    #[test]
+    fn dap_panel_reset_session() {
+        let mut state = DapPanelState {
+            session_active: true,
+            paused: true,
+            paused_thread_id: Some(42),
+            stop_reason: Some("breakpoint".into()),
+            call_stack: vec![crabide_core::event::StackFrame {
+                id: 1,
+                name: "main".into(),
+                source_path: None,
+                line: 10,
+                column: 5,
+            }],
+            active_frame_id: Some(1),
+            expanded_var_refs: std::collections::HashSet::from([100]),
+            breakpoint_states: vec![crabide_core::event::BreakpointState {
+                id: Some(1),
+                verified: true,
+                message: None,
+                source_path: None,
+                line: None,
+                column: None,
+            }],
+            ..Default::default()
+        };
+        state.reset_session();
+        assert!(!state.session_active);
+        assert!(!state.paused);
+        assert!(state.paused_thread_id.is_none());
+        assert!(state.stop_reason.is_none());
+        assert!(state.call_stack.is_empty());
+        assert!(state.active_frame_id.is_none());
+        assert!(state.variables.is_empty());
+        assert!(state.expanded_var_refs.is_empty());
+        assert!(state.breakpoint_states.is_empty());
+    }
+
+    // ── TerminalInstance tests ──────────────────────────────────────────
+
+    #[test]
+    fn terminal_instance_new() {
+        let inst = TerminalInstance::new(42, 80, 24);
+        assert_eq!(inst.id, 42);
+        assert_eq!(inst.title, "Terminal 42");
+        assert_eq!(inst.cols, 80);
+        assert_eq!(inst.grid_rows, 24);
+        assert_eq!(inst.rows.len(), 24);
+        assert_eq!(inst.rows[0].len(), 80);
+        assert!(inst.cwd.is_none());
+        assert!(!inst.exited);
+    }
+
+    #[test]
+    fn terminal_instance_apply_delta() {
+        let mut inst = TerminalInstance::new(1, 80, 24);
+        let delta = crabide_core::event::TerminalGridDelta {
+            cursor_col: 5,
+            cursor_row: 10,
+            scroll_top: 0,
+            rows: vec![crabide_core::event::ChangedRow {
+                row: 5,
+                cells: vec![
+                    TerminalCell {
+                        ch: 'H',
+                        fg: TerminalColor::Default,
+                        bg: TerminalColor::Default,
+                        attrs: crabide_core::event::CellAttrs::empty(),
+                    },
+                    TerminalCell {
+                        ch: 'i',
+                        fg: TerminalColor::Default,
+                        bg: TerminalColor::Default,
+                        attrs: crabide_core::event::CellAttrs::empty(),
+                    },
+                ],
+            }],
+        };
+        inst.apply_delta(&delta);
+        assert_eq!(inst.cursor_col, 5);
+        assert_eq!(inst.cursor_row, 10);
+        assert_eq!(inst.rows[5][0].ch, 'H');
+        assert_eq!(inst.rows[5][1].ch, 'i');
+    }
+
+    #[test]
+    fn terminal_instance_resize() {
+        let mut inst = TerminalInstance::new(1, 80, 24);
+        inst.resize(120, 30);
+        assert_eq!(inst.cols, 120);
+        assert_eq!(inst.grid_rows, 30);
+        assert_eq!(inst.rows.len(), 30);
+        assert_eq!(inst.rows[0].len(), 120);
+    }
+
+    // ── TerminalPanelState tests ────────────────────────────────────────
+
+    #[test]
+    fn terminal_panel_default() {
+        let state = TerminalPanelState::default();
+        assert!(!state.visible);
+        assert!(state.instances.is_empty());
+        assert_eq!(state.active_idx, 0);
+        assert!(!state.has_focus);
+    }
+
+    #[test]
+    fn terminal_panel_active_none_when_empty() {
+        let state = TerminalPanelState::default();
+        assert!(state.active().is_none());
+    }
+
+    #[test]
+    fn terminal_panel_active_mut_none_when_empty() {
+        let mut state = TerminalPanelState::default();
+        assert!(state.active_mut().is_none());
+    }
+
+    #[test]
+    fn terminal_panel_active_with_instance() {
+        let mut state = TerminalPanelState::default();
+        state.instances.push(TerminalInstance::new(1, 80, 24));
+        assert!(state.active().is_some());
+        assert_eq!(state.active().unwrap().id, 1);
+        assert!(state.active_mut().is_some());
+    }
+
+    #[test]
+    fn terminal_panel_by_id_mut() {
+        let mut state = TerminalPanelState::default();
+        state.instances.push(TerminalInstance::new(1, 80, 24));
+        state.instances.push(TerminalInstance::new(2, 80, 24));
+        let found = state.by_id_mut(2);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, 2);
+        assert!(state.by_id_mut(99).is_none());
+    }
+
+    #[test]
+    fn terminal_panel_remove_by_id() {
+        let mut state = TerminalPanelState::default();
+        state.instances.push(TerminalInstance::new(1, 80, 24));
+        state.instances.push(TerminalInstance::new(2, 80, 24));
+        state.active_idx = 1;
+        state.remove_by_id(1);
+        assert_eq!(state.instances.len(), 1);
+        assert_eq!(state.instances[0].id, 2);
+    }
+
+    #[test]
+    fn terminal_panel_remove_by_id_adjusts_active() {
+        let mut state = TerminalPanelState::default();
+        state.instances.push(TerminalInstance::new(1, 80, 24));
+        state.remove_by_id(1);
+        assert!(state.instances.is_empty());
+        assert_eq!(state.active_idx, 0);
+    }
+
+    // ── EditorTab tests ─────────────────────────────────────────────────
+
+    fn make_uri(name: &str) -> DocumentUri {
+        DocumentUri::from_file_path(
+            if cfg!(windows) {
+                format!(r"C:\{name}")
+            } else {
+                format!("/tmp/{name}")
+            }
+        ).unwrap()
+    }
+
+    fn make_test_tab() -> EditorTab {
+        EditorTab::new(
+            BufferId::new(),
+            "test.rs".into(),
+            make_uri("test.rs"),
+            Language::RUST,
+        )
+    }
+
+    #[test]
+    fn editor_tab_new() {
+        let tab = make_test_tab();
+        assert_eq!(tab.title, "test.rs");
+        assert_eq!(tab.language, Language::RUST);
+        assert!(!tab.is_dirty);
+        assert!(tab.lines.is_empty());
+        assert!(tab.diagnostics.is_empty());
+        assert!(tab.breakpoints.is_empty());
+        assert!(tab.active_tabstop().is_none());
+    }
+
+    #[test]
+    fn editor_tab_active_tabstop_no_snippet() {
+        let tab = make_test_tab();
+        assert!(tab.active_tabstop().is_none());
+    }
+
+    // ── UiState tests ───────────────────────────────────────────────────
+
+    fn make_theme() -> ColorTheme {
+        ColorTheme {
+            id: "test".into(),
+            name: "Test".into(),
+            theme_type: crabide_config::ThemeType::Dark,
+            ui_colors: IndexMap::new(),
+            token_colors: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn ui_state_new() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let state = UiState::new(theme, keybindings);
+        assert!(state.tabs.is_empty());
+        assert!(state.active_tab.is_none());
+        assert_eq!(state.font_size, 14.0);
+        assert!(!state.word_wrap);
+        assert!(!state.git_enabled);
+        assert_eq!(state.sidebar_tab, SidebarTab::Explorer);
+        assert!(state.git_branch.is_none());
+    }
+
+    #[test]
+    fn ui_state_open_tab_activates_existing() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        let buf_id = BufferId::new();
+        let tab1 = EditorTab::new(
+            buf_id,
+            "a.rs".into(),
+            make_uri("a.rs"),
+            Language::RUST,
+        );
+        let tab2 = EditorTab::new(
+            BufferId::new(),
+            "b.rs".into(),
+            make_uri("b.rs"),
+            Language::RUST,
+        );
+        state.open_tab(tab1);
+        state.open_tab(tab2);
+        assert_eq!(state.tabs.len(), 2);
+
+        let tab_dup = EditorTab::new(
+            buf_id,
+            "a.rs".into(),
+            make_uri("a.rs"),
+            Language::RUST,
+        );
+        state.open_tab(tab_dup);
+        assert_eq!(state.tabs.len(), 2);
+        assert_eq!(state.active_tab, Some(0));
+    }
+
+    #[test]
+    fn ui_state_open_tab_appends_new() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        let tab = EditorTab::new(
+            BufferId::new(),
+            "new.rs".into(),
+            make_uri("new.rs"),
+            Language::RUST,
+        );
+        state.open_tab(tab);
+        assert_eq!(state.tabs.len(), 1);
+        assert_eq!(state.active_tab, Some(0));
+    }
+
+    #[test]
+    fn ui_state_close_tab() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        let bid = BufferId::new();
+        let tab = EditorTab::new(
+            bid,
+            "t.rs".into(),
+            make_uri("t.rs"),
+            Language::RUST,
+        );
+        state.open_tab(tab);
+        let closed = state.close_tab(0);
+        assert_eq!(closed, Some(bid));
+        assert!(state.tabs.is_empty());
+        assert!(state.active_tab.is_none());
+    }
+
+    #[test]
+    fn ui_state_close_tab_out_of_range() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        assert!(state.close_tab(0).is_none());
+        assert!(state.close_tab(100).is_none());
+    }
+
+    #[test]
+    fn ui_state_active_tab_mut_none() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        assert!(state.active_tab_mut().is_none());
+        assert!(state.active_tab_ref().is_none());
+    }
+
+    #[test]
+    fn ui_state_set_status() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        assert!(state.status_message.is_none());
+        state.set_status("hello");
+        assert!(state.status_message.is_some());
+        assert_eq!(state.status_message.as_ref().unwrap().0, "hello");
+    }
+
+    #[test]
+    fn ui_state_expire_status_fresh() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        state.set_status("fresh");
+        state.expire_status();
+        assert!(state.status_message.is_some());
+    }
+
+    #[test]
+    fn ui_state_tick_caret_toggles() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        assert!(state.caret_visible);
+        let toggled = state.tick_caret(1.0);
+        assert!(toggled);
+        assert!(!state.caret_visible);
+    }
+
+    #[test]
+    fn ui_state_tick_caret_no_toggle_below_threshold() {
+        let theme = make_theme();
+        let keybindings = crabide_config::KeybindingEngine::with_defaults();
+        let mut state = UiState::new(theme, keybindings);
+        state.last_blink_toggle = 0.0;
+        let toggled = state.tick_caret(0.1);
+        assert!(!toggled);
+        assert!(state.caret_visible);
+    }
+
+    // ── cfg_to_egui tests ───────────────────────────────────────────────
+
+    #[test]
+    fn cfg_to_egui_converts_color() {
+        let c = Color::rgba(0x12, 0x34, 0x56, 0xff);
+        let e = cfg_to_egui(c);
+        assert_eq!(e.r(), 0x12);
+        assert_eq!(e.g(), 0x34);
+        assert_eq!(e.b(), 0x56);
+        assert_eq!(e.a(), 0xff);
+    }
+
+    // ── DisplayCell tests ───────────────────────────────────────────────
+
+    #[test]
+    fn display_cell_blank_constant() {
+        let cell = DisplayCell::BLANK;
+        assert_eq!(cell.ch, ' ');
+        assert_eq!(cell.fg, TerminalColor::Default);
+        assert_eq!(cell.bg, TerminalColor::Default);
+    }
+
+    #[test]
+    fn display_cell_from_terminal_cell() {
+        let tc = TerminalCell {
+            ch: 'X',
+            fg: TerminalColor::Rgb(255, 0, 0),
+            bg: TerminalColor::Rgb(0, 0, 0),
+            attrs: crabide_core::event::CellAttrs::empty(),
+        };
+        let dc = DisplayCell::from(tc);
+        assert_eq!(dc.ch, 'X');
+        assert_eq!(dc.fg, TerminalColor::Rgb(255, 0, 0));
+    }
+
+    // ── SymbolOutlineEntry tests ────────────────────────────────────────
+
+    #[test]
+    fn symbol_outline_entry_fields() {
+        let entry = SymbolOutlineEntry {
+            name: "main".into(),
+            kind: "function".into(),
+            line: 42,
+        };
+        assert_eq!(entry.name, "main");
+        assert_eq!(entry.kind, "function");
+        assert_eq!(entry.line, 42);
+    }
+
+    // ── FileExplorerState tests ─────────────────────────────────────────
+
+    #[test]
+    fn file_explorer_state_default() {
+        let state = FileExplorerState::default();
+        assert!(state.roots.is_empty());
+    }
+
+    // ── GitPanelState tests ─────────────────────────────────────────────
+
+    #[test]
+    fn git_panel_state_default() {
+        let state = GitPanelState::default();
+        assert!(!state.visible);
+        assert!(state.staged_files.is_empty());
+        assert!(state.unstaged_files.is_empty());
+        assert!(state.commit_message.is_empty());
+        assert!(state.blame_lines.is_empty());
+    }
+
+    // ── ExtensionsPanelState tests ──────────────────────────────────────
+
+    #[test]
+    fn extensions_panel_state_default() {
+        let state = ExtensionsPanelState::default();
+        assert_eq!(state.active_tab, ExtensionsPanelTab::Installed);
+        assert!(state.selected_id.is_none());
+        assert!(state.search_query.is_empty());
+        assert!(state.search_results.is_empty());
+        assert!(!state.is_searching);
+    }
+
+    // ── SidebarTab tests ────────────────────────────────────────────────
+
+    #[test]
+    fn sidebar_tab_default_is_explorer() {
+        assert_eq!(SidebarTab::default(), SidebarTab::Explorer);
+    }
+
+    #[test]
+    fn sidebar_tab_extension_pane_equality() {
+        let a = SidebarTab::ExtensionPane("p1".into());
+        let b = SidebarTab::ExtensionPane("p1".into());
+        let c = SidebarTab::ExtensionPane("p2".into());
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    // ── ExtensionsPanelTab tests ────────────────────────────────────────
+
+    #[test]
+    fn extensions_panel_tab_default_is_installed() {
+        assert_eq!(ExtensionsPanelTab::default(), ExtensionsPanelTab::Installed);
+    }
+
+    // ── LspStatus tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn lsp_status_derives() {
+        assert_ne!(LspStatus::Starting, LspStatus::Ready);
+        assert_ne!(LspStatus::Ready, LspStatus::Error);
+    }
+
+    // ── GitDecoration tests ─────────────────────────────────────────────
+
+    #[test]
+    fn git_decoration_variants() {
+        assert_ne!(GitDecoration::Modified, GitDecoration::Added);
+        assert_ne!(GitDecoration::Added, GitDecoration::Deleted);
+        assert_ne!(GitDecoration::Deleted, GitDecoration::Untracked);
+        assert_ne!(GitDecoration::Untracked, GitDecoration::Conflicted);
+    }
+
+    // ── FileNode tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn file_node_fields() {
+        let node = FileNode {
+            name: "src".into(),
+            path: PathBuf::from("src"),
+            is_dir: true,
+            children: vec![],
+            expanded: false,
+            git_status: None,
+        };
+        assert!(node.is_dir);
+        assert!(!node.expanded);
+        assert!(node.git_status.is_none());
+    }
+
+    // ── CommandPaletteState tests ───────────────────────────────────────
+
+    #[test]
+    fn command_palette_default() {
+        let state = CommandPaletteState::default();
+        assert!(!state.visible);
+        assert!(state.query.is_empty());
+        assert!(state.entries.is_empty());
+        assert_eq!(state.selected_idx, 0);
+    }
+
+    // ── WorkspaceSearchState tests ──────────────────────────────────────
+
+    #[test]
+    fn workspace_search_default() {
+        let state = WorkspaceSearchState::default();
+        assert!(!state.visible);
+        assert!(state.query.is_empty());
+        assert!(!state.use_regex);
+        assert!(!state.case_sensitive);
+        assert!(state.results.is_empty());
+        assert_eq!(state.selected_idx, 0);
+        assert!(!state.is_searching);
+    }
+}
+
 // ── FuzzyFinderState ──────────────────────────────────────────────────────────
 
 /// State for the Ctrl+P fuzzy file finder overlay.
