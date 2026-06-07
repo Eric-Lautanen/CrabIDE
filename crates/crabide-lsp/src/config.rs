@@ -76,3 +76,82 @@ impl LspServerConfig {
         self
     }
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_new_minimal() {
+        let cfg = LspServerConfig::new("rust-analyzer", vec![Language::RUST]);
+        assert_eq!(cfg.command, "rust-analyzer");
+        assert_eq!(cfg.language_ids, vec![Language::RUST]);
+        assert!(cfg.args.is_empty());
+        assert!(cfg.root_uri.is_none());
+        assert!(cfg.initialization_options.is_none());
+        assert!(cfg.env.is_empty());
+        assert_eq!(cfg.restart_delay_ms, 1_000);
+        assert_eq!(cfg.max_restarts, 5);
+    }
+
+    #[test]
+    fn config_with_root() {
+        let uri = DocumentUri::parse("file:///workspace").unwrap();
+        let cfg = LspServerConfig::new("server", vec![]).with_root(uri.clone());
+        assert_eq!(cfg.root_uri, Some(uri));
+    }
+
+    #[test]
+    fn config_with_args() {
+        let cfg = LspServerConfig::new("server", vec![]).with_args(["--verbose", "--port=8080"]);
+        assert_eq!(cfg.args, vec!["--verbose", "--port=8080"]);
+    }
+
+    #[test]
+    fn config_with_args_from_vec() {
+        let cfg = LspServerConfig::new("server", vec![]).with_args(vec!["--debug", "--no-daemon"]);
+        assert_eq!(cfg.args, vec!["--debug", "--no-daemon"]);
+    }
+
+    #[test]
+    fn config_with_init_options() {
+        let opts = serde_json::json!({"setting": true});
+        let cfg = LspServerConfig::new("server", vec![]).with_init_options(opts.clone());
+        assert_eq!(cfg.initialization_options, Some(opts));
+    }
+
+    #[test]
+    fn config_with_env() {
+        let cfg = LspServerConfig::new("server", vec![])
+            .with_env([("RUST_BACKTRACE", "1"), ("RUST_LOG", "debug")]);
+        assert_eq!(
+            cfg.env,
+            vec![
+                ("RUST_BACKTRACE".to_owned(), "1".to_owned()),
+                ("RUST_LOG".to_owned(), "debug".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn config_with_env_iter() {
+        let env = vec![("KEY", "value")];
+        let cfg = LspServerConfig::new("server", vec![]).with_env(env);
+        assert_eq!(cfg.env, vec![("KEY".to_owned(), "value".to_owned())]);
+    }
+
+    #[test]
+    fn config_serialize_deserialize() {
+        let cfg = LspServerConfig::new("test-server", vec![Language::RUST, Language::PYTHON])
+            .with_args(["--verbose"])
+            .with_root(DocumentUri::parse("file:///tmp").unwrap());
+        let json = serde_json::to_string(&cfg).unwrap();
+        let recovered: LspServerConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.command, cfg.command);
+        assert_eq!(recovered.language_ids, cfg.language_ids);
+        assert_eq!(recovered.args, cfg.args);
+        assert_eq!(recovered.root_uri, cfg.root_uri);
+    }
+}

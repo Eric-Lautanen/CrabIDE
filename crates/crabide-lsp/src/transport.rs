@@ -90,6 +90,135 @@ impl JsonRpcMessage {
     }
 }
 
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ── JsonRpcMessage ─────────────────────────────────────────────────────
+
+    #[test]
+    fn message_request_construction() {
+        let msg = JsonRpcMessage::request(1, "initialize", json!({"rootUri": null}));
+        assert_eq!(msg.jsonrpc, "2.0");
+        assert_eq!(msg.id, Some(Value::Number(1.into())));
+        assert_eq!(msg.method.as_deref(), Some("initialize"));
+        assert!(msg.params.is_some());
+        assert!(msg.result.is_none());
+        assert!(msg.error.is_none());
+    }
+
+    #[test]
+    fn message_notification_construction() {
+        let msg = JsonRpcMessage::notification("textDocument/didOpen", json!({}));
+        assert_eq!(msg.jsonrpc, "2.0");
+        assert!(msg.id.is_none());
+        assert_eq!(msg.method.as_deref(), Some("textDocument/didOpen"));
+        assert!(msg.params.is_some());
+        assert!(msg.result.is_none());
+        assert!(msg.error.is_none());
+    }
+
+    #[test]
+    fn message_is_request() {
+        let msg = JsonRpcMessage::request(1, "method", json!({}));
+        assert!(msg.is_request());
+        assert!(!msg.is_notification());
+        assert!(!msg.is_response());
+    }
+
+    #[test]
+    fn message_is_notification() {
+        let msg = JsonRpcMessage::notification("method", json!({}));
+        assert!(!msg.is_request());
+        assert!(msg.is_notification());
+        assert!(!msg.is_response());
+    }
+
+    #[test]
+    fn message_is_response() {
+        let msg = JsonRpcMessage {
+            jsonrpc: "2.0".into(),
+            id: Some(Value::Number(1.into())),
+            method: None,
+            params: None,
+            result: Some(Value::Null),
+            error: None,
+        };
+        assert!(!msg.is_request());
+        assert!(!msg.is_notification());
+        assert!(msg.is_response());
+    }
+
+    #[test]
+    fn message_request_serialization() {
+        let msg = JsonRpcMessage::request(1, "test/method", json!({"key": "value"}));
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"jsonrpc\":\"2.0\""));
+        assert!(json.contains("\"id\":1"));
+        assert!(json.contains("\"method\":\"test/method\""));
+        assert!(json.contains("\"params\":{\"key\":\"value\"}"));
+        // result and error should be absent
+        assert!(!json.contains("\"result\""));
+        assert!(!json.contains("\"error\""));
+    }
+
+    #[test]
+    fn message_request_deserialization() {
+        let json_str =
+            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert_eq!(msg.jsonrpc, "2.0");
+        assert_eq!(msg.id, Some(Value::Number(1.into())));
+        assert_eq!(msg.method.as_deref(), Some("initialize"));
+        assert!(msg.is_request());
+    }
+
+    #[test]
+    fn message_response_deserialization() {
+        let json_str = r#"{"jsonrpc":"2.0","id":1,"result":{"capabilities":{}}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_response());
+        assert_eq!(msg.id, Some(Value::Number(1.into())));
+        assert!(msg.method.is_none());
+        assert!(msg.result.is_some());
+    }
+
+    #[test]
+    fn message_notification_deserialization() {
+        let json_str = r#"{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///test.rs","diagnostics":[]}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_notification());
+        assert!(msg.id.is_none());
+        assert_eq!(
+            msg.method.as_deref(),
+            Some("textDocument/publishDiagnostics")
+        );
+    }
+
+    #[test]
+    fn message_error_response() {
+        let json_str =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_response());
+        let err = msg.error.as_ref().unwrap();
+        assert_eq!(err.code, -32601);
+        assert_eq!(err.message, "Method not found");
+        assert!(err.data.is_none());
+    }
+
+    #[test]
+    fn message_with_null_params_is_notification() {
+        // Some LSP servers send notifications with null params
+        let json_str = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_notification());
+    }
+}
+
 // ── Transport ─────────────────────────────────────────────────────────────────
 
 /// Tracks an in-flight request, waiting for a response.
