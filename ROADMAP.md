@@ -89,6 +89,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 - [x] Complete `all_actions()` with all ~80 Action variants (verified: 2-column enum + IndexMap)
 - [x] Remove dead `once_cell` dependency
 - [x] Add action registry API for extensions to register custom actions
+- [x] Add 89 unit tests for keybindings (ActionRegistry, parse_chord, WhenCondition, WhenContext, KeybindingEngine, all_actions_with)
 - [ ] Add `keybindings.json` (VS Code format) import compatibility
 
 ### crabide-vfs — COMPLETE ✅
@@ -394,7 +395,7 @@ These aren't tied to any single phase:
 - [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
 - [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [x] **Unit test coverage**: `crabide-core` now has 140 tests covering types, error, events. `crabide-buffer` has 47 tests for buffer, cursor, history. `crabide-syntax` has 3 tests for indent/locals. Other crates still need coverage. Minimum coverage targets: 30% by v0.1
+- [x] **Unit test coverage**: `crabide-core` now has 140 tests covering types, error, events. `crabide-buffer` has 47 tests for buffer, cursor, history. `crabide-config` has 89 tests for keybindings (ActionRegistry, parse_chord, WhenCondition, WhenContext, KeybindingEngine, all_actions_with). `crabide-syntax` has 3 tests for indent/locals. Other crates still need coverage. Minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
 - [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.

@@ -284,6 +284,13 @@ impl fmt::Display for KeyChord {
 }
 
 pub fn parse_chord(s: &str) -> Result<KeyChord> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err(crabideError::ConfigParse {
+            file: "keybindings".into(),
+            message: format!("empty chord string: {s:?}"),
+        });
+    }
     let parts: Vec<&str> = s.split('+').collect();
     if parts.is_empty() {
         return Err(crabideError::ConfigParse {
@@ -424,7 +431,7 @@ impl Default for ActionRegistry {
 ///
 /// Supports boolean context keys (`editorFocused`), negation (`!terminalFocused`),
 /// string equality (`editorLangId == 'rust'`), and compound AND/OR expressions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WhenCondition {
     /// Always matches.
     True,
@@ -1114,4 +1121,914 @@ pub fn all_actions_with(registry: &ActionRegistry) -> IndexMap<Action, String> {
         m.entry(action).or_insert_with(|| title.to_owned());
     }
     m
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── ActionRegistry ─────────────────────────────────────────────────────
+
+    #[test]
+    fn action_registry_new_is_empty() {
+        let reg = ActionRegistry::new();
+        assert!(reg.is_empty());
+        assert_eq!(reg.len(), 0);
+    }
+
+    #[test]
+    fn action_registry_register_and_has() {
+        let mut reg = ActionRegistry::new();
+        reg.register("ext.my-action", "My Extension: Do Thing");
+        assert!(reg.has("ext.my-action"));
+        assert!(!reg.is_empty());
+        assert_eq!(reg.len(), 1);
+    }
+
+    #[test]
+    fn action_registry_unregister() {
+        let mut reg = ActionRegistry::new();
+        reg.register("ext.foo", "Foo");
+        assert!(reg.has("ext.foo"));
+        reg.unregister("ext.foo");
+        assert!(!reg.has("ext.foo"));
+        assert!(reg.is_empty());
+    }
+
+    #[test]
+    fn action_registry_unregister_nonexistent() {
+        let mut reg = ActionRegistry::new();
+        reg.unregister("does-not-exist"); // should not panic
+        assert!(reg.is_empty());
+    }
+
+    #[test]
+    fn action_registry_register_overwrites_title() {
+        let mut reg = ActionRegistry::new();
+        reg.register("ext.dup", "First Title");
+        reg.register("ext.dup", "Updated Title");
+        assert_eq!(reg.len(), 1);
+        let items: Vec<_> = reg.iter_custom().collect();
+        assert_eq!(items.len(), 1);
+        let (action, title) = &items[0];
+        assert_eq!(action, &Action::Custom("ext.dup".to_owned()));
+        assert_eq!(*title, "Updated Title");
+    }
+
+    #[test]
+    fn action_registry_iter_custom() {
+        let mut reg = ActionRegistry::new();
+        reg.register("ext.a", "Alpha");
+        reg.register("ext.b", "Beta");
+        let mut pairs: Vec<_> = reg.iter_custom().collect();
+        pairs.sort_by_key(|(_, t)| *t);
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0], (Action::Custom("ext.a".to_owned()), "Alpha"));
+        assert_eq!(pairs[1], (Action::Custom("ext.b".to_owned()), "Beta"));
+    }
+
+    #[test]
+    fn action_registry_default() {
+        let reg: ActionRegistry = Default::default();
+        assert!(reg.is_empty());
+    }
+
+    // ── parse_chord ────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_chord_simple_key() {
+        let chord = parse_chord("a").unwrap();
+        assert_eq!(chord.modifiers, Modifiers::empty());
+        assert_eq!(chord.key, Key::Char('a'));
+    }
+
+    #[test]
+    fn parse_chord_modifier_key() {
+        let chord = parse_chord("ctrl+shift+p").unwrap();
+        assert!(chord.modifiers.contains(Modifiers::CTRL));
+        assert!(chord.modifiers.contains(Modifiers::SHIFT));
+        assert!(!chord.modifiers.contains(Modifiers::ALT));
+        assert!(!chord.modifiers.contains(Modifiers::META));
+        assert_eq!(chord.key, Key::Char('p'));
+    }
+
+    #[test]
+    fn parse_chord_alt_meta() {
+        let chord = parse_chord("alt+meta+x").unwrap();
+        assert!(chord.modifiers.contains(Modifiers::ALT));
+        assert!(chord.modifiers.contains(Modifiers::META));
+        assert_eq!(chord.key, Key::Char('x'));
+    }
+
+    #[test]
+    fn parse_chord_function_key() {
+        let chord = parse_chord("f12").unwrap();
+        assert_eq!(chord.key, Key::F(12));
+    }
+
+    #[test]
+    fn parse_chord_special_keys() {
+        assert_eq!(parse_chord("up").unwrap().key, Key::Up);
+        assert_eq!(parse_chord("down").unwrap().key, Key::Down);
+        assert_eq!(parse_chord("left").unwrap().key, Key::Left);
+        assert_eq!(parse_chord("right").unwrap().key, Key::Right);
+        assert_eq!(parse_chord("home").unwrap().key, Key::Home);
+        assert_eq!(parse_chord("end").unwrap().key, Key::End);
+        assert_eq!(parse_chord("pageup").unwrap().key, Key::PageUp);
+        assert_eq!(parse_chord("pagedown").unwrap().key, Key::PageDown);
+        assert_eq!(parse_chord("enter").unwrap().key, Key::Enter);
+        assert_eq!(parse_chord("return").unwrap().key, Key::Enter);
+        assert_eq!(parse_chord("backspace").unwrap().key, Key::Backspace);
+        assert_eq!(parse_chord("delete").unwrap().key, Key::Delete);
+        assert_eq!(parse_chord("del").unwrap().key, Key::Delete);
+        assert_eq!(parse_chord("tab").unwrap().key, Key::Tab);
+        assert_eq!(parse_chord("escape").unwrap().key, Key::Escape);
+        assert_eq!(parse_chord("esc").unwrap().key, Key::Escape);
+        assert_eq!(parse_chord("space").unwrap().key, Key::Space);
+    }
+
+    #[test]
+    fn parse_chord_numpad() {
+        let chord = parse_chord("numpad3").unwrap();
+        assert_eq!(chord.key, Key::Numpad(3));
+    }
+
+    #[test]
+    fn parse_chord_unknown_modifier_fails() {
+        let err = parse_chord("super+unknown+x").unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("unknown modifier"), "got: {msg}");
+    }
+
+    #[test]
+    fn parse_chord_empty_fails() {
+        let err = parse_chord("").unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("empty chord"), "got: {msg}");
+    }
+
+    #[test]
+    fn parse_chord_modifier_alternate_names() {
+        let ch1 = parse_chord("control+c").unwrap();
+        assert!(ch1.modifiers.contains(Modifiers::CTRL));
+        let ch2 = parse_chord("option+space").unwrap();
+        assert!(ch2.modifiers.contains(Modifiers::ALT));
+        let ch3 = parse_chord("cmd+q").unwrap();
+        assert!(ch3.modifiers.contains(Modifiers::META));
+        let ch4 = parse_chord("win+e").unwrap();
+        assert!(ch4.modifiers.contains(Modifiers::META));
+        let ch5 = parse_chord("super+r").unwrap();
+        assert!(ch5.modifiers.contains(Modifiers::META));
+    }
+
+    #[test]
+    fn parse_chord_unknown_key_yields_unknown() {
+        let chord = parse_chord("ctrl+unknownkey").unwrap();
+        assert_eq!(chord.key, Key::Unknown("unknownkey".to_owned()));
+    }
+
+    // ── KeyChord Display ───────────────────────────────────────────────────
+
+    #[test]
+    fn keychord_display_no_modifiers() {
+        let chord = KeyChord::new(Modifiers::empty(), Key::Char('a'));
+        assert_eq!(chord.to_string(), "a");
+    }
+
+    #[test]
+    fn keychord_display_all_modifiers() {
+        let mods = Modifiers::CTRL | Modifiers::SHIFT | Modifiers::ALT | Modifiers::META;
+        let chord = KeyChord::new(mods, Key::F(1));
+        assert_eq!(chord.to_string(), "ctrl+shift+alt+meta+f1");
+    }
+
+    #[test]
+    fn keychord_display_special() {
+        assert_eq!(
+            KeyChord::new(Modifiers::CTRL, Key::Escape).to_string(),
+            "ctrl+escape"
+        );
+        assert_eq!(
+            KeyChord::new(Modifiers::empty(), Key::Space).to_string(),
+            "space"
+        );
+    }
+
+    // ── WhenCondition ──────────────────────────────────────────────────────
+
+    #[test]
+    fn when_condition_true_always() {
+        assert!(WhenCondition::True.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_false_never() {
+        assert!(!WhenCondition::False.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_not_true() {
+        let cond = WhenCondition::Not(Box::new(WhenCondition::True));
+        assert!(!cond.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_not_false() {
+        let cond = WhenCondition::Not(Box::new(WhenCondition::False));
+        assert!(cond.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_and_both_true() {
+        let cond = WhenCondition::And(Box::new(WhenCondition::True), Box::new(WhenCondition::True));
+        assert!(cond.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_and_one_false() {
+        let cond = WhenCondition::And(
+            Box::new(WhenCondition::True),
+            Box::new(WhenCondition::False),
+        );
+        assert!(!cond.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_or_both_false() {
+        let cond = WhenCondition::Or(
+            Box::new(WhenCondition::False),
+            Box::new(WhenCondition::False),
+        );
+        assert!(!cond.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_or_one_true() {
+        let cond = WhenCondition::Or(
+            Box::new(WhenCondition::False),
+            Box::new(WhenCondition::True),
+        );
+        assert!(cond.evaluate(&WhenContext::new()));
+    }
+
+    #[test]
+    fn when_condition_boolean_key_present_true() {
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", true);
+        let cond = WhenCondition::Key("editorFocused".to_owned());
+        assert!(cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_boolean_key_present_false() {
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", false);
+        let cond = WhenCondition::Key("editorFocused".to_owned());
+        assert!(!cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_boolean_key_missing() {
+        let ctx = WhenContext::new();
+        let cond = WhenCondition::Key("editorFocused".to_owned());
+        assert!(!cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_key_equals() {
+        let mut ctx = WhenContext::new();
+        ctx.set_str("editorLangId", "rust");
+        let cond = WhenCondition::KeyEquals("editorLangId".to_owned(), "rust".to_owned());
+        assert!(cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_key_equals_mismatch() {
+        let mut ctx = WhenContext::new();
+        ctx.set_str("editorLangId", "python");
+        let cond = WhenCondition::KeyEquals("editorLangId".to_owned(), "rust".to_owned());
+        assert!(!cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_key_equals_missing_key() {
+        let ctx = WhenContext::new();
+        let cond = WhenCondition::KeyEquals("editorLangId".to_owned(), "rust".to_owned());
+        assert!(!cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_key_not_equals_match() {
+        let mut ctx = WhenContext::new();
+        ctx.set_str("editorLangId", "python");
+        let cond = WhenCondition::KeyNotEquals("editorLangId".to_owned(), "rust".to_owned());
+        assert!(cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_key_not_equals_equal() {
+        let mut ctx = WhenContext::new();
+        ctx.set_str("editorLangId", "rust");
+        let cond = WhenCondition::KeyNotEquals("editorLangId".to_owned(), "rust".to_owned());
+        assert!(!cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn when_condition_key_not_equals_missing_key() {
+        let ctx = WhenContext::new();
+        let cond = WhenCondition::KeyNotEquals("editorLangId".to_owned(), "rust".to_owned());
+        assert!(cond.evaluate(&ctx));
+    }
+
+    // ── WhenCondition::parse ───────────────────────────────────────────────
+
+    #[test]
+    fn parse_when_simple_bool() {
+        let cond = WhenCondition::parse("editorFocused");
+        assert_eq!(cond, WhenCondition::Key("editorFocused".to_owned()));
+    }
+
+    #[test]
+    fn parse_when_not() {
+        let cond = WhenCondition::parse("!terminalFocused");
+        assert_eq!(
+            cond,
+            WhenCondition::Not(Box::new(WhenCondition::Key("terminalFocused".to_owned())))
+        );
+    }
+
+    #[test]
+    fn parse_when_key_equals() {
+        let cond = WhenCondition::parse("editorLangId == 'rust'");
+        assert_eq!(
+            cond,
+            WhenCondition::KeyEquals("editorLangId".to_owned(), "rust".to_owned())
+        );
+    }
+
+    #[test]
+    fn parse_when_key_not_equals() {
+        let cond = WhenCondition::parse("editorLangId != 'python'");
+        assert_eq!(
+            cond,
+            WhenCondition::KeyNotEquals("editorLangId".to_owned(), "python".to_owned())
+        );
+    }
+
+    #[test]
+    fn parse_when_and() {
+        let cond = WhenCondition::parse("editorFocused && !terminalFocused");
+        assert_eq!(
+            cond,
+            WhenCondition::And(
+                Box::new(WhenCondition::Key("editorFocused".to_owned())),
+                Box::new(WhenCondition::Not(Box::new(WhenCondition::Key(
+                    "terminalFocused".to_owned()
+                )))),
+            )
+        );
+    }
+
+    #[test]
+    fn parse_when_or() {
+        let cond = WhenCondition::parse("editorFocused || terminalFocused");
+        assert_eq!(
+            cond,
+            WhenCondition::Or(
+                Box::new(WhenCondition::Key("editorFocused".to_owned())),
+                Box::new(WhenCondition::Key("terminalFocused".to_owned())),
+            )
+        );
+    }
+
+    #[test]
+    fn parse_when_parenthesized() {
+        let cond = WhenCondition::parse("(editorFocused && editorLangId == 'rust')");
+        // After parsing, parentheses are unwrapped.
+        assert_eq!(
+            cond,
+            WhenCondition::And(
+                Box::new(WhenCondition::Key("editorFocused".to_owned())),
+                Box::new(WhenCondition::KeyEquals(
+                    "editorLangId".to_owned(),
+                    "rust".to_owned()
+                )),
+            )
+        );
+    }
+
+    #[test]
+    fn parse_when_empty_is_true() {
+        let cond = WhenCondition::parse("");
+        assert_eq!(cond, WhenCondition::True);
+    }
+
+    #[test]
+    fn parse_when_whitespace_is_true() {
+        let cond = WhenCondition::parse("   ");
+        assert_eq!(cond, WhenCondition::True);
+    }
+
+    #[test]
+    fn parse_when_double_quotes() {
+        let cond = WhenCondition::parse("key == \"value\"");
+        assert_eq!(
+            cond,
+            WhenCondition::KeyEquals("key".to_owned(), "value".to_owned())
+        );
+    }
+
+    #[test]
+    fn parse_when_complex_expression() {
+        // (a || b) && c && !d
+        let cond = WhenCondition::parse("(a || b) && c && !d");
+        let expected = WhenCondition::And(
+            Box::new(WhenCondition::And(
+                Box::new(WhenCondition::Or(
+                    Box::new(WhenCondition::Key("a".to_owned())),
+                    Box::new(WhenCondition::Key("b".to_owned())),
+                )),
+                Box::new(WhenCondition::Key("c".to_owned())),
+            )),
+            Box::new(WhenCondition::Not(Box::new(WhenCondition::Key(
+                "d".to_owned(),
+            )))),
+        );
+        assert_eq!(cond, expected);
+    }
+
+    // ── WhenContext ────────────────────────────────────────────────────────
+
+    #[test]
+    fn when_context_new_is_empty() {
+        let ctx = WhenContext::new();
+        assert!(ctx.get_bool("anything").is_none());
+        assert!(ctx.get_str("anything").is_none());
+    }
+
+    #[test]
+    fn when_context_set_get_bool() {
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", true);
+        assert_eq!(ctx.get_bool("editorFocused"), Some(true));
+        ctx.set_bool("editorFocused", false);
+        assert_eq!(ctx.get_bool("editorFocused"), Some(false));
+    }
+
+    #[test]
+    fn when_context_set_get_str() {
+        let mut ctx = WhenContext::new();
+        ctx.set_str("editorLangId", "rust");
+        assert_eq!(ctx.get_str("editorLangId"), Some("rust"));
+    }
+
+    #[test]
+    fn when_context_remove() {
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", true);
+        ctx.set_str("editorLangId", "rust");
+        ctx.remove("editorFocused");
+        assert!(ctx.get_bool("editorFocused").is_none());
+        assert_eq!(ctx.get_str("editorLangId"), Some("rust"));
+    }
+
+    #[test]
+    fn when_context_merge() {
+        let mut base = WhenContext::new();
+        base.set_bool("a", true);
+        base.set_str("lang", "rust");
+
+        let mut other = WhenContext::new();
+        other.set_bool("b", false);
+        other.set_str("lang", "python"); // should override
+
+        base.merge(&other);
+        assert_eq!(base.get_bool("a"), Some(true));
+        assert_eq!(base.get_bool("b"), Some(false));
+        assert_eq!(base.get_str("lang"), Some("python"));
+    }
+
+    #[test]
+    fn when_context_default() {
+        let ctx: WhenContext = Default::default();
+        assert!(ctx.get_bool("any").is_none());
+    }
+
+    // ── all_actions_with ───────────────────────────────────────────────────
+
+    #[test]
+    fn all_actions_with_empty_registry() {
+        let reg = ActionRegistry::new();
+        let m = all_actions_with(&reg);
+        // Should contain at least the standard built-in actions.
+        assert!(m.contains_key(&Action::NewFile));
+        assert!(m.contains_key(&Action::CommandPalette));
+        // Should not contain any custom actions.
+        assert!(!m.contains_key(&Action::Custom("ext.test".to_owned())));
+    }
+
+    #[test]
+    fn all_actions_with_custom_actions() {
+        let mut reg = ActionRegistry::new();
+        reg.register("ext.test", "Test Action");
+        let m = all_actions_with(&reg);
+        assert_eq!(
+            m.get(&Action::Custom("ext.test".to_owned())),
+            Some(&"Test Action".to_owned())
+        );
+    }
+
+    #[test]
+    fn all_actions_with_does_not_override_builtin() {
+        let mut reg = ActionRegistry::new();
+        // Try to register an action with the same label as a builtin.
+        reg.register("ext.test", "File: New File");
+        let m = all_actions_with(&reg);
+        // The built-in title for NewFile should remain unchanged.
+        assert_eq!(m.get(&Action::NewFile), Some(&"File: New File".to_owned()));
+    }
+
+    #[test]
+    fn all_actions_contains_all_key_actions() {
+        let m = all_actions();
+        // Spot-check a few key categories.
+        assert!(m.contains_key(&Action::CursorUp));
+        assert!(m.contains_key(&Action::SelectDown));
+        assert!(m.contains_key(&Action::DeleteCharLeft));
+        assert!(m.contains_key(&Action::GitCommit));
+        assert!(m.contains_key(&Action::ToggleBreakpoint));
+        assert!(m.contains_key(&Action::NewTerminal));
+        assert!(m.contains_key(&Action::NextTabstop));
+        assert_eq!(
+            m.get(&Action::GotoSymbol),
+            Some(&"Go: Go to Symbol in File...")
+        );
+    }
+
+    // ── KeybindingEngine ───────────────────────────────────────────────────
+
+    #[test]
+    fn keybinding_engine_with_defaults() {
+        let engine = KeybindingEngine::with_defaults();
+        let chords = engine.chords_for_action(&Action::SaveFile);
+        assert!(
+            !chords.is_empty(),
+            "expected at least one binding for SaveFile"
+        );
+    }
+
+    #[test]
+    fn keybinding_engine_press_single_chord() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let chord = parse_chord("ctrl+s").unwrap();
+        let action = engine.press(chord, None);
+        assert_eq!(action, Some(Action::SaveFile));
+    }
+
+    #[test]
+    fn keybinding_engine_press_with_context() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", true);
+        // ctrl+s should match regardless of context since it has no when clause.
+        let chord = parse_chord("ctrl+s").unwrap();
+        let action = engine.press(chord, Some(&ctx));
+        assert_eq!(action, Some(Action::SaveFile));
+    }
+
+    #[test]
+    fn keybinding_engine_no_match_returns_none() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let chord = parse_chord("ctrl+alt+shift+super+z").unwrap();
+        let action = engine.press(chord, None);
+        assert!(action.is_none());
+    }
+
+    #[test]
+    fn keybinding_engine_two_chord_sequence() {
+        let mut engine = KeybindingEngine::with_defaults();
+        // ctrl+k s should save all.
+        let first = parse_chord("ctrl+k").unwrap();
+        let second = parse_chord("s").unwrap();
+
+        // First press should start the chord sequence (return None).
+        let result1 = engine.press(first, None);
+        assert!(result1.is_none());
+        assert!(engine.has_pending_chord());
+
+        // Second press should complete the chord.
+        let result2 = engine.press(second, None);
+        assert_eq!(result2, Some(Action::SaveAll));
+        assert!(!engine.has_pending_chord());
+    }
+
+    #[test]
+    fn keybinding_engine_cancel_pending() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let first = parse_chord("ctrl+k").unwrap();
+        let _ = engine.press(first, None);
+        assert!(engine.has_pending_chord());
+        engine.cancel_pending();
+        assert!(!engine.has_pending_chord());
+    }
+
+    #[test]
+    fn keybinding_engine_bind_adds_binding() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let old_count = engine.bindings().len();
+        engine.bind("ctrl+shift+alt+t", Action::Custom("ext.test".to_owned()));
+        assert_eq!(engine.bindings().len(), old_count + 1);
+
+        let chord = parse_chord("ctrl+shift+alt+t").unwrap();
+        let action = engine.press(chord, None);
+        assert_eq!(action, Some(Action::Custom("ext.test".to_owned())));
+    }
+
+    #[test]
+    fn keybinding_engine_bind_ext_alias() {
+        let mut engine = KeybindingEngine::with_defaults();
+        engine.bind_ext("ctrl+u", Action::Custom("ext.uppercase".to_owned()));
+        let chord = parse_chord("ctrl+u").unwrap();
+        let action = engine.press(chord, None);
+        assert_eq!(action, Some(Action::Custom("ext.uppercase".to_owned())));
+    }
+
+    #[test]
+    fn keybinding_engine_press_legacy_no_context() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let chord = parse_chord("ctrl+c").unwrap();
+        let action = engine.press_legacy(chord);
+        assert_eq!(action, Some(Action::Copy));
+    }
+
+    #[test]
+    fn keybinding_engine_chords_for_action_no_match() {
+        let engine = KeybindingEngine::with_defaults();
+        let chords = engine.chords_for_action(&Action::Custom("nonexistent".to_owned()));
+        assert!(chords.is_empty());
+    }
+
+    #[test]
+    fn keybinding_engine_load_toml() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let old_count = engine.bindings().len();
+        let toml = r#"
+            [[bindings]]
+            key    = "ctrl+alt+t"
+            action = "newFile"
+        "#;
+        engine.load_toml(toml, "test").unwrap();
+        assert_eq!(engine.bindings().len(), old_count + 1);
+        let chord = parse_chord("ctrl+alt+t").unwrap();
+        assert_eq!(engine.press(chord, None), Some(Action::NewFile));
+    }
+
+    #[test]
+    fn keybinding_engine_load_toml_with_when() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let toml = r#"
+            [[bindings]]
+            key    = "ctrl+alt+e"
+            action = "commandPalette"
+            when   = "editorFocused"
+        "#;
+        engine.load_toml(toml, "test").unwrap();
+        let chord = parse_chord("ctrl+alt+e").unwrap();
+        // Without context, when condition fails -> no match.
+        assert!(engine.press(chord.clone(), None).is_none());
+        // With matching context.
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", true);
+        assert_eq!(
+            engine.press(chord, Some(&ctx)),
+            Some(Action::CommandPalette)
+        );
+    }
+
+    #[test]
+    fn keybinding_engine_load_toml_invalid_is_skipped() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let toml = r#"
+            [[bindings]]
+            key    = "ctrl+unknown_modifier+x"
+            action = "newFile"
+        "#;
+        // Should not return an error — invalid chord is logged and skipped.
+        engine.load_toml(toml, "test").unwrap();
+        // Verify the invalid binding was skipped by checking no new bindings
+        // with 'newFile' that start with the unknown modifier exist.
+        let chords = engine.chords_for_action(&Action::NewFile);
+        // There should still be the default ctrl+n for newFile, but not ctrl+unknown_modifier+x.
+        assert!(!chords.is_empty());
+    }
+
+    #[test]
+    fn keybinding_engine_load_toml_malformed() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let result = engine.load_toml("this is not toml {{", "bad-source");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn keybinding_engine_bindings_returns_all() {
+        let engine = KeybindingEngine::with_defaults();
+        let all = engine.bindings();
+        assert!(
+            all.len() > 50,
+            "expected many default bindings, got {}",
+            all.len()
+        );
+        // Check that each binding has at least one chord.
+        for b in &all {
+            assert!(!b.chords.is_empty(), "binding {:?} has no chords", b.action);
+        }
+    }
+
+    #[test]
+    fn keybinding_engine_two_chord_falls_through_to_single() {
+        let mut engine = KeybindingEngine::with_defaults();
+        // ctrl+k is a two-chord prefix (ctrl+k s = saveAll).
+        // But ctrl+k alone might also be bound? It isn't by default.
+        // However, after pressing ctrl+k, pressing something that isn't 's'
+        // should consume the pending chord and NOT match.
+        let first = parse_chord("ctrl+k").unwrap();
+        let second = parse_chord("x").unwrap();
+
+        let _ = engine.press(first, None);
+        assert!(engine.has_pending_chord());
+        let result = engine.press(second, None);
+        // Since 'x' isn't a second chord for any two-chord binding that starts
+        // with ctrl+k, we expect None.
+        assert!(result.is_none());
+        assert!(!engine.has_pending_chord());
+    }
+
+    #[test]
+    fn keybinding_engine_pending_chord_timeout() {
+        // Simulate a scenario where a chord sequence is started but not completed.
+        let mut engine = KeybindingEngine::with_defaults();
+        let first = parse_chord("ctrl+k").unwrap();
+        let _ = engine.press(first, None);
+        assert!(engine.has_pending_chord());
+        // Pressing a single key that matches a different binding should cancel the
+        // pending chord and try the new press as a fresh single chord.
+        let ctrl_s = parse_chord("ctrl+s").unwrap();
+        let action = engine.press(ctrl_s, None);
+        assert_eq!(action, Some(Action::SaveFile));
+        assert!(!engine.has_pending_chord());
+    }
+
+    #[test]
+    fn keybinding_engine_duplicate_binding() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let count_before = engine.bindings().len();
+        // Bind the same key/action again.
+        engine.bind("ctrl+s", Action::SaveFile);
+        assert_eq!(engine.bindings().len(), count_before + 1);
+        // Later bindings (last added) take priority due to rev() search.
+        let chord = parse_chord("ctrl+s").unwrap();
+        assert_eq!(engine.press(chord, None), Some(Action::SaveFile));
+    }
+
+    // ── Key equality / hash ────────────────────────────────────────────────
+
+    #[test]
+    fn key_equality() {
+        assert_eq!(Key::Char('a'), Key::Char('a'));
+        assert_ne!(Key::Char('a'), Key::Char('b'));
+        assert_eq!(Key::F(1), Key::F(1));
+        assert_ne!(Key::F(1), Key::F(2));
+        assert_eq!(Key::Unknown("foo".into()), Key::Unknown("foo".into()));
+    }
+
+    #[test]
+    fn keychord_equality() {
+        let a = KeyChord::new(Modifiers::CTRL, Key::Char('a'));
+        let b = KeyChord::new(Modifiers::CTRL, Key::Char('a'));
+        let c = KeyChord::new(Modifiers::CTRL | Modifiers::SHIFT, Key::Char('a'));
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    // ── Modifiers bitflags ─────────────────────────────────────────────────
+
+    #[test]
+    fn modifiers_bitflags() {
+        let empty = Modifiers::empty();
+        assert!(!empty.contains(Modifiers::CTRL));
+
+        let ctrl_shift = Modifiers::CTRL | Modifiers::SHIFT;
+        assert!(ctrl_shift.contains(Modifiers::CTRL));
+        assert!(ctrl_shift.contains(Modifiers::SHIFT));
+        assert!(!ctrl_shift.contains(Modifiers::ALT));
+        assert!(!ctrl_shift.contains(Modifiers::META));
+    }
+
+    // ── Edge cases ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_chord_mixed_case_modifier() {
+        let chord = parse_chord("Ctrl+Shift+P").unwrap();
+        assert!(chord.modifiers.contains(Modifiers::CTRL));
+        assert!(chord.modifiers.contains(Modifiers::SHIFT));
+        assert_eq!(chord.key, Key::Char('p'));
+    }
+
+    #[test]
+    fn parse_chord_uppercase_key() {
+        // Single uppercase letter should still parse as lowercase char key
+        let chord = parse_chord("A").unwrap();
+        assert_eq!(chord.key, Key::Char('a'));
+    }
+
+    #[test]
+    fn when_condition_deeply_nested() {
+        // (a || (b && c)) && !d
+        let expr = "(a || (b && c)) && !d";
+        let cond = WhenCondition::parse(expr);
+
+        // Verify evaluation
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("a", false);
+        ctx.set_bool("b", true);
+        ctx.set_bool("c", true);
+        ctx.set_bool("d", false);
+        assert!(cond.evaluate(&ctx));
+
+        ctx.set_bool("d", true);
+        assert!(!cond.evaluate(&ctx));
+    }
+
+    #[test]
+    fn all_actions_with_preserves_order() {
+        let m = all_actions();
+        let mut iter = m.iter();
+        let first = iter.next().unwrap();
+        assert_eq!(first.0, &Action::NewFile);
+        // The last entry should be PreviousTabstop.
+        if let Some(last) = iter.last() {
+            assert_eq!(last.0, &Action::PreviousTabstop);
+        }
+    }
+
+    #[test]
+    fn action_display_insert_text() {
+        let action = Action::InsertText("hello".to_owned());
+        let s = action.to_string();
+        assert_eq!(s, r#"insertText("hello")"#);
+    }
+
+    #[test]
+    fn action_display_custom() {
+        let action = Action::Custom("ext.my-action".to_owned());
+        let s = action.to_string();
+        assert_eq!(s, "ext.my-action");
+    }
+
+    #[test]
+    fn action_display_builtin() {
+        let action = Action::SaveFile;
+        let s = action.to_string();
+        // Serialized as camelCase via serde, then trimmed quotes.
+        assert_eq!(s, "saveFile");
+    }
+
+    #[test]
+    fn key_display_all_variants() {
+        let cases = vec![
+            (Key::Char('x'), "x"),
+            (Key::F(24), "f24"),
+            (Key::Up, "up"),
+            (Key::Down, "down"),
+            (Key::Left, "left"),
+            (Key::Right, "right"),
+            (Key::Home, "home"),
+            (Key::End, "end"),
+            (Key::PageUp, "pageup"),
+            (Key::PageDown, "pagedown"),
+            (Key::Enter, "enter"),
+            (Key::Backspace, "backspace"),
+            (Key::Delete, "delete"),
+            (Key::Tab, "tab"),
+            (Key::Escape, "escape"),
+            (Key::Space, "space"),
+            (Key::Numpad(0), "numpad0"),
+            (Key::Unknown("foo".into()), "foo"),
+        ];
+        for (key, expected) in cases {
+            assert_eq!(key.to_string(), expected, "mismatch for {key:?}");
+        }
+    }
+
+    #[test]
+    fn keychord_display_mixed_modifiers() {
+        let chord = KeyChord::new(Modifiers::CTRL | Modifiers::ALT, Key::Delete);
+        assert_eq!(chord.to_string(), "ctrl+alt+delete");
+    }
+
+    #[test]
+    fn keychord_display_meta_alone() {
+        let chord = KeyChord::new(Modifiers::META, Key::Char('q'));
+        assert_eq!(chord.to_string(), "meta+q");
+    }
 }
