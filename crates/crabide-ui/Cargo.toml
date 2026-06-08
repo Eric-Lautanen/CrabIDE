@@ -18,6 +18,7 @@ crabide-config.workspace    = true
 crabide-search.workspace    = true
 crabide-dap.workspace        = true
 crabide-extensions.workspace = true
+crabide-terminal.workspace   = true
 
 egui.workspace       = true
 egui_tiles.workspace = true

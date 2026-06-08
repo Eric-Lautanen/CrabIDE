@@ -10,5 +10,8 @@ pub mod manager;
 pub mod pty;
 
 pub use crabide_core::error::{crabideError, Result};
-pub use grid::{Grid, MouseButton, ScrollDirection};
+pub use grid::{
+    encode_mouse_motion, encode_mouse_press, encode_mouse_release, encode_mouse_scroll, Grid,
+    MouseButton, ScrollDirection,
+};
 pub use manager::{TerminalManager, TerminalProfile};

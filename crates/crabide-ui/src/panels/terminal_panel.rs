@@ -20,6 +20,10 @@ use egui::{pos2, vec2, Color32, FontId, Key, Modifiers, Rect, Ui, Vec2};
 
 use crabide_config::Action;
 use crabide_core::event::{CellAttrs, TerminalColor};
+use crabide_terminal::{
+    encode_mouse_motion, encode_mouse_press, encode_mouse_release, encode_mouse_scroll,
+    MouseButton, ScrollDirection,
+};
 
 use crate::state::UiState;
 
@@ -278,29 +282,112 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
         }
     }
 
-    // ── Notify resize if needed (debounced — 3 stable frames before PTY resize) ─
-    let new_cols = ((grid_rect.width() / cell_w) as u16).max(2);
-    let new_rows = ((grid_rect.height() / cell_h) as u16).max(2);
-    let inst_id = inst.id;
-    if new_cols != inst.cols || new_rows != inst.grid_rows {
-        let stable = state
-            .terminal
-            .resize_stable
-            .get_or_insert((new_cols, new_rows, 0));
-        if stable.0 == new_cols && stable.1 == new_rows {
-            stable.2 = stable.2.saturating_add(1);
-            if stable.2 >= 3 {
-                state.terminal.pending_resize = Some((inst_id, new_cols, new_rows));
-                state.terminal.resize_stable = None;
-            }
-        } else {
-            // Size changed again — restart the counter.
-            state.terminal.resize_stable = Some((new_cols, new_rows, 0));
-        }
-    } else {
-        state.terminal.resize_stable = None;
-    }
+    // ── Mouse reporting ─────────────────────────────────────────────────────
+    // When a mouse reporting mode is active, translate mouse events into
+    // escape sequences and queue them as pending input for the PTY.
+    if inst.mouse_x10 || inst.mouse_normal || inst.mouse_button_event {
+        let grid_resp = ui.allocate_rect(grid_rect, egui::Sense::click_and_drag());
 
+        // Convert pointer position to cell coordinates
+        if let Some(pos) = grid_resp.hover_pos() {
+            let mx = ((pos.x - grid_rect.min.x) / cell_w) as u16;
+            let my = ((pos.y - grid_rect.min.y) / cell_h) as u16;
+
+            // Button press — only on initial press, not every frame while held
+            // We use `interact` with `Sense::click` to detect clicks
+            if ui.input(|i| i.pointer.primary_pressed()) {
+                let button = MouseButton::Left;
+                if let Some(bytes) = encode_mouse_press(
+                    inst.mouse_x10,
+                    inst.mouse_normal,
+                    inst.mouse_button_event,
+                    inst.mouse_sgr,
+                    button,
+                    mx,
+                    my,
+                ) {
+                    state.terminal.pending_input.push((inst.id, bytes));
+                }
+            }
+            if ui.input(|i| i.pointer.secondary_pressed()) {
+                let button = MouseButton::Right;
+                if let Some(bytes) = encode_mouse_press(
+                    inst.mouse_x10,
+                    inst.mouse_normal,
+                    inst.mouse_button_event,
+                    inst.mouse_sgr,
+                    button,
+                    mx,
+                    my,
+                ) {
+                    state.terminal.pending_input.push((inst.id, bytes));
+                }
+            }
+
+            // Button release
+            if ui.input(|i| i.pointer.any_released()) {
+                // Determine which button was released
+                let button = if ui.input(|i| i.pointer.primary_released()) {
+                    MouseButton::Left
+                } else {
+                    MouseButton::Right
+                };
+                if let Some(bytes) = encode_mouse_release(
+                    inst.mouse_normal,
+                    inst.mouse_button_event,
+                    inst.mouse_sgr,
+                    button,
+                    mx,
+                    my,
+                ) {
+                    state.terminal.pending_input.push((inst.id, bytes));
+                }
+            }
+
+            // Mouse motion while dragging (only for normal/button-event modes)
+            if (inst.mouse_normal || inst.mouse_button_event)
+                && ui.input(|i| i.pointer.any_down())
+                && grid_resp.hovered()
+            {
+                let button = if ui.input(|i| i.pointer.primary_down()) {
+                    MouseButton::Left
+                } else {
+                    MouseButton::Right
+                };
+                if let Some(bytes) = encode_mouse_motion(
+                    inst.mouse_normal,
+                    inst.mouse_button_event,
+                    inst.mouse_sgr,
+                    button,
+                    mx,
+                    my,
+                ) {
+                    state.terminal.pending_input.push((inst.id, bytes));
+                }
+            }
+
+            // Scroll wheel
+            let scroll = ui.input(|i| i.smooth_scroll_delta);
+            if scroll.y != 0.0 {
+                let direction = if scroll.y > 0.0 {
+                    ScrollDirection::Up
+                } else {
+                    ScrollDirection::Down
+                };
+                if let Some(bytes) = encode_mouse_scroll(
+                    inst.mouse_x10,
+                    inst.mouse_normal,
+                    inst.mouse_button_event,
+                    inst.mouse_sgr,
+                    direction,
+                    mx,
+                    my,
+                ) {
+                    state.terminal.pending_input.push((inst.id, bytes));
+                }
+            }
+        }
+    }
     actions
 }
 

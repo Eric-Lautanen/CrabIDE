@@ -203,72 +203,92 @@ impl Grid {
             parser: Parser::new(),
         }
     }
+}
 
-    /// Whether any mouse reporting mode is active.
-    pub fn mouse_reporting_active(&self) -> bool {
-        self.mouse_x10 || self.mouse_normal || self.mouse_button_event
+/// Encode a mouse button press event as an escape sequence.
+/// Returns `None` if no mouse reporting mode is active.
+pub fn encode_mouse_press(
+    mouse_x10: bool,
+    mouse_normal: bool,
+    mouse_button_event: bool,
+    mouse_sgr: bool,
+    button: MouseButton,
+    col: u16,
+    row: u16,
+) -> Option<Vec<u8>> {
+    if !mouse_x10 && !mouse_normal && !mouse_button_event {
+        return None;
     }
+    Some(if mouse_sgr {
+        sgr_mouse_encode(button, col, row, false)
+    } else {
+        x10_mouse_encode(button, col, row)
+    })
+}
 
-    /// Encode a mouse button press event as an escape sequence.
-    /// Returns `None` if mouse reporting is not active.
-    pub fn encode_mouse_press(&self, button: MouseButton, col: u16, row: u16) -> Option<Vec<u8>> {
-        if !self.mouse_reporting_active() {
-            return None;
-        }
-        Some(if self.mouse_sgr {
-            sgr_mouse_encode(button, col, row, false)
-        } else {
-            x10_mouse_encode(button, col, row)
-        })
+/// Encode a mouse button release event as an escape sequence.
+/// Returns `None` if the active mode does not report releases.
+pub fn encode_mouse_release(
+    mouse_normal: bool,
+    mouse_button_event: bool,
+    mouse_sgr: bool,
+    button: MouseButton,
+    col: u16,
+    row: u16,
+) -> Option<Vec<u8>> {
+    if !mouse_normal && !mouse_button_event {
+        return None;
     }
+    Some(if mouse_sgr {
+        sgr_mouse_encode(button, col, row, true)
+    } else {
+        x10_mouse_encode_release(button, col, row)
+    })
+}
 
-    /// Encode a mouse button release event as an escape sequence.
-    /// Returns `None` if the active mode does not report releases.
-    pub fn encode_mouse_release(&self, button: MouseButton, col: u16, row: u16) -> Option<Vec<u8>> {
-        if !self.mouse_normal && !self.mouse_button_event {
-            return None;
-        }
-        Some(if self.mouse_sgr {
-            sgr_mouse_encode(button, col, row, true)
-        } else {
-            x10_mouse_encode_release(button, col, row)
-        })
+/// Encode a mouse motion event (while a button is held) as an escape sequence.
+/// Returns `None` if the active mode does not report motion.
+pub fn encode_mouse_motion(
+    mouse_normal: bool,
+    mouse_button_event: bool,
+    mouse_sgr: bool,
+    button: MouseButton,
+    col: u16,
+    row: u16,
+) -> Option<Vec<u8>> {
+    if !mouse_normal && !mouse_button_event {
+        return None;
     }
+    Some(if mouse_sgr {
+        sgr_mouse_encode(button, col, row, false)
+    } else {
+        x10_mouse_encode_motion(button, col, row)
+    })
+}
 
-    /// Encode a mouse motion event (while a button is held) as an escape sequence.
-    /// Returns `None` if the active mode does not report motion.
-    pub fn encode_mouse_motion(&self, button: MouseButton, col: u16, row: u16) -> Option<Vec<u8>> {
-        if !self.mouse_normal && !self.mouse_button_event {
-            return None;
-        }
-        Some(if self.mouse_sgr {
-            sgr_mouse_encode(button, col, row, false)
-        } else {
-            x10_mouse_encode_motion(button, col, row)
-        })
+/// Encode a mouse scroll event as an escape sequence.
+/// Returns `None` if no mouse reporting mode is active.
+pub fn encode_mouse_scroll(
+    mouse_x10: bool,
+    mouse_normal: bool,
+    mouse_button_event: bool,
+    mouse_sgr: bool,
+    direction: ScrollDirection,
+    col: u16,
+    row: u16,
+) -> Option<Vec<u8>> {
+    if !mouse_x10 && !mouse_normal && !mouse_button_event {
+        return None;
     }
-
-    /// Encode a mouse scroll event as an escape sequence.
-    /// Returns `None` if mouse reporting is not active.
-    pub fn encode_mouse_scroll(
-        &self,
-        direction: ScrollDirection,
-        col: u16,
-        row: u16,
-    ) -> Option<Vec<u8>> {
-        if !self.mouse_reporting_active() {
-            return None;
-        }
-        let button = match direction {
-            ScrollDirection::Up => MouseButton::ScrollUp,
-            ScrollDirection::Down => MouseButton::ScrollDown,
-        };
-        Some(if self.mouse_sgr {
-            sgr_mouse_encode(button, col, row, true)
-        } else {
-            x10_mouse_encode(button, col, row)
-        })
-    }
+    let button = match direction {
+        ScrollDirection::Up => MouseButton::ScrollUp,
+        ScrollDirection::Down => MouseButton::ScrollDown,
+    };
+    Some(if mouse_sgr {
+        sgr_mouse_encode(button, col, row, true)
+    } else {
+        x10_mouse_encode(button, col, row)
+    })
 }
 
 impl Grid {
