@@ -321,6 +321,16 @@ impl Language {
     pub const TOML: Self = Self(SmolStr::new_static("toml"));
     pub const YAML: Self = Self(SmolStr::new_static("yaml"));
     pub const MARKDOWN: Self = Self(SmolStr::new_static("markdown"));
+    pub const HTML: Self = Self(SmolStr::new_static("html"));
+    pub const CSS: Self = Self(SmolStr::new_static("css"));
+    pub const SCSS: Self = Self(SmolStr::new_static("scss"));
+    pub const LESS: Self = Self(SmolStr::new_static("less"));
+    pub const SHELL: Self = Self(SmolStr::new_static("shell"));
+    pub const SQL: Self = Self(SmolStr::new_static("sql"));
+    pub const CSHARP: Self = Self(SmolStr::new_static("csharp"));
+    pub const KOTLIN: Self = Self(SmolStr::new_static("kotlin"));
+    pub const RUBY: Self = Self(SmolStr::new_static("ruby"));
+    pub const PHP: Self = Self(SmolStr::new_static("php"));
     pub const PLAIN_TEXT: Self = Self(SmolStr::new_static("plaintext"));
 }
 
@@ -351,6 +361,16 @@ pub fn language_from_extension(ext: &str) -> Language {
         "toml" => Language::TOML,
         "yaml" | "yml" => Language::YAML,
         "md" | "mdx" => Language::MARKDOWN,
+        "html" | "htm" => Language::HTML,
+        "css" => Language::CSS,
+        "scss" => Language::SCSS,
+        "less" => Language::LESS,
+        "sh" | "bash" | "zsh" => Language::SHELL,
+        "sql" => Language::SQL,
+        "cs" | "csx" => Language::CSHARP,
+        "kt" | "kts" => Language::KOTLIN,
+        "rb" => Language::RUBY,
+        "php" | "phtml" => Language::PHP,
         _ => Language::PLAIN_TEXT,
     }
 }

@@ -3,14 +3,18 @@
 //! Format of `keybindings.toml`:
 //! ```toml
 //! [[bindings]]
-//! key    = "ctrl+shift+p"
+//! key = "ctrl+shift+p"
 //! action = "commandPalette"
 //!
 //! [[bindings]]
-//! key    = "ctrl+k ctrl+s"   # chord: two presses
+//! key = "ctrl+k ctrl+s" # chord: two presses
 //! action = "saveAll"
-//! when   = "editorFocused"   # optional context filter
+//! when = "editorFocused" # optional context filter
 //! ```
+//!
+//! VS Code `keybindings.json` is also supported via [`KeybindingEngine::load_vscode_json`].
+//! The format is a JSON array of objects with `key`, `command`, and optional `when` fields.
+//! A `-` prefix on `command` (e.g. `-editor.action.commentLine`) removes an existing binding.
 
 use bitflags::bitflags;
 use crabide_core::error::{crabideError, Result};
@@ -598,6 +602,286 @@ fn parse_string_eq<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
     Some((key, value))
 }
 
+// ── VS Code key → crabide KeyChord conversion ────────────────────────────────
+
+/// Parse a single chord segment from VS Code keybinding format.
+///
+/// VS Code uses slightly different key names than crabide's internal format:
+/// - `cmd` → `meta`, `option` → `alt`, `ctrl`/`control` → `ctrl`
+/// - `oem_1` … `oem_102` → mapped to their standard character equivalents
+/// - `numpad_add`/`numpad_subtract`/etc. → numpad keys
+///
+/// Falls back to [`parse_chord`] for standard key names.
+fn parse_vscode_chord(s: &str) -> Result<KeyChord> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err(crabideError::ConfigParse {
+            file: "keybindings".into(),
+            message: "empty chord string".into(),
+        });
+    }
+
+    // Split into modifier parts and the final key.
+    let parts: Vec<&str> = s.split('+').collect();
+    if parts.is_empty() {
+        return Err(crabideError::ConfigParse {
+            file: "keybindings".into(),
+            message: format!("empty chord string: {s:?}"),
+        });
+    }
+
+    let mut modifiers = Modifiers::empty();
+    let key_str = parts.last().unwrap().trim();
+    for part in &parts[..parts.len() - 1] {
+        match part.trim().to_lowercase().as_str() {
+            "ctrl" | "control" => modifiers |= Modifiers::CTRL,
+            "shift" => modifiers |= Modifiers::SHIFT,
+            "alt" | "option" => modifiers |= Modifiers::ALT,
+            "meta" | "cmd" | "win" | "super" => modifiers |= Modifiers::META,
+            unknown => {
+                return Err(crabideError::ConfigParse {
+                    file: "keybindings".into(),
+                    message: format!("unknown modifier: {unknown:?}"),
+                })
+            }
+        }
+    }
+
+    let key = map_vscode_key(key_str)?;
+    Ok(KeyChord { modifiers, key })
+}
+
+/// Map a VS Code key name to a crabide [`Key`].
+///
+/// Handles OEM key names (Windows virtual-key codes) and numpad keys that
+/// VS Code uses, falling back to [`parse_key`] for standard names.
+fn map_vscode_key(s: &str) -> Result<Key> {
+    let lower = s.to_lowercase();
+    match lower.as_str() {
+        // VS Code OEM key names (Windows virtual-key codes)
+        "oem_1" => Ok(Key::Char(';')),
+        "oem_plus" => Ok(Key::Char('=')),
+        "oem_comma" => Ok(Key::Char(',')),
+        "oem_minus" => Ok(Key::Char('-')),
+        "oem_period" => Ok(Key::Char('.')),
+        "oem_2" => Ok(Key::Char('/')),
+        "oem_3" => Ok(Key::Char('`')),
+        "oem_4" => Ok(Key::Char('[')),
+        "oem_5" => Ok(Key::Char('\\')),
+        "oem_6" => Ok(Key::Char(']')),
+        "oem_7" => Ok(Key::Char('\'')),
+        "oem_8" => Ok(Key::Char('`')),
+        "oem_102" => Ok(Key::Char('\\')),
+        // VS Code numpad key names
+        "numpad0" | "numpad_insert" => Ok(Key::Numpad(0)),
+        "numpad1" | "numpad_end" => Ok(Key::Numpad(1)),
+        "numpad2" | "numpad_down" => Ok(Key::Numpad(2)),
+        "numpad3" | "numpad_page_down" => Ok(Key::Numpad(3)),
+        "numpad4" | "numpad_left" => Ok(Key::Numpad(4)),
+        "numpad5" | "numpad_clear" => Ok(Key::Numpad(5)),
+        "numpad6" | "numpad_right" => Ok(Key::Numpad(6)),
+        "numpad7" | "numpad_home" => Ok(Key::Numpad(7)),
+        "numpad8" | "numpad_up" => Ok(Key::Numpad(8)),
+        "numpad9" | "numpad_page_up" => Ok(Key::Numpad(9)),
+        "numpad_add" | "numpad_multiply" | "numpad_subtract" | "numpad_divide"
+        | "numpad_decimal" | "numpad_enter" | "numpad_separator" => {
+            // Map these to their character equivalents for simplicity.
+            let ch = match lower.as_str() {
+                "numpad_add" => '+',
+                "numpad_multiply" => '*',
+                "numpad_subtract" => '-',
+                "numpad_divide" => '/',
+                "numpad_decimal" => '.',
+                "numpad_enter" => return Ok(Key::Enter),
+                "numpad_separator" => ',',
+                _ => unreachable!(),
+            };
+            Ok(Key::Char(ch))
+        }
+        _ => parse_key(&lower),
+    }
+}
+
+// ── VS Code command → crabide Action mapping ─────────────────────────────────
+
+/// Map a VS Code command ID (e.g. `editor.action.commentLine`) to a crabide
+/// [`Action`]. Known commands are translated; unknown ones become
+/// [`Action::Custom`].
+fn map_vscode_command(cmd: &str) -> Action {
+    match cmd {
+        // File
+        "workbench.action.files.newUntitledFile" => Action::NewFile,
+        "workbench.action.files.openFile" => Action::OpenFile,
+        "workbench.action.files.openFolder" => Action::OpenFolder,
+        "workbench.action.files.save" => Action::SaveFile,
+        "workbench.action.files.saveAs" => Action::SaveFileAs,
+        "workbench.action.files.saveAll" => Action::SaveAll,
+        "workbench.action.closeActiveEditor" => Action::CloseTab,
+        "workbench.action.closeAllEditors" => Action::CloseAllTabs,
+        "workbench.action.quit" => Action::Quit,
+
+        // Edit
+        "undo" => Action::Undo,
+        "redo" => Action::Redo,
+        "editor.action.clipboardCutAction" => Action::Cut,
+        "editor.action.clipboardCopyAction" => Action::Copy,
+        "editor.action.clipboardPasteAction" => Action::Paste,
+        "editor.action.selectAll" => Action::SelectAll,
+        "editor.action.copyLinesDownAction" => Action::DuplicateLine,
+        "editor.action.deleteLines" => Action::DeleteLine,
+        "editor.action.moveLinesUpAction" => Action::MoveLineUp,
+        "editor.action.moveLinesDownAction" => Action::MoveLineDown,
+        "editor.action.insertLineBefore" => Action::InsertNewlineAbove,
+        "editor.action.insertLineAfter" => Action::InsertNewlineBelow,
+        "editor.action.indentLines" => Action::IndentLine,
+        "editor.action.outdentLines" => Action::OutdentLine,
+        "editor.action.commentLine" => Action::ToggleLineComment,
+        "editor.action.blockComment" => Action::ToggleBlockComment,
+
+        // Cursor
+        "cursorUp" => Action::CursorUp,
+        "cursorDown" => Action::CursorDown,
+        "cursorLeft" => Action::CursorLeft,
+        "cursorRight" => Action::CursorRight,
+        "cursorWordLeft" => Action::CursorWordLeft,
+        "cursorWordRight" => Action::CursorWordRight,
+        "cursorHome" => Action::CursorLineStart,
+        "cursorEnd" => Action::CursorLineEnd,
+        "cursorTop" => Action::CursorFileStart,
+        "cursorBottom" => Action::CursorFileEnd,
+        "cursorPageUp" => Action::CursorPageUp,
+        "cursorPageDown" => Action::CursorPageDown,
+        "scrollLineUp" => Action::ScrollLineUp,
+        "scrollLineDown" => Action::ScrollLineDown,
+
+        // Selection
+        "cursorUpSelect" => Action::SelectUp,
+        "cursorDownSelect" => Action::SelectDown,
+        "cursorLeftSelect" => Action::SelectLeft,
+        "cursorRightSelect" => Action::SelectRight,
+        "cursorWordLeftSelect" => Action::SelectWordLeft,
+        "cursorWordRightSelect" => Action::SelectWordRight,
+        "cursorHomeSelect" => Action::SelectLineStart,
+        "cursorEndSelect" => Action::SelectLineEnd,
+        "cursorTopSelect" => Action::SelectFileStart,
+        "cursorBottomSelect" => Action::SelectFileEnd,
+        "editor.action.selectLine" => Action::SelectLine,
+        "editor.action.smartSelect.expand" => Action::ExpandSelection,
+        "editor.action.smartSelect.shrink" => Action::ShrinkSelection,
+        "editor.action.insertCursorAbove" => Action::AddCursorAbove,
+        "editor.action.insertCursorBelow" => Action::AddCursorBelow,
+        "editor.action.addSelectionToNextFindMatch" => Action::AddNextOccurrence,
+        "editor.action.selectHighlights" => Action::SelectAllOccurrences,
+
+        // Delete
+        "deleteLeft" => Action::DeleteCharLeft,
+        "deleteRight" => Action::DeleteCharRight,
+        "deleteWordLeft" => Action::DeleteWordLeft,
+        "deleteWordRight" => Action::DeleteWordRight,
+        "deleteAllLeft" => Action::DeleteLineLeft,
+        "deleteAllRight" => Action::DeleteLineRight,
+
+        // Find / replace
+        "actions.find" => Action::Find,
+        "editor.action.startFindReplaceAction" => Action::FindReplace,
+        "editor.action.nextMatchFindAction" => Action::FindNext,
+        "editor.action.previousMatchFindAction" => Action::FindPrevious,
+        "workbench.action.findInFiles" => Action::FindInFiles,
+        "workbench.action.replaceInFiles" => Action::ReplaceInFiles,
+
+        // Navigation
+        "workbench.action.gotoLine" => Action::GotoLine,
+        "editor.action.goToDeclaration" => Action::GotoDeclaration,
+        "editor.action.goToDefinition" => Action::GotoDefinition,
+        "editor.action.goToImplementation" => Action::GotoImplementation,
+        "editor.action.goToTypeDefinition" => Action::GotoTypeDefinition,
+        "editor.action.goToReferences" => Action::GotoReferences,
+        "workbench.action.gotoSymbol" => Action::GotoSymbol,
+        "workbench.action.navigateBack" => Action::GoBack,
+        "workbench.action.navigateForward" => Action::GoForward,
+        "editor.action.marker.next" => Action::NextDiagnostic,
+        "editor.action.marker.prev" => Action::PreviousDiagnostic,
+
+        // LSP
+        "editor.action.triggerSuggest" => Action::TriggerCompletion,
+        "editor.action.showHover" => Action::ShowHover,
+        "editor.action.showSignatureHelp" => Action::ShowSignatureHelp,
+        "editor.action.rename" => Action::RenameSymbol,
+        "editor.action.quickOutline" => Action::ApplyCodeAction,
+        "editor.action.formatDocument" => Action::FormatDocument,
+        "editor.action.formatSelection" => Action::FormatSelection,
+        "editor.action.organizeImports" => Action::OrganizeImports,
+
+        // View
+        "workbench.action.showCommands" => Action::CommandPalette,
+        "workbench.action.quickOpen" => Action::FuzzyFindFile,
+        "workbench.action.quickOpenNavigateNext" => Action::FuzzyFindSymbol,
+        "workbench.action.toggleSidebarVisibility" => Action::ToggleSidebar,
+        "workbench.action.togglePanel" => Action::TogglePanel,
+        "workbench.action.terminal.toggleTerminal" => Action::ToggleTerminal,
+        "workbench.view.scm" => Action::ToggleGitPanel,
+        "workbench.view.debug" => Action::ToggleDebugPanel,
+        "workbench.view.extensions" => Action::ToggleExtensionsPanel,
+        "workbench.actions.view.problems" => Action::ToggleProblemsPanel,
+        "workbench.action.output.toggleOutput" => Action::ToggleOutputPanel,
+        "editor.action.toggleMinimap" => Action::ToggleMinimap,
+        "editor.action.toggleWordWrap" => Action::ToggleWordWrap,
+        "workbench.action.zoomIn" => Action::ZoomIn,
+        "workbench.action.zoomOut" => Action::ZoomOut,
+        "workbench.action.zoomReset" => Action::ZoomReset,
+        "workbench.action.splitEditorRight" => Action::SplitEditorRight,
+        "workbench.action.splitEditorDown" => Action::SplitEditorDown,
+        "workbench.action.closeEditor" => Action::CloseEditor,
+        "workbench.action.nextEditor" => Action::NextTab,
+        "workbench.action.previousEditor" => Action::PreviousTab,
+
+        // Git
+        "git.commit" => Action::GitCommit,
+        "git.stageAll" => Action::GitStageAll,
+        "git.unstageAll" => Action::GitUnstageAll,
+        "git.cleanAll" => Action::GitDiscardChanges,
+
+        // Debug
+        "editor.debug.action.toggleBreakpoint" => Action::ToggleBreakpoint,
+        "workbench.action.debug.start" => Action::StartDebug,
+        "workbench.action.debug.stop" => Action::StopDebug,
+        "workbench.action.debug.continue" => Action::ContinueDebug,
+        "workbench.action.debug.stepOver" => Action::StepOver,
+        "workbench.action.debug.stepInto" => Action::StepInto,
+        "workbench.action.debug.stepOut" => Action::StepOut,
+        "workbench.action.debug.restart" => Action::RestartDebug,
+
+        // Terminal
+        "workbench.action.terminal.new" => Action::NewTerminal,
+        "workbench.action.terminal.kill" => Action::KillTerminal,
+
+        // Snippets
+        "editor.action.tabSnippetNext" => Action::NextTabstop,
+        "editor.action.tabSnippetPrev" => Action::PreviousTabstop,
+
+        // Trim whitespace
+        "editor.action.trimTrailingWhitespace" => Action::TrimTrailingWhitespace,
+
+        // Column selection
+        "editor.action.insertCursorAboveSelect" => Action::ColumnSelectUp,
+        "editor.action.insertCursorBelowSelect" => Action::ColumnSelectDown,
+
+        // Declaration / type definition
+        "editor.action.revealDeclaration" => Action::GotoDeclaration,
+
+        // Toggle git / debug
+        "git.enableSmartCommit" => Action::ToggleGit,
+        "debug.toggleDebugView" => Action::ToggleDebug,
+
+        // Move tab
+        "workbench.action.moveEditorRight" => Action::MoveTabRight,
+        "workbench.action.moveEditorLeft" => Action::MoveTabLeft,
+
+        // Unknown command → Custom action
+        _ => Action::Custom(cmd.to_owned()),
+    }
+}
+
 /// Runtime context for evaluating `when` conditions.
 ///
 /// Holds a set of boolean keys and string-valued keys that extensions and the
@@ -665,6 +949,16 @@ struct TomlBinding {
     when: Option<String>,
 }
 
+// ── VS Code keybindings.json representation ──────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct VsCodeBinding {
+    key: String,
+    command: String,
+    #[serde(default)]
+    when: Option<String>,
+}
+
 // ── KeybindingEngine ──────────────────────────────────────────────────────────
 
 pub struct KeybindingEngine {
@@ -695,7 +989,15 @@ impl KeybindingEngine {
             return Ok(());
         }
         let content = std::fs::read_to_string(path)?;
-        self.load_toml(&content, &path.display().to_string())
+        let fname = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+        if fname.ends_with(".json") {
+            self.load_vscode_json(&content, &path.display().to_string())
+        } else {
+            self.load_toml(&content, &path.display().to_string())
+        }
     }
 
     pub fn load_toml(&mut self, toml_str: &str, source: &str) -> Result<()> {
@@ -737,6 +1039,89 @@ impl KeybindingEngine {
             }
         }
         Ok(())
+    }
+
+    /// Import bindings from a VS Code `keybindings.json` file.
+    ///
+    /// The file must contain a JSON array of objects with `key`, `command`, and
+    /// optional `when` fields. If `command` starts with `-` the binding is
+    /// treated as a removal (the existing binding for that key is deleted).
+    /// Otherwise the `command` string is mapped to a crabide [`Action`] —
+    /// known VS Code command IDs are translated, and unknown commands become
+    /// [`Action::Custom`].
+    pub fn load_vscode_json(&mut self, json_str: &str, source: &str) -> Result<()> {
+        let entries: Vec<VsCodeBinding> =
+            serde_json::from_str(json_str).map_err(|e| crabideError::ConfigParse {
+                file: source.to_owned(),
+                message: format!("invalid VS Code keybindings JSON: {e}"),
+            })?;
+
+        for entry in entries {
+            let command = entry.command.trim().to_owned();
+
+            // VS Code uses `-command` to remove a binding.
+            if let Some(remove_cmd) = command.strip_prefix('-') {
+                self.remove_binding_by_key(&entry.key, remove_cmd);
+                continue;
+            }
+
+            let action = map_vscode_command(&command);
+            let chord_strs: Vec<&str> = entry.key.split_whitespace().collect();
+            if chord_strs.len() > 2 {
+                log::warn!(
+                    "VS Code keybinding with >2 chords not supported, skipping: {:?}",
+                    entry.key
+                );
+                continue;
+            }
+            let mut chords = Vec::new();
+            for cs in &chord_strs {
+                match parse_vscode_chord(cs) {
+                    Ok(c) => chords.push(c),
+                    Err(e) => {
+                        log::warn!("Invalid VS Code chord {cs:?}: {e}");
+                        continue;
+                    }
+                }
+            }
+            if !chords.is_empty() {
+                let when_condition = entry
+                    .when
+                    .as_deref()
+                    .map(WhenCondition::parse)
+                    .unwrap_or(WhenCondition::True);
+                self.bindings.push(ParsedBinding {
+                    chords,
+                    action,
+                    when_condition,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Remove the first binding whose key matches `key_str` and whose action
+    /// maps to the given VS Code `command`. Used for the `-command` removal
+    /// syntax in VS Code keybindings.json.
+    fn remove_binding_by_key(&mut self, key_str: &str, command: &str) {
+        let target_action = map_vscode_command(command);
+        let chord_strs: Vec<&str> = key_str.split_whitespace().collect();
+        let mut chords = Vec::new();
+        for cs in &chord_strs {
+            if let Ok(c) = parse_vscode_chord(cs) {
+                chords.push(c);
+            }
+        }
+        if chords.is_empty() {
+            return;
+        }
+        let pos = self
+            .bindings
+            .iter()
+            .position(|b| b.chords == chords && b.action == target_action);
+        if let Some(i) = pos {
+            self.bindings.remove(i);
+        }
     }
 
     /// Dispatches a key press, returning the matching `Action` if any.
@@ -2030,5 +2415,247 @@ mod tests {
     fn keychord_display_meta_alone() {
         let chord = KeyChord::new(Modifiers::META, Key::Char('q'));
         assert_eq!(chord.to_string(), "meta+q");
+    }
+
+    // ── VS Code keybindings.json import ──────────────────────────────────
+
+    #[test]
+    fn vscode_json_basic_import() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let old_count = engine.bindings().len();
+        let json = r#"[
+            { "key": "ctrl+alt+t", "command": "workbench.action.files.newUntitledFile" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        assert_eq!(engine.bindings().len(), old_count + 1);
+        let chord = parse_chord("ctrl+alt+t").unwrap();
+        assert_eq!(engine.press(chord, None), Some(Action::NewFile));
+    }
+
+    #[test]
+    fn vscode_json_with_when() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let json = r#"[
+            { "key": "ctrl+alt+e", "command": "workbench.action.showCommands", "when": "editorFocused" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        let chord = parse_chord("ctrl+alt+e").unwrap();
+        // Without context, when condition fails -> no match.
+        assert!(engine.press(chord.clone(), None).is_none());
+        // With matching context.
+        let mut ctx = WhenContext::new();
+        ctx.set_bool("editorFocused", true);
+        assert_eq!(
+            engine.press(chord, Some(&ctx)),
+            Some(Action::CommandPalette)
+        );
+    }
+
+    #[test]
+    fn vscode_json_unknown_command_becomes_custom() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let json = r#"[
+            { "key": "ctrl+shift+r", "command": "myExtension.doSomething" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        let chord = parse_chord("ctrl+shift+r").unwrap();
+        assert_eq!(
+            engine.press(chord, None),
+            Some(Action::Custom("myExtension.doSomething".to_owned()))
+        );
+    }
+
+    #[test]
+    fn vscode_json_removal_prefix() {
+        let mut engine = KeybindingEngine::with_defaults();
+        // First add a binding.
+        engine.bind("ctrl+shift+alt+x", Action::NewFile);
+        let count_after_add = engine.bindings().len();
+        // Now remove it using the VS Code `-command` syntax.
+        let json = r#"[
+            { "key": "ctrl+shift+alt+x", "command": "-workbench.action.files.newUntitledFile" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        assert_eq!(engine.bindings().len(), count_after_add - 1);
+        let chord = parse_chord("ctrl+shift+alt+x").unwrap();
+        assert!(engine.press(chord, None).is_none());
+    }
+
+    #[test]
+    fn vscode_json_malformed_returns_error() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let result = engine.load_vscode_json("this is not json {{", "bad-source");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn vscode_json_empty_array() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let old_count = engine.bindings().len();
+        engine.load_vscode_json("[]", "test").unwrap();
+        assert_eq!(engine.bindings().len(), old_count);
+    }
+
+    #[test]
+    fn vscode_json_multiple_bindings() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let json = r#"[
+            { "key": "ctrl+alt+n", "command": "workbench.action.files.newUntitledFile" },
+            { "key": "ctrl+alt+f", "command": "editor.action.formatDocument" },
+            { "key": "f12", "command": "editor.action.goToDefinition" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        assert_eq!(
+            engine.press(parse_chord("ctrl+alt+n").unwrap(), None),
+            Some(Action::NewFile)
+        );
+        assert_eq!(
+            engine.press(parse_chord("ctrl+alt+f").unwrap(), None),
+            Some(Action::FormatDocument)
+        );
+        assert_eq!(
+            engine.press(parse_chord("f12").unwrap(), None),
+            Some(Action::GotoDefinition)
+        );
+    }
+
+    #[test]
+    fn vscode_json_oem_key_mapping() {
+        let chord = parse_vscode_chord("ctrl+oem_1").unwrap();
+        assert!(chord.modifiers.contains(Modifiers::CTRL));
+        assert_eq!(chord.key, Key::Char(';'));
+    }
+
+    #[test]
+    fn vscode_json_oem_bracket_keys() {
+        assert_eq!(parse_vscode_chord("oem_4").unwrap().key, Key::Char('['));
+        assert_eq!(parse_vscode_chord("oem_6").unwrap().key, Key::Char(']'));
+        assert_eq!(parse_vscode_chord("oem_5").unwrap().key, Key::Char('\\'));
+    }
+
+    #[test]
+    fn vscode_json_numpad_keys() {
+        assert_eq!(parse_vscode_chord("numpad0").unwrap().key, Key::Numpad(0));
+        assert_eq!(parse_vscode_chord("numpad9").unwrap().key, Key::Numpad(9));
+        assert_eq!(
+            parse_vscode_chord("numpad_add").unwrap().key,
+            Key::Char('+')
+        );
+        assert_eq!(parse_vscode_chord("numpad_enter").unwrap().key, Key::Enter);
+    }
+
+    #[test]
+    fn vscode_json_cmd_maps_to_meta() {
+        let chord = parse_vscode_chord("cmd+s").unwrap();
+        assert!(chord.modifiers.contains(Modifiers::META));
+        assert_eq!(chord.key, Key::Char('s'));
+    }
+
+    #[test]
+    fn vscode_json_option_maps_to_alt() {
+        let chord = parse_vscode_chord("option+x").unwrap();
+        assert!(chord.modifiers.contains(Modifiers::ALT));
+        assert_eq!(chord.key, Key::Char('x'));
+    }
+
+    #[test]
+    fn vscode_json_two_chord_binding() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let json = r#"[
+            { "key": "ctrl+k ctrl+d", "command": "editor.action.formatDocument" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        let first = parse_chord("ctrl+k").unwrap();
+        let second = parse_chord("ctrl+d").unwrap();
+        let _ = engine.press(first, None);
+        assert!(engine.has_pending_chord());
+        assert_eq!(engine.press(second, None), Some(Action::FormatDocument));
+    }
+
+    #[test]
+    fn vscode_json_command_mapping_spot_checks() {
+        // File commands
+        assert_eq!(
+            map_vscode_command("workbench.action.files.save"),
+            Action::SaveFile
+        );
+        assert_eq!(
+            map_vscode_command("workbench.action.files.saveAs"),
+            Action::SaveFileAs
+        );
+        assert_eq!(
+            map_vscode_command("workbench.action.files.saveAll"),
+            Action::SaveAll
+        );
+        // Edit commands
+        assert_eq!(map_vscode_command("undo"), Action::Undo);
+        assert_eq!(map_vscode_command("redo"), Action::Redo);
+        assert_eq!(
+            map_vscode_command("editor.action.commentLine"),
+            Action::ToggleLineComment
+        );
+        assert_eq!(
+            map_vscode_command("editor.action.blockComment"),
+            Action::ToggleBlockComment
+        );
+        // Navigation
+        assert_eq!(
+            map_vscode_command("editor.action.goToDefinition"),
+            Action::GotoDefinition
+        );
+        assert_eq!(
+            map_vscode_command("editor.action.goToReferences"),
+            Action::GotoReferences
+        );
+        // LSP
+        assert_eq!(
+            map_vscode_command("editor.action.triggerSuggest"),
+            Action::TriggerCompletion
+        );
+        assert_eq!(
+            map_vscode_command("editor.action.rename"),
+            Action::RenameSymbol
+        );
+        // Debug
+        assert_eq!(
+            map_vscode_command("workbench.action.debug.start"),
+            Action::StartDebug
+        );
+        assert_eq!(
+            map_vscode_command("workbench.action.debug.stop"),
+            Action::StopDebug
+        );
+        // Terminal
+        assert_eq!(
+            map_vscode_command("workbench.action.terminal.new"),
+            Action::NewTerminal
+        );
+        // Unknown
+        assert_eq!(
+            map_vscode_command("my.custom.command"),
+            Action::Custom("my.custom.command".to_owned())
+        );
+    }
+
+    #[test]
+    fn vscode_json_invalid_chord_skipped() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let json = r#"[
+            { "key": "ctrl+bogus_modifier+x", "command": "workbench.action.files.newUntitledFile" }
+        ]"#;
+        // Should not error — invalid chord is logged and skipped.
+        engine.load_vscode_json(json, "test").unwrap();
+    }
+
+    #[test]
+    fn vscode_json_removal_nonexistent_binding_is_noop() {
+        let mut engine = KeybindingEngine::with_defaults();
+        let count_before = engine.bindings().len();
+        let json = r#"[
+            { "key": "ctrl+shift+alt+z", "command": "-workbench.action.files.newUntitledFile" }
+        ]"#;
+        engine.load_vscode_json(json, "test").unwrap();
+        // No binding existed for that key, so count unchanged.
+        assert_eq!(engine.bindings().len(), count_before);
     }
 }
