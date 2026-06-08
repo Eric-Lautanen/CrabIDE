@@ -160,7 +160,10 @@ pub struct Grid {
     pub mouse_normal: bool,
     /// DECSET 1003 — button-event mouse tracking (all motion events).
     pub mouse_button_event: bool,
+    /// DECSET 1006 — SGR extended mouse mode (used by most modern terminals).
+    pub mouse_sgr: bool,
 
+    // vte parser
     // vte parser
     parser: Parser,
 }
@@ -196,10 +199,79 @@ impl Grid {
             mouse_x10: false,
             mouse_normal: false,
             mouse_button_event: false,
+            mouse_sgr: false,
             parser: Parser::new(),
         }
     }
 
+    /// Whether any mouse reporting mode is active.
+    pub fn mouse_reporting_active(&self) -> bool {
+        self.mouse_x10 || self.mouse_normal || self.mouse_button_event
+    }
+
+    /// Encode a mouse button press event as an escape sequence.
+    /// Returns `None` if mouse reporting is not active.
+    pub fn encode_mouse_press(&self, button: MouseButton, col: u16, row: u16) -> Option<Vec<u8>> {
+        if !self.mouse_reporting_active() {
+            return None;
+        }
+        Some(if self.mouse_sgr {
+            sgr_mouse_encode(button, col, row, false)
+        } else {
+            x10_mouse_encode(button, col, row)
+        })
+    }
+
+    /// Encode a mouse button release event as an escape sequence.
+    /// Returns `None` if the active mode does not report releases.
+    pub fn encode_mouse_release(&self, button: MouseButton, col: u16, row: u16) -> Option<Vec<u8>> {
+        if !self.mouse_normal && !self.mouse_button_event {
+            return None;
+        }
+        Some(if self.mouse_sgr {
+            sgr_mouse_encode(button, col, row, true)
+        } else {
+            x10_mouse_encode_release(button, col, row)
+        })
+    }
+
+    /// Encode a mouse motion event (while a button is held) as an escape sequence.
+    /// Returns `None` if the active mode does not report motion.
+    pub fn encode_mouse_motion(&self, button: MouseButton, col: u16, row: u16) -> Option<Vec<u8>> {
+        if !self.mouse_normal && !self.mouse_button_event {
+            return None;
+        }
+        Some(if self.mouse_sgr {
+            sgr_mouse_encode(button, col, row, false)
+        } else {
+            x10_mouse_encode_motion(button, col, row)
+        })
+    }
+
+    /// Encode a mouse scroll event as an escape sequence.
+    /// Returns `None` if mouse reporting is not active.
+    pub fn encode_mouse_scroll(
+        &self,
+        direction: ScrollDirection,
+        col: u16,
+        row: u16,
+    ) -> Option<Vec<u8>> {
+        if !self.mouse_reporting_active() {
+            return None;
+        }
+        let button = match direction {
+            ScrollDirection::Up => MouseButton::ScrollUp,
+            ScrollDirection::Down => MouseButton::ScrollDown,
+        };
+        Some(if self.mouse_sgr {
+            sgr_mouse_encode(button, col, row, true)
+        } else {
+            x10_mouse_encode(button, col, row)
+        })
+    }
+}
+
+impl Grid {
     /// Feed raw bytes from the PTY into the grid.
     pub fn feed(&mut self, bytes: &[u8]) {
         // vte 0.15: advance() takes a &[u8] slice, not individual bytes.
@@ -272,6 +344,7 @@ impl Grid {
             mouse_x10: self.mouse_x10,
             mouse_normal: self.mouse_normal,
             mouse_button_event: self.mouse_button_event,
+            mouse_sgr: self.mouse_sgr,
         }
     }
 
@@ -741,6 +814,12 @@ impl Perform for Grid {
             'l' if params.iter().any(|s| s.first().copied() == Some(1003)) => {
                 self.mouse_button_event = false;
             }
+            'h' if params.iter().any(|s| s.first().copied() == Some(1006)) => {
+                self.mouse_sgr = true;
+            }
+            'l' if params.iter().any(|s| s.first().copied() == Some(1006)) => {
+                self.mouse_sgr = false;
+            }
             // Alternate screen: switch in (?1049h) / out (?1049l)
             'h' if params.iter().any(|s| s.first().copied() == Some(1049)) => {
                 self.alt_active = true;
@@ -872,6 +951,77 @@ fn cell_attrs_to_event(a: Attrs) -> CellAttrs {
         out.insert(CellAttrs::DIM);
     }
     out
+}
+
+// ── Mouse encoding types ────────────────────────────────────────────────────
+
+/// Mouse button for terminal mouse reporting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseButton {
+    Left,
+    Middle,
+    Right,
+    ScrollUp,
+    ScrollDown,
+}
+
+/// Scroll direction for mouse wheel events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollDirection {
+    Up,
+    Down,
+}
+
+// ── Mouse encoding helpers ──────────────────────────────────────────────────
+
+/// Encode a mouse button press using X10 protocol: `\e[Mbxy`
+/// where b = 32 + button_code, x = 32 + col + 1, y = 32 + row + 1.
+fn x10_mouse_encode(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
+    let cb = mouse_button_code(button, false);
+    let b = (32 + cb) as u8;
+    let x = (32 + col.saturating_add(1).min(223) as u32) as u8;
+    let y = (32 + row.saturating_add(1).min(223) as u32) as u8;
+    vec![0x1b, b'[', b'M', b, x, y]
+}
+
+/// Encode a mouse button release using X10 protocol.
+fn x10_mouse_encode_release(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
+    let cb = mouse_button_code(button, true);
+    let b = (32 + cb) as u8;
+    let x = (32 + col.saturating_add(1).min(223) as u32) as u8;
+    let y = (32 + row.saturating_add(1).min(223) as u32) as u8;
+    vec![0x1b, b'[', b'M', b, x, y]
+}
+
+/// Encode a mouse motion event using X10 protocol (button + 32 motion flag).
+fn x10_mouse_encode_motion(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
+    let cb = mouse_button_code(button, false) + 32;
+    let b = (32 + cb) as u8;
+    let x = (32 + col.saturating_add(1).min(223) as u32) as u8;
+    let y = (32 + row.saturating_add(1).min(223) as u32) as u8;
+    vec![0x1b, b'[', b'M', b, x, y]
+}
+
+/// Encode a mouse event using SGR extended protocol: `\e[<b;x;yM` (press) or `\e[<b;x;ym` (release).
+fn sgr_mouse_encode(button: MouseButton, col: u16, row: u16, release: bool) -> Vec<u8> {
+    let cb = mouse_button_code(button, release);
+    let suffix = if release { 'm' } else { 'M' };
+    format!("\x1b[<{cb};{};{}{suffix}", col + 1, row + 1).into_bytes()
+}
+
+/// Map a `MouseButton` to the X10/SGR button code.
+/// - Left=0, Middle=1, Right=2, Release=3, ScrollUp=4, ScrollDown=5
+fn mouse_button_code(button: MouseButton, release: bool) -> u32 {
+    match button {
+        MouseButton::Left if release => 3,
+        MouseButton::Left => 0,
+        MouseButton::Middle if release => 3,
+        MouseButton::Middle => 1,
+        MouseButton::Right if release => 3,
+        MouseButton::Right => 2,
+        MouseButton::ScrollUp => 4 + 64,
+        MouseButton::ScrollDown => 5 + 64,
+    }
 }
 
 /// Approximate Unicode character display width.

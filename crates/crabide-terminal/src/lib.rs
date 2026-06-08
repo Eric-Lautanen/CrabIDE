@@ -10,5 +10,5 @@ pub mod manager;
 pub mod pty;
 
 pub use crabide_core::error::{crabideError, Result};
-pub use grid::Grid;
+pub use grid::{Grid, MouseButton, ScrollDirection};
 pub use manager::{TerminalManager, TerminalProfile};

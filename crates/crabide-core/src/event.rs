@@ -240,6 +240,8 @@ pub struct TerminalGridDelta {
     pub mouse_normal: bool,
     /// Whether button-event mouse tracking is active (DECSET 1003).
     pub mouse_button_event: bool,
+    /// Whether SGR extended mouse mode is active (DECSET 1006).
+    pub mouse_sgr: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1153,6 +1155,7 @@ mod tests {
                 mouse_x10: false,
                 mouse_normal: false,
                 mouse_button_event: false,
+                mouse_sgr: false,
             },
         };
         let s = format!("{evt}");

@@ -435,6 +435,7 @@ mod tests {
             mouse_x10: false,
             mouse_normal: false,
             mouse_button_event: false,
+            mouse_sgr: false,
             rows: vec![crabide_core::event::ChangedRow {
                 row: 5,
                 cells: vec![
@@ -1365,8 +1366,9 @@ pub struct TerminalInstance {
     pub mouse_normal: bool,
     /// Whether button-event mouse tracking is active (DECSET 1003).
     pub mouse_button_event: bool,
+    /// Whether SGR extended mouse mode is active (DECSET 1006).
+    pub mouse_sgr: bool,
 }
-
 impl TerminalInstance {
     pub fn new(id: u32, cols: u16, grid_rows: u16) -> Self {
         let blank_row = vec![DisplayCell::BLANK; cols as usize];
@@ -1387,9 +1389,12 @@ impl TerminalInstance {
             mouse_x10: false,
             mouse_normal: false,
             mouse_button_event: false,
+            mouse_sgr: false,
         }
     }
+}
 
+impl TerminalInstance {
     /// Apply a grid delta received from the PTY reader.
     pub fn apply_delta(&mut self, delta: &crabide_core::event::TerminalGridDelta) {
         self.cursor_col = delta.cursor_col;
@@ -1399,6 +1404,7 @@ impl TerminalInstance {
         self.mouse_x10 = delta.mouse_x10;
         self.mouse_normal = delta.mouse_normal;
         self.mouse_button_event = delta.mouse_button_event;
+        self.mouse_sgr = delta.mouse_sgr;
         self.scrollback_len = delta.scroll_top;
 
         for changed in &delta.rows {
