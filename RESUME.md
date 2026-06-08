@@ -24,13 +24,25 @@
 **Unicode-width crate ✅**
 - Added `unicode-width` 0.2.2 workspace dependency
 - Replaced hand-rolled CJK/fullwidth/emoji width ranges with `unicode_width::UnicodeWidthChar::width()`
-- All 102 terminal tests pass
+- All 160 terminal tests pass
 
 **Git branch listing, deletion, staged diff ✅**
 - `GitService::list_branches()` → `BranchesListed` event
 - `GitService::delete_branch()` → `OperationCompleted` / `OperationFailed`
 - `GitService::request_diff_staged()` → `DiffStagedUpdated` event
 - `GitPanelState.branches` and `EditorTab.git_staged_hunks` fields added to UI state
+
+**Terminal test coverage increased ✅**
+- Added 58 new unit tests to crabide-terminal (now 160, up from 102)
+- Covers: SGR attributes (dim, strikethrough, reset variants, all-at-once)
+- ED 1 (erase to start of display) and ED 3 (scrollback erase)
+- DECSET mouse modes via feed() for 1000/1002/1003/1006
+- Scroll region edge cases, cursor edge cases, tab operations
+- Resize edge cases, feed edge cases, reverse index edge cases
+- Unicode width (combining, control chars), put_char edge cases
+- Delta consistency, OSC 8/133 edge cases, unknown escapes
+- Fixed `resize()` to properly mark all rows as dirty (was using `Vec::resize`
+  which only marks NEW entries, not existing truncated ones)
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
 
@@ -53,43 +65,7 @@
 
 ## Remaining roadmap items — pick next available
 
-### Easy / self-contained (pick these first)
-
-**Phase 7 (Terminal):**
-- [x] Implement mouse reporting (DECSET 1000/1002/1003)
-- [x] Implement content reflow on terminal resize
-- [x] Implement OSC 8 hyperlinks
-- [x] Implement OSC 133 shell integration markers
-- [x] Add configurable color scheme / theme to TerminalProfile
-- [x] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [x] Add more unit tests to crabide-terminal (now 160, up from 102)
-
-## Remaining roadmap items — pick next available
-
-### Easy / self-contained (pick these first)
-
-**Phase 10 (App):**
-- [x] Window state persistence (size, position, maximized state)
-- [x] Session restore (reopen files from last session)
-
-**Phase 7 (Terminal):**
-- [x] Implement mouse reporting (DECSET 1000/1002/1003)
-- [x] Implement content reflow on terminal resize
-- [x] Implement OSC 8 hyperlinks
-- [x] Implement OSC 133 shell integration markers
-- [x] Add configurable color scheme / theme to TerminalProfile
-- [x] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [ ] Add more unit tests to crabide-terminal (currently 102)
-
-**Phase 6 (Git):**
-- [x] Add branch listing (local + remote)
-- [x] Add branch deletion
-- [x] Add diff for staged changes (index vs HEAD)
-
-**Cross-cutting:**
-- [x] `docs/` directory (now has README.md and ARCHITECTURE.md)
-
-### Medium tasks (after easy items are done)
+### Medium tasks (all easy items are done)
 
 **Phase 2 (Syntax):**
 - [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
