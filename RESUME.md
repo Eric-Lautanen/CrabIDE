@@ -2,6 +2,14 @@
 
 ## Session summary
 
+**Window state persistence ✅**
+- Added `WindowState` struct with serde JSON serialization
+- Saved to `~/.crabide/window_state.json` on app exit via `on_exit()`
+- Loaded on startup in `main.rs` and applied to `eframe::ViewportBuilder`
+- Window size, position (from `outer_rect`), and maximized state tracked each frame
+- `serde` and `serde_json` workspace deps added to crabide-app crate
+- All workspace tests pass, zero new clippy warnings
+
 **Unicode-width crate ✅**
 - Added `unicode-width` 0.2.2 workspace dependency
 - Replaced hand-rolled CJK/fullwidth/emoji width ranges with `unicode_width::UnicodeWidthChar::width()`
@@ -38,6 +46,10 @@
 
 ### Easy / self-contained (pick these first)
 
+**Phase 10 (App):**
+- [x] Window state persistence (size, position, maximized state)
+- [ ] Session restore (reopen files from last session)
+
 **Phase 7 (Terminal) — highest priority:**
 - [x] Implement mouse reporting (DECSET 1000/1002/1003)
 - [x] Implement content reflow on terminal resize
@@ -51,10 +63,6 @@
 - [x] Add branch listing (local + remote)
 - [x] Add branch deletion
 - [x] Add diff for staged changes (index vs HEAD)
-
-**Phase 10 (App):**
-- [ ] Window state persistence (size, position, maximized state)
-- [ ] Session restore (reopen files from last session)
 
 **Cross-cutting:**
 - [ ] `docs/` directory (currently empty)

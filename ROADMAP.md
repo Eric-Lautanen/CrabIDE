@@ -331,7 +331,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [x] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
 - [x] CLI argument parsing (manual parser with `-h`/`-V`/`--log` support — NOT using clap to minimize deps)
 - [x] `Ctrl+C` signal handler for graceful shutdown
-- [ ] Window state persistence (size, position, maximized state)
+- [x] Window state persistence (size, position, maximized state)
 - [ ] Session restore (reopen files from last session)
 
 ### Phase 12 items:
