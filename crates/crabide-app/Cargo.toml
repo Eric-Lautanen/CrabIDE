@@ -65,12 +65,29 @@ serde.workspace = true
 serde_json.workspace = true
 
 # Tree-sitter grammar crates (registered at startup for syntax highlighting)
+tree-sitter.workspace            = true
 tree-sitter-rust.workspace       = true
 tree-sitter-python.workspace     = true
 tree-sitter-javascript.workspace = true
 tree-sitter-json.workspace       = true
 tree-sitter-c.workspace          = true
 tree-sitter-go.workspace         = true
+tree-sitter-typescript.workspace = true
+tree-sitter-cpp.workspace        = true
+tree-sitter-html.workspace       = true
+tree-sitter-css.workspace        = true
+tree-sitter-scss.workspace       = true
+tree-sitter-less.workspace       = true
+tree-sitter-yaml.workspace       = true
+tree-sitter-bash.workspace       = true
+tree-sitter-sql.workspace        = true
+tree-sitter-java.workspace       = true
+tree-sitter-c-sharp.workspace    = true
+tree-sitter-kotlin.workspace     = true
+tree-sitter-ruby.workspace       = true
+tree-sitter-php.workspace        = true
+tree-sitter-toml.workspace       = true
+tree-sitter-markdown.workspace   = true
 
 [features]
 default         = ["git-support"]

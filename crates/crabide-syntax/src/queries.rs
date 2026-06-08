@@ -410,7 +410,615 @@ pub const MARKDOWN_HIGHLIGHTS: &str = r#"
 (html_block) @markup.raw.block
 "#;
 
-// ── Dispatcher ────────────────────────────────────────────────────────────────
+// ── HTML ───────────────────────────────────────────────────────────────────────
+
+pub const HTML_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(doctype) @keyword
+
+(text) @none
+
+(element
+  (start_tag (tag_name) @tag)
+  (self_closing_tag (tag_name) @tag)
+  (end_tag (tag_name) @tag))
+
+(attribute
+  (attribute_name) @variable.member
+  (quoted_attribute_value (attribute_value) @string))
+
+(script_element
+  (raw_text) @none)
+
+(style_element
+  (raw_text) @none)
+
+[
+  "="
+] @operator
+"#;
+
+// ── CSS / SCSS / LESS ─────────────────────────────────────────────────────────
+
+pub const CSS_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(property_name) @variable.member
+(property_value) @string
+
+(integer_value) @number
+(float_value) @number.float
+
+(unit) @keyword
+
+(color_value) @string.special
+
+(string_value) @string
+
+(class_selector (class_name) @type)
+(id_selector (id_name) @type.special
+  (#match? @type.special "^[a-zA-Z]"))
+(type_selector (tag_name) @tag)
+(universal_selector) @operator
+
+(pseudo_class_selector (pseudo_class_name) @function)
+(pseudo_element_selector (pseudo_element_name) @function)
+
+(function_name) @function.call
+
+[
+  "@import" "@media" "@keyframes" "@font-face" "@supports"
+  "@namespace" "@page" "@layer" "@container" "@scope"
+] @keyword
+
+[
+  "!" "important"
+] @keyword
+
+[
+  "{" "}" "(" ")" "[" "]"
+] @punctuation.bracket
+
+[
+  "," "." ";"
+] @punctuation.delimiter
+
+[
+  ":" ":"
+] @operator
+"#;
+
+pub const SCSS_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(property_name) @variable.member
+(property_value) @string
+
+(integer_value) @number
+(float_value) @number.float
+
+(unit) @keyword
+
+(color_value) @string.special
+
+(string_value) @string
+
+(class_selector (class_name) @type)
+(id_selector (id_name) @type.special)
+(type_selector (tag_name) @tag)
+(universal_selector) @operator
+
+(pseudo_class_selector (pseudo_class_name) @function)
+(pseudo_element_selector (pseudo_element_name) @function)
+
+(function_name) @function.call
+
+(variable_name) @variable
+
+(include_statement) @keyword
+(mixin_statement name: (identifier) @function)
+(function_declaration name: (identifier) @function)
+
+[
+  "@import" "@media" "@keyframes" "@font-face" "@supports"
+  "@namespace" "@page" "@layer" "@container" "@scope"
+  "@mixin" "@include" "@extend" "@at-root" "@use" "@forward"
+] @keyword
+
+[
+  "!" "important" "default"
+] @keyword
+
+[
+  "{" "}" "(" ")" "[" "]"
+] @punctuation.bracket
+
+[
+  "," "." ";"
+] @punctuation.delimiter
+
+[
+  ":" ":"
+] @operator
+
+(interpolation) @string.special
+"#;
+
+pub const LESS_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(property_name) @variable.member
+(property_value) @string
+
+(integer_value) @number
+(float_value) @number.float
+
+(unit) @keyword
+
+(color_value) @string.special
+
+(string_value) @string
+
+(class_selector (class_name) @type)
+(id_selector (id_name) @type.special)
+(type_selector (tag_name) @tag)
+(universal_selector) @operator
+
+(pseudo_class_selector (pseudo_class_name) @function)
+(pseudo_element_selector (pseudo_element_name) @function)
+
+(function_name) @function.call
+
+(variable_name) @variable
+
+(mixin_call) @function.call
+(mixin_definition name: (identifier) @function)
+
+[
+  "@import" "@media" "@keyframes"
+] @keyword
+
+[
+  "{" "}" "(" ")" "[" "]"
+] @punctuation.bracket
+
+[
+  "," "." ";"
+] @punctuation.delimiter
+
+[
+  ":" ":"
+] @operator
+"#;
+
+// ── YAML ──────────────────────────────────────────────────────────────────────
+
+pub const YAML_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(anchor) @label
+(alias) @label
+
+(block_mapping_pair key: (flow_node (plain_scalar) @variable.member))
+(block_mapping_pair key: (block_mapping_pair key: (flow_node (plain_scalar) @variable.member))
+
+(double_quote_scalar) @string
+(single_quote_scalar) @string
+(block_scalar) @string
+(string_scalar) @string
+
+(integer_scalar) @number
+(float_scalar) @number.float
+(boolean_scalar) @boolean
+(null_scalar) @constant.builtin
+
+[
+  "true" "false" "yes" "no" "on" "off"
+] @boolean
+
+[
+  "null" "~"
+] @constant.builtin
+
+[
+  "---" "..."
+] @punctuation.special
+
+[
+  "-" ":"
+] @punctuation.delimiter
+
+[
+  "&" "*" ">"
+] @operator
+"#;
+
+// ── Shell/Bash ─────────────────────────────────────────────────────────────────
+
+pub const BASH_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(string) @string
+(string_expansion) @string.special
+
+(command_name) @function.call
+(command (command_name) @function.call)
+
+(file_descriptor) @number
+
+(function_definition name: (word) @function)
+
+(variable_name) @variable
+
+(expansion) @string.special
+
+(arithmetic_expansion) @string.special
+
+(process_substitution) @string.special
+
+[
+  "if" "then" "else" "elif" "fi" "case" "esac" "for" "while"
+  "until" "do" "done" "in" "select" "function" "time" "declare"
+  "local" "export" "readonly" "typeset" "unset" "set" "shopt"
+] @keyword
+
+[
+  "&&" "||" "!" "|" "&" ";"
+] @operator
+
+[
+  "(" ")" "{" "}" "[" "]"
+] @punctuation.bracket
+
+["," "."] @punctuation.delimiter
+
+(redirect) @operator
+
+(heredoc_start) @keyword
+(heredoc_body) @string
+(heredoc_end) @keyword
+
+(declaration_command name: (word) @function)
+(test_command) @function.call
+"#;
+
+// ── SQL ────────────────────────────────────────────────────────────────────────
+
+pub const SQL_HIGHLIGHTS: &str = r#"
+(comment) @comment
+((comment) @comment
+  (#match? @comment "^--"))
+
+(string) @string
+(escape_sequence) @string.escape
+
+(number_literal) @number
+(true) @boolean
+(false) @boolean
+(null) @constant.builtin
+
+(column_definition name: (identifier) @variable.member)
+(table name: (identifier) @type)
+(view name: (identifier) @type)
+(function name: (identifier) @function)
+(procedure name: (identifier) @function)
+(trigger name: (identifier) @function)
+
+(call_expression function: (identifier) @function.call)
+
+[
+  "SELECT" "FROM" "WHERE" "AND" "OR" "NOT" "IN" "IS" "NULL"
+  "LIKE" "BETWEEN" "EXISTS" "ALL" "ANY" "SOME"
+  "INSERT" "INTO" "VALUES" "UPDATE" "SET" "DELETE"
+  "CREATE" "TABLE" "DROP" "ALTER" "INDEX" "VIEW" "TRIGGER"
+  "PROCEDURE" "FUNCTION" "BEGIN" "END" "DECLARE"
+  "IF" "ELSE" "THEN" "WHILE" "LOOP" "CASE" "WHEN"
+  "JOIN" "LEFT" "RIGHT" "INNER" "OUTER" "CROSS" "ON"
+  "ORDER" "BY" "GROUP" "HAVING" "LIMIT" "OFFSET"
+  "UNION" "INTERSECT" "EXCEPT" "AS" "DISTINCT" "TOP"
+  "PRIMARY" "KEY" "FOREIGN" "REFERENCES" "CONSTRAINT"
+  "DEFAULT" "CHECK" "UNIQUE" "CASCADE" "RESTRICT"
+  "ASC" "DESC" "NULLS" "FIRST" "LAST"
+  "GRANT" "REVOKE" "COMMIT" "ROLLBACK" "SAVEPOINT"
+] @keyword
+
+[
+  "=" "==" "!=" "<>" "<" "<=" ">" ">="
+  "+" "-" "*" "/" "%"
+  "||"
+] @operator
+
+["(" ")" "[" "]"] @punctuation.bracket
+["," "." ";"] @punctuation.delimiter
+"#;
+
+// ── Java ───────────────────────────────────────────────────────────────────────
+
+pub const JAVA_HIGHLIGHTS: &str = r#"
+(line_comment) @comment
+(block_comment) @comment
+
+(string_literal) @string
+(char_literal) @string.special
+
+(integer_literal) @number
+(float_literal) @number.float
+(boolean_literal) @boolean
+(null_literal) @constant.builtin
+
+(method_declaration name: (identifier) @function)
+(method_invocation name: (identifier) @function.call)
+
+(class_declaration name: (identifier) @type)
+(interface_declaration name: (identifier) @type)
+(enum_declaration name: (identifier) @type)
+(record_declaration name: (identifier) @type)
+(annotation_type_declaration name: (identifier) @type)
+
+(type_identifier) @type
+
+(identifier) @variable
+
+(this) @variable.builtin
+(super) @variable.builtin
+
+(annotation) @attribute
+
+[
+  "abstract" "assert" "boolean" "break" "byte" "case" "catch"
+  "char" "class" "const" "continue" "default" "do" "double"
+  "else" "enum" "extends" "final" "finally" "float" "for"
+  "goto" "if" "implements" "import" "instanceof" "int"
+  "interface" "long" "native" "new" "package" "private"
+  "protected" "public" "return" "short" "static" "strictfp"
+  "super" "switch" "synchronized" "this" "throw" "throws"
+  "transient" "try" "void" "volatile" "while" "module"
+  "requires" "exports" "opens" "uses" "provides" "to" "with"
+  "record" "sealed" "permits" "yield" "var"
+] @keyword
+
+[
+  "+" "-" "*" "/" "%" "=" "==" "!=" "<" "<=" ">" ">=" "&&"
+  "||" "!" "&" "|" "^" "~" "<<" ">>" ">>>" "+=" "-=" "*="
+  "/=" "%=" "&=" "|=" "^=" "<<=" ">>=" ">>>=" "->" "::"
+  "instanceof"
+] @operator
+
+["(" ")" "{" "}" "[" "]"] @punctuation.bracket
+["," "." ";" ":"] @punctuation.delimiter
+"#;
+
+// ── C# ─────────────────────────────────────────────────────────────────────────
+
+pub const CSHARP_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(string_literal) @string
+(char_literal) @string.special
+(verbatim_string_literal) @string
+(raw_string_literal) @string
+(interpolation) @string.special
+
+(integer_literal) @number
+(real_literal) @number.float
+(boolean_literal) @boolean
+(null_literal) @constant.builtin
+
+(method_declaration name: (identifier) @function)
+(invocation_expression function: (identifier) @function.call)
+
+(class_declaration name: (identifier) @type)
+(struct_declaration name: (identifier) @type)
+(interface_declaration name: (identifier) @type)
+(enum_declaration name: (identifier) @type)
+(record_declaration name: (identifier) @type)
+
+(type_identifier) @type
+
+(identifier) @variable
+
+(this_expression) @variable.builtin
+(base_expression) @variable.builtin
+
+(attribute) @attribute
+
+(namespace_declaration name: (identifier) @namespace)
+(using_directive (identifier) @namespace)
+
+[
+  "abstract" "as" "async" "await" "base" "bool" "break" "byte"
+  "case" "catch" "char" "checked" "class" "const" "continue"
+  "decimal" "default" "delegate" "do" "double" "else" "enum"
+  "event" "explicit" "extern" "false" "finally" "fixed" "float"
+  "for" "foreach" "goto" "if" "implicit" "in" "int" "interface"
+  "internal" "is" "lock" "long" "namespace" "new" "null"
+  "object" "operator" "out" "override" "params" "private"
+  "protected" "public" "readonly" "record" "ref" "return"
+  "sbyte" "sealed" "short" "sizeof" "stackalloc" "static"
+  "string" "struct" "switch" "this" "throw" "true" "try"
+  "typeof" "uint" "ulong" "unchecked" "unsafe" "ushort"
+  "using" "virtual" "void" "volatile" "while"
+] @keyword
+
+[
+  "+" "-" "*" "/" "%" "=" "==" "!=" "<" "<=" ">" ">=" "&&"
+  "||" "!" "&" "|" "^" "~" "<<" ">>" "+=" "-=" "*=" "/="
+  "%=" "&=" "|=" "^=" "<<=" ">>=" "->" "::" "??" "?."
+  "=>"
+] @operator
+
+["(" ")" "{" "}" "[" "]"] @punctuation.bracket
+["," "." ";" ":"] @punctuation.delimiter
+"#;
+
+// ── Kotlin ─────────────────────────────────────────────────────────────────────
+
+pub const KOTLIN_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(string_template) @string
+(string_literal) @string
+(char_literal) @string.special
+(interpolation) @string.special
+
+(integer_literal) @number
+(float_literal) @number.float
+(boolean_literal) @boolean
+(null_literal) @constant.builtin
+
+(function_declaration name: (simple_identifier) @function)
+(call_expression function: (simple_identifier) @function.call)
+(call_expression function: (navigation_expression (simple_identifier) @function.call))
+
+(class_declaration name: (simple_identifier) @type)
+(object_declaration name: (simple_identifier) @type)
+(type_identifier) @type
+
+(simple_identifier) @variable
+
+(this_expression) @variable.builtin
+(super_expression) @variable.builtin
+
+(annotation) @attribute
+
+[
+  "abstract" "actual" "annotation" "as" "break" "by" "catch"
+  "class" "companion" "const" "constructor" "continue" "crossinline"
+  "data" "delegate" "do" "dynamic" "else" "enum" "expect" "external"
+  "field" "file" "final" "finally" "for" "fun" "get" "if" "import"
+  "in" "infix" "init" "inline" "inner" "interface" "internal"
+  "is" "it" "lateinit" "noinline" "object" "open" "operator"
+  "out" "override" "package" "param" "private" "property" "protected"
+  "public" "receiver" "reified" "return" "sealed" "set" "setparam"
+  "super" "suspend" "tailrec" "this" "throw" "try" "typealias"
+  "typeof" "val" "var" "vararg" "when" "where" "while"
+] @keyword
+
+[
+  "+" "-" "*" "/" "%" "=" "==" "!=" "<" "<=" ">" ">=" "&&"
+  "||" "!" "&" "|" "^" "~" "<<" ">>" "+=" "-=" "*=" "/="
+  "%=" ".." "..." "->" "::" "?:"
+] @operator
+
+["(" ")" "{" "}" "[" "]"] @punctuation.bracket
+["," "." ";" ":"] @punctuation.delimiter
+"#;
+
+// ── Ruby ───────────────────────────────────────────────────────────────────────
+
+pub const RUBY_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(string) @string
+(interpolation) @string.special
+(heredoc_body) @string
+(regex) @string.special
+
+(integer) @number
+(float) @number.float
+
+(true) @boolean
+(false) @boolean
+(nil) @constant.builtin
+
+(method name: (identifier) @function)
+(call method: (identifier) @function.call)
+
+(class name: (constant) @type)
+(module name: (constant) @namespace)
+
+(constant) @type
+
+(identifier) @variable
+
+(self) @variable.builtin
+
+(symbol) @string.special
+
+[
+  "alias" "and" "begin" "break" "case" "class" "def" "defined?"
+  "do" "else" "elsif" "end" "ensure" "false" "for" "if" "in"
+  "module" "next" "nil" "not" "or" "redo" "rescue" "retry"
+  "return" "self" "super" "then" "true" "undef" "unless"
+  "until" "when" "while" "yield" "__ENCODING__" "__END__"
+  "__FILE__" "__LINE__"
+] @keyword
+
+[
+  "+" "-" "*" "/" "%" "=" "==" "===" "!=" "=~" "!~"
+  "<" "<=" ">" ">=" "<=>" "&&" "||" "!" "&" "|" "^"
+  "<<" ">>" "+=" "-=" "*=" "/=" "**" ".." "..." "->"
+  "=>" "::" "?"
+] @operator
+
+["(" ")" "{" "}" "[" "]"] @punctuation.bracket
+["," "." ";"] @punctuation.delimiter
+"#;
+
+// ── PHP ────────────────────────────────────────────────────────────────────────
+
+pub const PHP_HIGHLIGHTS: &str = r#"
+(comment) @comment
+
+(string) @string
+(encapsed_string) @string
+(heredoc) @string
+(interpolation) @string.special
+
+(integer) @number
+(float) @number.float
+(boolean) @boolean
+(null) @constant.builtin
+
+(function_definition name: (name) @function)
+(method_declaration name: (name) @function)
+(function_call name: (name) @function.call)
+(scoped_call name: (name) @function.call)
+(member_call name: (name) @function.call)
+
+(class_declaration name: (name) @type)
+(interface_declaration name: (name) @type)
+(trait_declaration name: (name) @type)
+(enum_declaration name: (name) @type)
+
+(name) @variable
+
+(this) @variable.builtin
+
+(attribute) @attribute
+
+(php_tag) @keyword
+(php_end_tag) @keyword
+
+[
+  "abstract" "and" "array" "as" "break" "callable" "case"
+  "catch" "class" "clone" "const" "continue" "declare"
+  "default" "die" "do" "echo" "else" "elseif" "empty"
+  "enddeclare" "endfor" "endforeach" "endif" "endswitch"
+  "endwhile" "eval" "exit" "extends" "final" "finally"
+  "fn" "for" "foreach" "function" "global" "goto" "if"
+  "implements" "include" "include_once" "instanceof"
+  "insteadof" "interface" "isset" "list" "match" "namespace"
+  "new" "or" "print" "private" "protected" "public" "readonly"
+  "require" "require_once" "return" "static" "switch" "throw"
+  "trait" "try" "unset" "use" "var" "while" "xor" "yield"
+  "enum" "match"
+] @keyword
+
+[
+  "+" "-" "*" "/" "%" "=" "==" "===" "!=" "!==" "<" "<="
+  ">" ">=" "<=>" "&&" "||" "!" "and" "or" "xor" "&" "|"
+  "^" "~" "<<" ">>" "+=" "-=" "*=" "/=" "%=" "&=" "|="
+  "^=" "<<=" ">>=" ".=" "->" "=>" "::" "..."
+] @operator
+
+["(" ")" "{" "}" "[" "]"] @punctuation.bracket
+["," "." ";"] @punctuation.delimiter
+
+(namespace_definition name: (name) @namespace)
+(use_declaration (name) @namespace)
+"#;
 
 /// Return the embedded highlight query source for a given language, or `""`
 /// if the language has no bundled query.
@@ -426,6 +1034,18 @@ pub fn highlights_query_for(lang: &Language) -> &'static str {
         "json" => JSON_HIGHLIGHTS,
         "toml" => TOML_HIGHLIGHTS,
         "markdown" => MARKDOWN_HIGHLIGHTS,
+        "html" => HTML_HIGHLIGHTS,
+        "css" => CSS_HIGHLIGHTS,
+        "scss" => SCSS_HIGHLIGHTS,
+        "less" => LESS_HIGHLIGHTS,
+        "yaml" => YAML_HIGHLIGHTS,
+        "shell" | "bash" => BASH_HIGHLIGHTS,
+        "sql" => SQL_HIGHLIGHTS,
+        "java" => JAVA_HIGHLIGHTS,
+        "csharp" => CSHARP_HIGHLIGHTS,
+        "kotlin" => KOTLIN_HIGHLIGHTS,
+        "ruby" => RUBY_HIGHLIGHTS,
+        "php" => PHP_HIGHLIGHTS,
         _ => "",
     }
 }
@@ -511,5 +1131,89 @@ mod tests {
         assert!(q.is_empty());
         let q = highlights_query_for(&Language::new("unknown_lang_xyz"));
         assert!(q.is_empty());
+    }
+
+    #[test]
+    fn highlights_query_for_html() {
+        let q = highlights_query_for(&Language::HTML);
+        assert!(!q.is_empty());
+        assert!(q.contains("@tag"));
+    }
+
+    #[test]
+    fn highlights_query_for_css() {
+        let q = highlights_query_for(&Language::CSS);
+        assert!(!q.is_empty());
+        assert!(q.contains("property_name"));
+    }
+
+    #[test]
+    fn highlights_query_for_scss() {
+        let q = highlights_query_for(&Language::SCSS);
+        assert!(!q.is_empty());
+        assert!(q.contains("variable_name"));
+    }
+
+    #[test]
+    fn highlights_query_for_less() {
+        let q = highlights_query_for(&Language::LESS);
+        assert!(!q.is_empty());
+        assert!(q.contains("mixin"));
+    }
+
+    #[test]
+    fn highlights_query_for_yaml() {
+        let q = highlights_query_for(&Language::YAML);
+        assert!(!q.is_empty());
+        assert!(q.contains("@boolean"));
+    }
+
+    #[test]
+    fn highlights_query_for_shell() {
+        let q = highlights_query_for(&Language::SHELL);
+        assert!(!q.is_empty());
+        assert!(q.contains("command_name"));
+    }
+
+    #[test]
+    fn highlights_query_for_sql() {
+        let q = highlights_query_for(&Language::SQL);
+        assert!(!q.is_empty());
+        assert!(q.contains("SELECT"));
+    }
+
+    #[test]
+    fn highlights_query_for_java() {
+        let q = highlights_query_for(&Language::JAVA);
+        assert!(!q.is_empty());
+        assert!(q.contains("class_declaration"));
+    }
+
+    #[test]
+    fn highlights_query_for_csharp() {
+        let q = highlights_query_for(&Language::CSHARP);
+        assert!(!q.is_empty());
+        assert!(q.contains("namespace_declaration"));
+    }
+
+    #[test]
+    fn highlights_query_for_kotlin() {
+        let q = highlights_query_for(&Language::KOTLIN);
+        assert!(!q.is_empty());
+        assert!(q.contains("function_declaration"));
+    }
+
+    #[test]
+    fn highlights_query_for_ruby() {
+        let q = highlights_query_for(&Language::RUBY);
+        assert!(!q.is_empty());
+        assert!(q.contains("@string"));
+    }
+
+    #[test]
+    fn highlights_query_for_php() {
+        let q = highlights_query_for(&Language::PHP);
+        assert!(!q.is_empty());
+        assert!(q.contains("function_definition"));
     }
 }

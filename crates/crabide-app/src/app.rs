@@ -4292,6 +4292,22 @@ fn is_word_char(c: char) -> bool {
 /// Must be called once at startup before any syntax highlighting is attempted.
 fn register_grammars() {
     let reg = grammar_registry();
+
+    // Helper for older grammars that expose `language()` returning a
+    // tree-sitter version incompatible with our 0.26.x.  We call the raw C
+    // FFI function directly to obtain a pointer and wrap it with our version
+    // of `Language::from_raw`.
+    macro_rules! raw_lang {
+        ($fn_name:ident) => {{
+            unsafe {
+                extern "C" {
+                    fn $fn_name() -> *const tree_sitter::ffi::TSLanguage;
+                }
+                tree_sitter::Language::from_raw($fn_name())
+            }
+        }};
+    }
+
     reg.register(
         Language::RUST,
         tree_sitter_rust::LANGUAGE.into(),
@@ -4331,6 +4347,118 @@ fn register_grammars() {
         Language::GO,
         tree_sitter_go::LANGUAGE.into(),
         queries::GO_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::TYPESCRIPT,
+        tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        queries::TYPESCRIPT_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::CPP,
+        tree_sitter_cpp::LANGUAGE.into(),
+        queries::CPP_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::HTML,
+        tree_sitter_html::LANGUAGE.into(),
+        queries::HTML_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::CSS,
+        tree_sitter_css::LANGUAGE.into(),
+        queries::CSS_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::SCSS,
+        raw_lang!(tree_sitter_scss),
+        queries::SCSS_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::LESS,
+        raw_lang!(tree_sitter_less),
+        queries::LESS_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::YAML,
+        tree_sitter_yaml::LANGUAGE.into(),
+        queries::YAML_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::SHELL,
+        tree_sitter_bash::LANGUAGE.into(),
+        queries::BASH_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::SQL,
+        tree_sitter_sql::LANGUAGE.into(),
+        queries::SQL_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::JAVA,
+        tree_sitter_java::LANGUAGE.into(),
+        queries::JAVA_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::CSHARP,
+        tree_sitter_c_sharp::LANGUAGE.into(),
+        queries::CSHARP_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::KOTLIN,
+        raw_lang!(tree_sitter_kotlin),
+        queries::KOTLIN_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::RUBY,
+        tree_sitter_ruby::LANGUAGE.into(),
+        queries::RUBY_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::PHP,
+        tree_sitter_php::LANGUAGE_PHP.into(),
+        queries::PHP_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::TOML,
+        raw_lang!(tree_sitter_toml),
+        queries::TOML_HIGHLIGHTS,
+        "",
+        "",
+    );
+    reg.register(
+        Language::MARKDOWN,
+        raw_lang!(tree_sitter_markdown),
+        queries::MARKDOWN_HIGHLIGHTS,
         "",
         "",
     );
