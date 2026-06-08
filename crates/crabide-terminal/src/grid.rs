@@ -147,6 +147,12 @@ pub struct Grid {
     /// `\x1b[200~` … `\x1b[201~` delimiters.
     pub bracketed_paste: bool,
 
+    // Scroll region (DECSTBM)
+    /// Top row of the scroll region (0-based, inclusive). Default 0.
+    scroll_top: u16,
+    /// Bottom row of the scroll region (0-based, inclusive). Default rows-1.
+    scroll_bottom: u16,
+
     // vte parser
     parser: Parser,
 }
@@ -177,6 +183,8 @@ impl Grid {
             cwd: None,
             cursor_visible: true,
             bracketed_paste: false,
+            scroll_top: 0,
+            scroll_bottom: rows.saturating_sub(1),
             parser: Parser::new(),
         }
     }
@@ -306,24 +314,52 @@ impl Grid {
         if self.cursor_col >= self.cols {
             self.cursor_col = 0;
             self.cursor_row += 1;
-            if self.cursor_row >= self.rows {
+            if self.cursor_row > self.scroll_bottom {
+                self.cursor_row = self.scroll_bottom;
                 self.scroll_up(1);
-                self.cursor_row = self.rows - 1;
             }
         }
     }
 
     fn scroll_up(&mut self, count: u16) {
+        let top = self.scroll_top as usize;
+        let bottom = self.scroll_bottom as usize;
         for _ in 0..count {
-            let removed = self.screen.remove(0);
-            if self.scrollback.len() >= self.scrollback_limit {
-                self.scrollback.pop_front();
+            // Remove the top row of the scroll region
+            let removed = self.screen.remove(top);
+            // Only push to scrollback if the scroll region starts at row 0
+            if top == 0 {
+                if self.scrollback.len() >= self.scrollback_limit {
+                    self.scrollback.pop_front();
+                }
+                self.scrollback.push_back(removed);
             }
-            self.scrollback.push_back(removed);
-            self.screen.push(vec![Cell::BLANK; self.cols as usize]);
+            // Insert a blank row at the bottom of the scroll region
+            self.screen
+                .insert(bottom, vec![Cell::BLANK; self.cols as usize]);
         }
-        // All rows are dirty after scroll
-        self.dirty.iter_mut().for_each(|d| *d = true);
+        // Mark scroll region rows as dirty
+        for r in top..=bottom {
+            self.mark_dirty(r);
+        }
+    }
+
+    /// Scroll the scroll region down by `count` lines.
+    /// New blank lines appear at the top of the region; lines at the bottom are discarded.
+    fn scroll_down(&mut self, count: u16) {
+        let top = self.scroll_top as usize;
+        let bottom = self.scroll_bottom as usize;
+        for _ in 0..count {
+            // Remove the bottom row of the scroll region
+            self.screen.remove(bottom);
+            // Insert a blank row at the top of the scroll region
+            self.screen
+                .insert(top, vec![Cell::BLANK; self.cols as usize]);
+        }
+        // Mark scroll region rows as dirty
+        for r in top..=bottom {
+            self.mark_dirty(r);
+        }
     }
 
     /// Apply SGR (Select Graphic Rendition) parameters.
@@ -426,9 +462,9 @@ impl Perform for Grid {
             0x0A..=0x0C => {
                 // LF, VT, FF line feed
                 self.cursor_row += 1;
-                if self.cursor_row >= self.rows {
+                if self.cursor_row > self.scroll_bottom {
+                    self.cursor_row = self.scroll_bottom;
                     self.scroll_up(1);
-                    self.cursor_row = self.rows - 1;
                 }
                 self.mark_dirty(self.cursor_row as usize);
             }
@@ -560,6 +596,104 @@ impl Perform for Grid {
             'u' => {
                 self.cursor_col = self.saved_cursor.0;
                 self.cursor_row = self.saved_cursor.1;
+            }
+            // DECSTBM — Set Scrolling Region
+            'r' => {
+                let top = if p1 == 0 { 0 } else { p1.saturating_sub(1) };
+                let bottom = if p2 == 0 {
+                    self.rows.saturating_sub(1)
+                } else {
+                    p2.saturating_sub(1).min(self.rows.saturating_sub(1))
+                };
+                if top < bottom {
+                    self.scroll_top = top;
+                    self.scroll_bottom = bottom;
+                }
+                // DECSTBM also moves cursor to home position
+                self.cursor_col = 0;
+                self.cursor_row = 0;
+            }
+            // Insert Lines (CSI L) — insert N blank lines at cursor row,
+            // scrolling existing lines within the scroll region down.
+            'L' => {
+                let n = p1.max(1);
+                let row = self.cursor_row as usize;
+                let top = self.scroll_top as usize;
+                let bottom = self.scroll_bottom as usize;
+                if row >= top && row <= bottom {
+                    let count = n.min((bottom - row + 1) as u16);
+                    for _ in 0..count {
+                        self.screen.remove(bottom);
+                        self.screen
+                            .insert(row, vec![Cell::BLANK; self.cols as usize]);
+                    }
+                    for r in row..=bottom {
+                        self.mark_dirty(r);
+                    }
+                }
+            }
+            // Delete Lines (CSI M) — delete N lines at cursor row,
+            // scrolling lines below up within the scroll region.
+            'M' => {
+                let n = p1.max(1);
+                let row = self.cursor_row as usize;
+                let top = self.scroll_top as usize;
+                let bottom = self.scroll_bottom as usize;
+                if row >= top && row <= bottom {
+                    let count = n.min((bottom - row + 1) as u16);
+                    for _ in 0..count {
+                        self.screen.remove(row);
+                        self.screen
+                            .insert(bottom, vec![Cell::BLANK; self.cols as usize]);
+                    }
+                    for r in row..=bottom {
+                        self.mark_dirty(r);
+                    }
+                }
+            }
+            // Insert Characters (CSI @) — insert N blank chars at cursor,
+            // shifting existing chars right; chars past the right edge are lost.
+            '@' => {
+                let n = p1.max(1) as usize;
+                let row = self.cursor_row as usize;
+                let col = self.cursor_col as usize;
+                let cols = self.cols as usize;
+                if row < self.rows as usize && col < cols {
+                    let count = n.min(cols - col);
+                    // Shift characters right by `count`, discarding those past the edge
+                    for c in (col..cols).rev() {
+                        if c >= count {
+                            self.screen[row][c] = self.screen[row][c - count];
+                        }
+                    }
+                    // Fill the inserted positions with blanks
+                    for c in col..(col + count) {
+                        if c < cols {
+                            self.screen[row][c] = Cell::BLANK;
+                        }
+                    }
+                    self.mark_dirty(row);
+                }
+            }
+            // Delete Characters (CSI P) — delete N chars at cursor,
+            // shifting remaining chars left; blanks fill from the right edge.
+            'P' => {
+                let n = p1.max(1) as usize;
+                let row = self.cursor_row as usize;
+                let col = self.cursor_col as usize;
+                let cols = self.cols as usize;
+                if row < self.rows as usize && col < cols {
+                    let count = n.min(cols - col);
+                    // Shift characters left by `count`
+                    for c in col..cols {
+                        if c + count < cols {
+                            self.screen[row][c] = self.screen[row][c + count];
+                        } else {
+                            self.screen[row][c] = Cell::BLANK;
+                        }
+                    }
+                    self.mark_dirty(row);
+                }
             }
             // DECSET / DECRST — handle ? prefix modes
             'h' if params.iter().any(|s| s.first().copied() == Some(25)) => {
@@ -1361,5 +1495,164 @@ mod tests {
         };
         assert_eq!(c.ch, 'A');
         assert_eq!(c.fg, Color::Named(NamedColor::Red));
+    }
+
+    // ── DECSTBM (scroll regions) ────────────────────────────────────────
+
+    #[test]
+    fn decstbm_set_region() {
+        let mut g = grid_24x80();
+        // Default: full screen
+        assert_eq!(g.scroll_top, 0);
+        assert_eq!(g.scroll_bottom, 23);
+        // Set region rows 5-20 (1-based → 4-19 0-based)
+        g.feed(b"\x1b[5;20r");
+        assert_eq!(g.scroll_top, 4);
+        assert_eq!(g.scroll_bottom, 19);
+    }
+
+    #[test]
+    fn decstbm_reset_to_full() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[5;20r");
+        assert_eq!(g.scroll_top, 4);
+        assert_eq!(g.scroll_bottom, 19);
+        // CSI r with no params resets to full screen
+        g.feed(b"\x1b[r");
+        assert_eq!(g.scroll_top, 0);
+        assert_eq!(g.scroll_bottom, 23);
+    }
+
+    #[test]
+    fn decstbm_moves_cursor_home() {
+        let mut g = grid_24x80();
+        g.cursor_row = 10;
+        g.cursor_col = 30;
+        g.feed(b"\x1b[5;20r");
+        assert_eq!(g.cursor_row, 0);
+        assert_eq!(g.cursor_col, 0);
+    }
+
+    #[test]
+    fn decstbm_scroll_within_region() {
+        let mut g = Grid::new(10, 5);
+        // Fill all rows with distinct letters
+        for row in 0..5 {
+            for col in 0..10 {
+                g.screen[row][col] = Cell {
+                    ch: (b'A' + row as u8) as char,
+                    width: 1,
+                    fg: Color::Default,
+                    bg: Color::Default,
+                    attrs: Attrs::empty(),
+                };
+            }
+        }
+        // Set scroll region to rows 1-3 (0-based)
+        g.scroll_top = 1;
+        g.scroll_bottom = 3;
+        // Position cursor inside the region and trigger a scroll
+        g.cursor_row = 3;
+        g.cursor_col = 0;
+        g.feed(b"\n"); // LF at bottom of region should scroll region up
+                       // Row 1 (was 'B') should be gone, replaced by row 2 ('C')
+        assert_eq!(g.screen[1][0].ch, 'C', "row 1 should now be 'C' (was 'B')");
+        // Row 2 (was 'C') should now be 'D'
+        assert_eq!(g.screen[2][0].ch, 'D', "row 2 should now be 'D' (was 'C')");
+        // Row 3 should be blank (new line)
+        assert_eq!(g.screen[3][0].ch, ' ', "row 3 should be blank");
+        // Row 0 ('A') and row 4 ('E') should be untouched
+        assert_eq!(g.screen[0][0].ch, 'A', "row 0 should be untouched");
+        assert_eq!(g.screen[4][0].ch, 'E', "row 4 should be untouched");
+    }
+
+    // ── Insert/Delete Line ───────────────────────────────────────────────
+
+    #[test]
+    fn insert_line_at_cursor() {
+        let mut g = Grid::new(10, 5);
+        // Fill rows with distinct letters
+        for row in 0..5 {
+            for col in 0..10 {
+                g.screen[row][col] = Cell {
+                    ch: (b'A' + row as u8) as char,
+                    width: 1,
+                    fg: Color::Default,
+                    bg: Color::Default,
+                    attrs: Attrs::empty(),
+                };
+            }
+        }
+        g.cursor_row = 1;
+        g.cursor_col = 0;
+        g.feed(b"\x1b[L"); // Insert 1 line at row 1
+                           // Row 1 should now be blank
+        assert_eq!(g.screen[1][0].ch, ' ', "row 1 should be blank (inserted)");
+        // Row 2 should now be 'B' (was row 1)
+        assert_eq!(g.screen[2][0].ch, 'B', "row 2 should be 'B' (shifted down)");
+        // Row 3 should now be 'C'
+        assert_eq!(g.screen[3][0].ch, 'C', "row 3 should be 'C' (shifted down)");
+        // Row 4 should now be 'D' (was row 3, 'E' scrolled off bottom)
+        assert_eq!(g.screen[4][0].ch, 'D', "row 4 should be 'D' (shifted down)");
+        // Row 0 should be untouched
+        assert_eq!(g.screen[0][0].ch, 'A', "row 0 should be untouched");
+    }
+
+    #[test]
+    fn delete_line_at_cursor() {
+        let mut g = Grid::new(10, 5);
+        for row in 0..5 {
+            for col in 0..10 {
+                g.screen[row][col] = Cell {
+                    ch: (b'A' + row as u8) as char,
+                    width: 1,
+                    fg: Color::Default,
+                    bg: Color::Default,
+                    attrs: Attrs::empty(),
+                };
+            }
+        }
+        g.cursor_row = 1;
+        g.cursor_col = 0;
+        g.feed(b"\x1b[M"); // Delete 1 line at row 1
+                           // Row 1 should now be 'C' (was row 2)
+        assert_eq!(g.screen[1][0].ch, 'C', "row 1 should be 'C' (shifted up)");
+        // Row 2 should now be 'D'
+        assert_eq!(g.screen[2][0].ch, 'D', "row 2 should be 'D' (shifted up)");
+        // Row 3 should now be 'E'
+        assert_eq!(g.screen[3][0].ch, 'E', "row 3 should be 'E' (shifted up)");
+        // Row 4 should be blank (new line at bottom)
+        assert_eq!(g.screen[4][0].ch, ' ', "row 4 should be blank");
+        // Row 0 should be untouched
+        assert_eq!(g.screen[0][0].ch, 'A', "row 0 should be untouched");
+    }
+
+    // ── Insert/Delete Character ──────────────────────────────────────────
+
+    #[test]
+    fn insert_char_at_cursor() {
+        let mut g = Grid::new(10, 3);
+        g.feed(b"ABCDEFGHIJ"); // fills row 0 with A-J
+        g.cursor_col = 3; // cursor at 'D'
+        g.cursor_row = 0;
+        g.feed(b"\x1b[@"); // Insert 1 blank char at cursor
+        assert_eq!(g.screen[0][3].ch, ' ', "inserted position should be blank");
+        assert_eq!(g.screen[0][4].ch, 'D', "'D' should shift right to col 4");
+        assert_eq!(g.screen[0][5].ch, 'E', "'E' should shift right to col 5");
+        // 'J' at col 9 should be pushed off the edge
+        assert_eq!(g.screen[0][9].ch, 'I', "col 9 should be 'I' (J pushed off)");
+    }
+
+    #[test]
+    fn delete_char_at_cursor() {
+        let mut g = Grid::new(10, 3);
+        g.feed(b"ABCDEFGHIJ"); // fills row 0 with A-J
+        g.cursor_col = 3; // cursor at 'D'
+        g.cursor_row = 0;
+        g.feed(b"\x1b[P"); // Delete 1 char at cursor
+        assert_eq!(g.screen[0][3].ch, 'E', "'E' should shift left to col 3");
+        assert_eq!(g.screen[0][4].ch, 'F', "'F' should shift left to col 4");
+        // Right edge should be blank
+        assert_eq!(g.screen[0][9].ch, ' ', "col 9 should be blank (shifted in)");
     }
 }
