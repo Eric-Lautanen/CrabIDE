@@ -256,7 +256,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
     }
 
     // ── Cursor ────────────────────────────────────────────────────────────────
-    if state.terminal.has_focus && state.caret_visible {
+    if state.terminal.has_focus && state.caret_visible && inst.cursor_visible {
         // cur_screen_row is relative to start_row (the top of the visible viewport)
         if cursor_row >= start_row {
             let cur_screen_row = cursor_row - start_row;

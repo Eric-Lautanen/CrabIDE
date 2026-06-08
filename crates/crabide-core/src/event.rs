@@ -230,6 +230,10 @@ pub struct TerminalGridDelta {
     pub cursor_col: u16,
     pub cursor_row: u16,
     pub scroll_top: u32,
+    /// Whether the terminal application wants the cursor visible (DECSET 25).
+    pub cursor_visible: bool,
+    /// Whether bracketed paste mode is active (DECSET 2004).
+    pub bracketed_paste: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1138,6 +1142,8 @@ mod tests {
                 cursor_col: 0,
                 cursor_row: 0,
                 scroll_top: 0,
+                cursor_visible: true,
+                bracketed_paste: false,
             },
         };
         let s = format!("{evt}");

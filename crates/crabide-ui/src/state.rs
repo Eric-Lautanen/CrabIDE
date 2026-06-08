@@ -430,6 +430,8 @@ mod tests {
             cursor_col: 5,
             cursor_row: 10,
             scroll_top: 0,
+            cursor_visible: true,
+            bracketed_paste: false,
             rows: vec![crabide_core::event::ChangedRow {
                 row: 5,
                 cells: vec![
@@ -1344,12 +1346,16 @@ pub struct TerminalInstance {
     /// Cursor position in the visible grid.
     pub cursor_col: u16,
     pub cursor_row: u16,
+    /// Whether the terminal application wants the cursor visible (DECSET 25).
+    pub cursor_visible: bool,
     /// How far the user has scrolled up into scrollback (0 = bottom).
     pub scroll_offset: u32,
     /// Total scrollback rows available (updated from delta).
     pub scrollback_len: u32,
     /// When true the terminal process has exited.
     pub exited: bool,
+    /// Whether bracketed paste mode is active (DECSET 2004).
+    pub bracketed_paste: bool,
 }
 
 impl TerminalInstance {
@@ -1364,9 +1370,11 @@ impl TerminalInstance {
             grid_rows,
             cursor_col: 0,
             cursor_row: 0,
+            cursor_visible: true,
             scroll_offset: 0,
             scrollback_len: 0,
             exited: false,
+            bracketed_paste: false,
         }
     }
 
@@ -1374,6 +1382,8 @@ impl TerminalInstance {
     pub fn apply_delta(&mut self, delta: &crabide_core::event::TerminalGridDelta) {
         self.cursor_col = delta.cursor_col;
         self.cursor_row = delta.cursor_row;
+        self.cursor_visible = delta.cursor_visible;
+        self.bracketed_paste = delta.bracketed_paste;
         self.scrollback_len = delta.scroll_top;
 
         for changed in &delta.rows {

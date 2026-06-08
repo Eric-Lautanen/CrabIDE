@@ -939,12 +939,24 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                             .push((inst_id, text.as_bytes().to_vec()));
                     }
                     egui::Event::Paste(text) if !text.is_empty() => {
-                        // Bracketed paste: wrap in OSC 200/201 if the shell expects it,
-                        // otherwise just send the raw text.
-                        state
+                        // Bracketed paste: wrap in \x1b[200~ … \x1b[201~ if the
+                        // shell has enabled DECSET 2004, otherwise send raw text.
+                        let bracketed = state
                             .terminal
-                            .pending_input
-                            .push((inst_id, text.as_bytes().to_vec()));
+                            .active()
+                            .map(|i| i.bracketed_paste)
+                            .unwrap_or(false);
+                        if bracketed {
+                            let mut bytes = b"\x1b[200~".to_vec();
+                            bytes.extend(text.as_bytes());
+                            bytes.extend(b"\x1b[201~");
+                            state.terminal.pending_input.push((inst_id, bytes));
+                        } else {
+                            state
+                                .terminal
+                                .pending_input
+                                .push((inst_id, text.as_bytes().to_vec()));
+                        }
                     }
                     _ => {}
                 }

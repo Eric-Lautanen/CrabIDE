@@ -134,11 +134,18 @@ pub struct Grid {
     // Dirty tracking: rows that changed since last delta extraction
     dirty: Vec<bool>,
 
-    // Terminal title
+    // Window metadata
+    /// OSC 0/2 — window title.
     pub title: Option<String>,
-
-    // OSC 7 working directory
+    /// OSC 7 — shell working directory.
     pub cwd: Option<String>,
+
+    // DECSET modes
+    /// DECSET 25 — cursor visibility. When false, the terminal cursor should be hidden.
+    pub cursor_visible: bool,
+    /// DECSET 2004 — bracketed paste mode. When true, pasted text is wrapped in
+    /// `\x1b[200~` … `\x1b[201~` delimiters.
+    pub bracketed_paste: bool,
 
     // vte parser
     parser: Parser,
@@ -168,6 +175,8 @@ impl Grid {
             dirty,
             title: None,
             cwd: None,
+            cursor_visible: true,
+            bracketed_paste: false,
             parser: Parser::new(),
         }
     }
@@ -239,6 +248,8 @@ impl Grid {
             cursor_col: self.cursor_col,
             cursor_row: self.cursor_row,
             scroll_top: self.scrollback.len() as u32,
+            cursor_visible: self.cursor_visible,
+            bracketed_paste: self.bracketed_paste,
         }
     }
 
@@ -549,6 +560,19 @@ impl Perform for Grid {
             'u' => {
                 self.cursor_col = self.saved_cursor.0;
                 self.cursor_row = self.saved_cursor.1;
+            }
+            // DECSET / DECRST — handle ? prefix modes
+            'h' if params.iter().any(|s| s.first().copied() == Some(25)) => {
+                self.cursor_visible = true;
+            }
+            'l' if params.iter().any(|s| s.first().copied() == Some(25)) => {
+                self.cursor_visible = false;
+            }
+            'h' if params.iter().any(|s| s.first().copied() == Some(2004)) => {
+                self.bracketed_paste = true;
+            }
+            'l' if params.iter().any(|s| s.first().copied() == Some(2004)) => {
+                self.bracketed_paste = false;
             }
             // Alternate screen: switch in (?1049h) / out (?1049l)
             'h' if params.iter().any(|s| s.first().copied() == Some(1049)) => {
@@ -1089,6 +1113,82 @@ mod tests {
         assert!(g.alt_active);
         g.feed(b"\x1b[?1049l"); // exit alt screen
         assert!(!g.alt_active);
+    }
+
+    // ── DECSET 25 (cursor visibility) ────────────────────────────────────
+
+    #[test]
+    fn decset_25_hide_cursor() {
+        let mut g = grid_24x80();
+        assert!(g.cursor_visible, "cursor should start visible");
+        g.feed(b"\x1b[?25l"); // DECRST 25 — hide cursor
+        assert!(!g.cursor_visible, "cursor should be hidden after ?25l");
+    }
+
+    #[test]
+    fn decset_25_show_cursor() {
+        let mut g = grid_24x80();
+        g.cursor_visible = false;
+        g.feed(b"\x1b[?25h"); // DECSET 25 — show cursor
+        assert!(g.cursor_visible, "cursor should be visible after ?25h");
+    }
+
+    #[test]
+    fn decset_25_toggle_round_trip() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[?25l");
+        assert!(!g.cursor_visible);
+        g.feed(b"\x1b[?25h");
+        assert!(g.cursor_visible);
+    }
+
+    #[test]
+    fn decset_25_reflected_in_delta() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[?25l");
+        let delta = g.take_delta();
+        assert!(!delta.cursor_visible);
+    }
+
+    // ── DECSET 2004 (bracketed paste mode) ───────────────────────────────
+
+    #[test]
+    fn decset_2004_enable() {
+        let mut g = grid_24x80();
+        assert!(!g.bracketed_paste, "bracketed paste should start disabled");
+        g.feed(b"\x1b[?2004h"); // DECSET 2004 — enable bracketed paste
+        assert!(
+            g.bracketed_paste,
+            "bracketed paste should be enabled after ?2004h"
+        );
+    }
+
+    #[test]
+    fn decset_2004_disable() {
+        let mut g = grid_24x80();
+        g.bracketed_paste = true;
+        g.feed(b"\x1b[?2004l"); // DECRST 2004 — disable bracketed paste
+        assert!(
+            !g.bracketed_paste,
+            "bracketed paste should be disabled after ?2004l"
+        );
+    }
+
+    #[test]
+    fn decset_2004_toggle_round_trip() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[?2004h");
+        assert!(g.bracketed_paste);
+        g.feed(b"\x1b[?2004l");
+        assert!(!g.bracketed_paste);
+    }
+
+    #[test]
+    fn decset_2004_reflected_in_delta() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[?2004h");
+        let delta = g.take_delta();
+        assert!(delta.bracketed_paste);
     }
 
     #[test]

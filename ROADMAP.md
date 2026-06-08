@@ -1,10 +1,10 @@
-# crabide Roadmap
+# crabide roadmap
 
 Build order follows dependency direction. Each phase builds on the phases before it.
 
 **Legend:** ✅ = done (verified), 🔶 = partial, ❌ = not started
 
-> **Audit date:** 2026-06-08. All statuses verified against actual source code. See git log for latest changes.
+> **Audit date:** 2026-06-08. All statuses verified against actual source code. See git log for latest changes
 
 ## Crate & Dependency Minimization
 
