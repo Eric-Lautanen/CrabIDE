@@ -253,6 +253,7 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 - [ ] Implement mouse reporting (DECSET 1000/1002/1003)
 - [x] Implement bracketed paste mode (DECSET 2004)
 - [x] Implement cursor visibility toggle (DECSET 25)
+- [x] Implement ESC M reverse index (RI) with scroll region support
 - [ ] Implement content reflow on terminal resize
 - [ ] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
