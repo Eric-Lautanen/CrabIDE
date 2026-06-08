@@ -37,4 +37,5 @@ log.workspace = true
 
 # Bitflags for cell attributes — use workspace version for consistency
 bitflags.workspace = true
+unicode-width.workspace = true
 

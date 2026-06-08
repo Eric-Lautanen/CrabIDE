@@ -62,7 +62,7 @@ All tests updated.
 - [x] Implement content reflow on terminal resize
 - [x] Implement OSC 8 hyperlinks — parse `\e]8;...;url\a...\e]8;;\a` → clickable links
 - [x] Implement OSC 133 shell integration markers — prompt start/end detection
-- [ ] Add configurable color scheme / theme to TerminalProfile
+- [x] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
 - [ ] Add more unit tests to crabide-terminal (currently 102, roadmap says "no unit tests")
 

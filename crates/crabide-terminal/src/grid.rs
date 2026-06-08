@@ -1197,53 +1197,10 @@ fn mouse_button_code(button: MouseButton, release: bool) -> u32 {
     }
 }
 
-/// Approximate Unicode character display width.
-/// Returns 2 for CJK/full-width, 0 for combining, 1 for everything else.
+/// Unicode character display width using the `unicode-width` crate.
+/// Returns 2 for CJK/full-width/emoji, 0 for combining/control, 1 otherwise.
 fn unicode_width(c: char) -> usize {
-    // Fast path for ASCII
-    if c.is_ascii() {
-        return 1;
-    }
-
-    let cp = c as u32;
-
-    // CJK Unified Ideographs and common wide ranges
-    if matches!(
-        cp,
-        0x1100..=0x115F
-            | // Hangul Jamo
-          0x2E80..=0x303E
-            | // CJK Radicals
-          0x3040..=0x33FF
-            | // Japanese
-          0x3400..=0x4DBF
-            | // CJK Extension A
-          0x4E00..=0x9FFF
-            | // CJK Unified Ideographs
-          0xA000..=0xA4CF
-            | // Yi
-          0xA960..=0xA97F
-            | // Hangul
-          0xAC00..=0xD7AF
-            | // Hangul Syllables
-          0xF900..=0xFAFF
-            | // CJK Compatibility
-          0xFE10..=0xFE19
-            | // Vertical Forms
-          0xFE30..=0xFE4F
-            | // CJK Compatibility Forms
-          0xFF00..=0xFF60
-            | // Fullwidth Latin
-          0xFFE0..=0xFFE6
-            | // Fullwidth Signs
-          0x1B000..=0x1B0FF
-            | // Kana supplement
-          0x1F300..=0x1F9FF // Emoji
-    ) {
-        return 2;
-    }
-
-    1
+    unicode_width::UnicodeWidthChar::width(c).unwrap_or(0)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

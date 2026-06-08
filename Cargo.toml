@@ -159,6 +159,7 @@ indexmap = { version = "2", features = ["serde"] }
 
 # Bitflags & Async
 bitflags = "2"
+unicode-width = "0.2"
 async-trait = "0.1"
 libloading = "0.9"
 streaming-iterator = "0.1"
