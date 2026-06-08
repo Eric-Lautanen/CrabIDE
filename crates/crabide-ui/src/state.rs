@@ -15,7 +15,7 @@ use crabide_config::{Action, Color, ColorTheme, KeybindingEngine, WhenContext};
 use crabide_core::{
     event::{
         BlameLine, BranchInfo, Diagnostic, DiffHunk, FileStatus, FoldingRange, OutputCategory,
-        StackFrame, TerminalCell, TerminalColor, TerminalColorScheme, Variable,
+        StackFrame, StashEntry, TerminalCell, TerminalColor, TerminalColorScheme, Variable,
     },
     types::{BufferId, DocumentUri, Language, Position, Range},
 };
@@ -1316,6 +1316,9 @@ pub struct GitPanelState {
     /// List of local and remote branches.
     pub branches: Vec<BranchInfo>,
 
+    /// Stash entries (most recent first).
+    pub stash_entries: Vec<StashEntry>,
+
     // ── Pending actions drained by the app each frame ─────────────────────────
     pub pending_stage_file: Option<PathBuf>,
     pub pending_unstage_file: Option<PathBuf>,
@@ -1336,6 +1339,7 @@ impl Default for GitPanelState {
             commit_message: String::new(),
             blame_lines: IndexMap::new(),
             branches: Vec::new(),
+            stash_entries: Vec::new(),
             pending_stage_file: None,
             pending_unstage_file: None,
             pending_stage_all: false,

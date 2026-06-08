@@ -207,6 +207,36 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = branch;
     }
+
+    /// Push a stash onto the stack with an optional message.
+    pub fn stash_push(&self, message: Option<String>) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::StashPush { message });
+        #[cfg(not(feature = "git-support"))]
+        let _ = message;
+    }
+
+    /// Pop a stash from the stack (optionally by index).
+    pub fn stash_pop(&self, index: Option<usize>) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::StashPop { index });
+        #[cfg(not(feature = "git-support"))]
+        let _ = index;
+    }
+
+    /// List all stashes on the stack.
+    pub fn stash_list(&self) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::StashList);
+    }
+
+    /// Drop a stash by index.
+    pub fn stash_drop(&self, index: usize) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::StashDrop { index });
+        #[cfg(not(feature = "git-support"))]
+        let _ = index;
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -232,7 +262,9 @@ use std::path::Path;
 use std::thread;
 
 #[cfg(feature = "git-support")]
-use crabide_core::event::{BlameLine, BranchInfo, DiffHunk, FileStatus, HunkKind, StatusKind};
+use crabide_core::event::{
+    BlameLine, BranchInfo, DiffHunk, FileStatus, HunkKind, StashEntry, StatusKind,
+};
 
 /// Commands sent to the git background worker thread.
 #[cfg(feature = "git-support")]
@@ -288,6 +320,20 @@ enum GitCommand {
     Rebase {
         branch: String,
     },
+    /// Push a stash onto the stack.
+    StashPush {
+        message: Option<String>,
+    },
+    /// Pop a stash from the stack.
+    StashPop {
+        index: Option<usize>,
+    },
+    /// List all stashes.
+    StashList,
+    /// Drop a stash by index.
+    StashDrop {
+        index: usize,
+    },
 }
 
 #[cfg(feature = "git-support")]
@@ -312,7 +358,7 @@ mod git_support {
     }
 
     fn git_worker(
-        repo: git2::Repository,
+        mut repo: git2::Repository,
         workdir: PathBuf,
         event_tx: Sender<EditorEvent>,
         cmd_rx: Receiver<GitCommand>,
@@ -536,6 +582,38 @@ mod git_support {
                     });
                     send_head_info(&repo, &event_tx);
                     send_status(&repo, &event_tx);
+                }
+
+                GitCommand::StashPush { message } => {
+                    let op = message
+                        .as_deref()
+                        .map(|m| format!("stash push {m}"))
+                        .unwrap_or_else(|| "stash push".into());
+                    run_op(&event_tx, op, || {
+                        stash_push_impl(&mut repo, message.as_deref())
+                    });
+                    send_status(&repo, &event_tx);
+                }
+
+                GitCommand::StashPop { index } => {
+                    let op = index
+                        .map(|i| format!("stash pop @{{{i}}}"))
+                        .unwrap_or_else(|| "stash pop".into());
+                    run_op(&event_tx, op, || stash_pop_impl(&mut repo, index));
+                    send_head_info(&repo, &event_tx);
+                    send_status(&repo, &event_tx);
+                }
+
+                GitCommand::StashList => {
+                    use crabide_core::event::GitEvent;
+                    let stashes = stash_list_impl(&mut repo);
+                    let _ = event_tx.send(EditorEvent::Git(GitEvent::StashListUpdated { stashes }));
+                }
+
+                GitCommand::StashDrop { index } => {
+                    run_op(&event_tx, format!("stash drop @{{{index}}}"), || {
+                        stash_drop_impl(&mut repo, index)
+                    });
                 }
 
                 GitCommand::Shutdown => break,
@@ -1362,6 +1440,75 @@ mod git_support {
         }
 
         rebase.finish(None)?;
+        Ok(())
+    }
+
+    // ── stash operations ────────────────────────────────────────────────
+
+    fn stash_push_impl(
+        repo: &mut git2::Repository,
+        message: Option<&str>,
+    ) -> std::result::Result<(), git2::Error> {
+        let sig = repo.signature()?;
+        let msg = message.unwrap_or("WIP");
+        repo.stash_save(&sig, msg, None)?;
+        Ok(())
+    }
+
+    fn stash_pop_impl(
+        repo: &mut git2::Repository,
+        index: Option<usize>,
+    ) -> std::result::Result<(), git2::Error> {
+        let idx = index.unwrap_or(0);
+        repo.stash_pop(idx, None::<&mut git2::StashApplyOptions>)?;
+        Ok(())
+    }
+
+    fn stash_list_impl(repo: &mut git2::Repository) -> Vec<crabide_core::event::StashEntry> {
+        let mut raw: Vec<(usize, String, git2::Oid)> = Vec::new();
+        let _ = repo.stash_foreach(|index, message, stash_oid| {
+            raw.push((index, message.to_owned(), *stash_oid));
+            true
+        });
+
+        raw.into_iter()
+            .map(|(index, message, oid)| {
+                let branch = repo
+                    .find_commit(oid)
+                    .ok()
+                    .and_then(|c| {
+                        let msg = match c.message() {
+                            Ok(m) => m,
+                            Err(_) => return None,
+                        };
+                        for prefix in &["WIP on ", "On "] {
+                            if let Some(pos) = msg.find(prefix) {
+                                let rest = &msg[pos + prefix.len()..];
+                                let branch = if let Some(end) = rest.find(':') {
+                                    rest[..end].to_owned()
+                                } else {
+                                    rest.to_owned()
+                                };
+                                return Some(branch);
+                            }
+                        }
+                        None
+                    })
+                    .unwrap_or_else(|| "unknown".into());
+                StashEntry {
+                    index,
+                    message,
+                    branch,
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
+    fn stash_drop_impl(
+        repo: &mut git2::Repository,
+        index: usize,
+    ) -> std::result::Result<(), git2::Error> {
+        repo.stash_drop(index)?;
         Ok(())
     }
 }

@@ -1287,6 +1287,11 @@ impl crabideApp {
                     svc.refresh();
                 }
             }
+
+            StashListUpdated { stashes } => {
+                self.ui_state.git_panel.stash_entries = stashes;
+                self.ui_state.set_status("Git stash list updated");
+            }
         }
     }
 
@@ -2289,6 +2294,30 @@ impl crabideApp {
             Action::GitRebase => {
                 self.ui_state
                     .set_status("Use Git panel to select a branch to rebase onto");
+            }
+            Action::GitStashPush => {
+                if let Some(svc) = &self.git_service {
+                    svc.stash_push(None);
+                    self.ui_state.set_status("Stashing changes...");
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
+            }
+            Action::GitStashPop => {
+                if let Some(svc) = &self.git_service {
+                    svc.stash_pop(None);
+                    self.ui_state.set_status("Popping stash...");
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
+            }
+            Action::GitStashDrop => {
+                if let Some(svc) = &self.git_service {
+                    svc.stash_drop(0);
+                    self.ui_state.set_status("Dropping latest stash...");
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
             }
 
             // ── View toggles already handled in UI ────────────────────────────

@@ -229,7 +229,7 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 - [x] Add fetch / pull / push / merge / rebase
 - [x] Add branch listing (local + remote)
 - [x] Add branch deletion
-- [ ] Add stash (push, pop, list, drop)
+- [x] Add stash (push, pop, list, drop)
 - [ ] Add log / history / graph view
 - [ ] Add tag management
 - [ ] Add remote management (add, remove, list)

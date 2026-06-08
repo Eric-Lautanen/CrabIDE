@@ -164,6 +164,9 @@ pub enum Action {
     GitPush,
     GitMerge,
     GitRebase,
+    GitStashPush,
+    GitStashPop,
+    GitStashDrop,
     // Debug
     ToggleBreakpoint,
     StartDebug,
@@ -1484,6 +1487,9 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::GitPush, "Git: Push to Remote");
     m.insert(Action::GitMerge, "Git: Merge Branch...");
     m.insert(Action::GitRebase, "Git: Rebase onto Branch...");
+    m.insert(Action::GitStashPush, "Git: Stash Push");
+    m.insert(Action::GitStashPop, "Git: Stash Pop");
+    m.insert(Action::GitStashDrop, "Git: Stash Drop");
     // Debug
     m.insert(Action::ToggleBreakpoint, "Debug: Toggle Breakpoint");
     m.insert(Action::StartDebug, "Debug: Start Debugging");

@@ -456,6 +456,9 @@ pub enum GitEvent {
         branch: Option<String>,
         pushed: usize,
     },
+
+    /// Stash list updated.
+    StashListUpdated { stashes: Vec<StashEntry> },
 }
 
 // ── VFS / File Events ─────────────────────────────────────────────────────────
@@ -830,6 +833,17 @@ pub struct BlameLine {
     pub summary: String,
 }
 
+/// A single stash entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StashEntry {
+    /// Stash index (0 = most recent).
+    pub index: usize,
+    /// Stash message.
+    pub message: String,
+    /// Branch name when the stash was created.
+    pub branch: String,
+}
+
 // ── Top-level event enum ─────────────────────────────────────────────────────
 
 /// All events that can be sent from background services to the UI.
@@ -1092,6 +1106,9 @@ impl fmt::Display for GitEvent {
                         .map(|b| format!(" {b}"))
                         .unwrap_or_default()
                 )
+            }
+            GitEvent::StashListUpdated { stashes } => {
+                write!(f, "git stash list: {} entries", stashes.len())
             }
         }
     }
