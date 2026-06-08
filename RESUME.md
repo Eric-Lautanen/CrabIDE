@@ -49,7 +49,20 @@
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all workspace tests pass (102 terminal tests, 112 UI tests, etc.)
+- **TESTS** — all workspace tests pass (160 terminal tests, 112 UI tests, etc.)
+
+## Remaining roadmap items — pick next available
+
+### Easy / self-contained (pick these first)
+
+**Phase 7 (Terminal):**
+- [x] Implement mouse reporting (DECSET 1000/1002/1003)
+- [x] Implement content reflow on terminal resize
+- [x] Implement OSC 8 hyperlinks
+- [x] Implement OSC 133 shell integration markers
+- [x] Add configurable color scheme / theme to TerminalProfile
+- [x] Add Unicode width proper crate to replace approximate `unicode_width()`
+- [x] Add more unit tests to crabide-terminal (now 160, up from 102)
 
 ## Remaining roadmap items — pick next available
 

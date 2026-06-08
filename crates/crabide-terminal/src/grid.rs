@@ -413,7 +413,7 @@ impl Grid {
         }
         self.alt_screen.resize_with(rows as usize, blank_row);
 
-        self.dirty.resize(rows as usize, true);
+        self.dirty = vec![true; rows as usize];
 
         // Clamp cursor
         self.cursor_col = self.cursor_col.min(cols.saturating_sub(1));
@@ -2351,5 +2351,652 @@ mod tests {
         // After reading the value, the app should clear it
         g.command_finished = None;
         assert!(g.command_finished.is_none());
+    }
+
+    // ── SGR attribute gaps ─────────────────────────────────────────────────
+
+    #[test]
+    fn sgr_dim() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[2mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::DIM));
+    }
+
+    #[test]
+    fn sgr_strikethrough() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[9mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::STRIKEOUT));
+    }
+
+    #[test]
+    fn sgr_no_bold_dim() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1;2mX"); // bold + dim
+        assert!(g.screen[0][0].attrs.contains(Attrs::BOLD));
+        assert!(g.screen[0][0].attrs.contains(Attrs::DIM));
+        g.feed(b"\x1b[22mY"); // SGR 22 removes both bold and dim
+        assert!(!g.screen[0][1].attrs.contains(Attrs::BOLD));
+        assert!(!g.screen[0][1].attrs.contains(Attrs::DIM));
+    }
+
+    #[test]
+    fn sgr_no_italic() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[3mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::ITALIC));
+        g.feed(b"\x1b[23mY");
+        assert!(!g.screen[0][1].attrs.contains(Attrs::ITALIC));
+    }
+
+    #[test]
+    fn sgr_no_underline() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[4mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::UNDERLINE));
+        g.feed(b"\x1b[24mY");
+        assert!(!g.screen[0][1].attrs.contains(Attrs::UNDERLINE));
+    }
+
+    #[test]
+    fn sgr_no_blink() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[5mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::BLINK));
+        g.feed(b"\x1b[25mY");
+        assert!(!g.screen[0][1].attrs.contains(Attrs::BLINK));
+    }
+
+    #[test]
+    fn sgr_no_reverse() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[7mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::REVERSE));
+        g.feed(b"\x1b[27mY");
+        assert!(!g.screen[0][1].attrs.contains(Attrs::REVERSE));
+    }
+
+    #[test]
+    fn sgr_no_strikethrough() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[9mX");
+        assert!(g.screen[0][0].attrs.contains(Attrs::STRIKEOUT));
+        g.feed(b"\x1b[29mY");
+        assert!(!g.screen[0][1].attrs.contains(Attrs::STRIKEOUT));
+    }
+
+    #[test]
+    fn sgr_all_attributes() {
+        // Set all attributes at once
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1;2;3;4;5;7;9mX");
+        let cell = g.screen[0][0].clone();
+        assert!(cell.attrs.contains(Attrs::BOLD));
+        assert!(cell.attrs.contains(Attrs::DIM));
+        assert!(cell.attrs.contains(Attrs::ITALIC));
+        assert!(cell.attrs.contains(Attrs::UNDERLINE));
+        assert!(cell.attrs.contains(Attrs::BLINK));
+        assert!(cell.attrs.contains(Attrs::REVERSE));
+        assert!(cell.attrs.contains(Attrs::STRIKEOUT));
+    }
+
+    #[test]
+    fn sgr_reset_clears_all_attributes() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1;4;7;9mX"); // bold + underline + reverse + strikeout
+        assert!(g.screen[0][0].attrs.contains(Attrs::BOLD));
+        g.feed(b"\x1b[0mY"); // SGR 0 reset
+        assert!(g.screen[0][1].attrs.is_empty());
+    }
+
+    #[test]
+    fn sgr_unknown_parameters_ignored() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[65;73;81mX"); // non-standard SGR codes
+                                    // Should not crash, cell should be default
+        let cell = g.screen[0][0].clone();
+        assert_eq!(cell.attrs, Attrs::empty());
+        assert_eq!(cell.fg, Color::Default);
+        assert_eq!(cell.bg, Color::Default);
+    }
+
+    // ── ED 1 (Erase to Start of Display) ──────────────────────────────────
+
+    #[test]
+    fn erase_in_display_to_start() {
+        let mut g = Grid::new(5, 5);
+        // Fill rows with distinct content
+        for row in 0..5 {
+            for col in 0..5 {
+                g.screen[row][col] = Cell {
+                    ch: (b'A' + row as u8) as char,
+                    width: 1,
+                    ..Cell::blank()
+                };
+            }
+        }
+        g.cursor_row = 3;
+        g.cursor_col = 2;
+        g.feed(b"\x1b[1J"); // ED 1: erase from start to cursor
+                            // Row 0 and 1 should be entirely blank
+        for row in 0..2 {
+            for col in 0..5 {
+                assert_eq!(
+                    g.screen[row][col].ch, ' ',
+                    "row {row} col {col} should be blank"
+                );
+            }
+        }
+        // Row 3 should have cols 0..=2 blank, cols 3..4 untouched ('D')
+        assert_eq!(g.screen[3][0].ch, ' ', "row 3 col 0 should be blank");
+        assert_eq!(g.screen[3][1].ch, ' ', "row 3 col 1 should be blank");
+        assert_eq!(g.screen[3][2].ch, ' ', "row 3 col 2 should be blank");
+        assert_eq!(g.screen[3][3].ch, 'D', "row 3 col 3 should be 'D'");
+        // Row 4 should be untouched
+        assert_eq!(g.screen[4][0].ch, 'E', "row 4 should be untouched");
+    }
+
+    #[test]
+    fn erase_in_display_scrollback_same_as_all() {
+        // ED 3 is treated identically to ED 2 (erase entire screen)
+        let mut g = Grid::new(5, 5);
+        g.feed(b"ABCDE\nFGHIJ\nKLMNO");
+        g.feed(b"\x1b[3J"); // ED 3
+        for row in 0..5 {
+            for col in 0..5 {
+                assert_eq!(
+                    g.screen[row][col].ch, ' ',
+                    "cell {row},{col} should be blank after ED 3"
+                );
+            }
+        }
+        assert_eq!(g.cursor_row, 0);
+        assert_eq!(g.cursor_col, 0);
+    }
+
+    // ── DECSET mouse modes via feed ────────────────────────────────────────
+
+    #[test]
+    fn decset_1000_mouse_x10_via_feed() {
+        let mut g = grid_24x80();
+        assert!(!g.mouse_x10);
+        g.feed(b"\x1b[?1000h"); // DECSET 1000
+        assert!(g.mouse_x10);
+    }
+
+    #[test]
+    fn decset_1000_mouse_x10_disable_via_feed() {
+        let mut g = grid_24x80();
+        g.mouse_x10 = true;
+        g.feed(b"\x1b[?1000l"); // DECRST 1000
+        assert!(!g.mouse_x10);
+    }
+
+    #[test]
+    fn decset_1002_mouse_normal_via_feed() {
+        let mut g = grid_24x80();
+        assert!(!g.mouse_normal);
+        g.feed(b"\x1b[?1002h");
+        assert!(g.mouse_normal);
+    }
+
+    #[test]
+    fn decset_1002_mouse_normal_disable_via_feed() {
+        let mut g = grid_24x80();
+        g.mouse_normal = true;
+        g.feed(b"\x1b[?1002l");
+        assert!(!g.mouse_normal);
+    }
+
+    #[test]
+    fn decset_1003_mouse_button_event_via_feed() {
+        let mut g = grid_24x80();
+        assert!(!g.mouse_button_event);
+        g.feed(b"\x1b[?1003h");
+        assert!(g.mouse_button_event);
+    }
+
+    #[test]
+    fn decset_1003_mouse_button_event_disable_via_feed() {
+        let mut g = grid_24x80();
+        g.mouse_button_event = true;
+        g.feed(b"\x1b[?1003l");
+        assert!(!g.mouse_button_event);
+    }
+
+    #[test]
+    fn decset_1006_mouse_sgr_via_feed() {
+        let mut g = grid_24x80();
+        assert!(!g.mouse_sgr);
+        g.feed(b"\x1b[?1006h");
+        assert!(g.mouse_sgr);
+    }
+
+    #[test]
+    fn decset_1006_mouse_sgr_disable_via_feed() {
+        let mut g = grid_24x80();
+        g.mouse_sgr = true;
+        g.feed(b"\x1b[?1006l");
+        assert!(!g.mouse_sgr);
+    }
+
+    #[test]
+    fn decset_mouse_reflected_in_delta() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta(); // clear initial dirty
+        g.feed(b"\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+        let delta = g.take_delta();
+        assert!(delta.mouse_x10);
+        assert!(delta.mouse_normal);
+        assert!(delta.mouse_sgr);
+        assert!(!delta.mouse_button_event);
+    }
+
+    // ── Scroll region edge cases ───────────────────────────────────────────
+
+    #[test]
+    fn decstbm_invalid_region_ignored() {
+        let mut g = grid_24x80();
+        // Default: full screen
+        assert_eq!(g.scroll_top, 0);
+        assert_eq!(g.scroll_bottom, 23);
+        // Invalid region (top >= bottom) should be ignored
+        g.feed(b"\x1b[10;5r");
+        assert_eq!(
+            g.scroll_top, 0,
+            "invalid region should not change scroll_top"
+        );
+        assert_eq!(
+            g.scroll_bottom, 23,
+            "invalid region should not change scroll_bottom"
+        );
+    }
+
+    #[test]
+    fn decstbm_region_clamped_to_screen() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[1;99r"); // bottom > rows
+        assert_eq!(g.scroll_top, 0);
+        assert_eq!(g.scroll_bottom, 23); // clamped to rows-1
+    }
+
+    #[test]
+    fn scroll_up_outside_region_noop() {
+        let mut g = Grid::new(5, 5);
+        // Set scroll region to rows 2-4 (1-based: 2;4) → 0-based: 1-3
+        g.scroll_top = 1;
+        g.scroll_bottom = 3;
+        // Fill content
+        for row in 0..5 {
+            g.screen[row][0] = Cell {
+                ch: (b'A' + row as u8) as char,
+                width: 1,
+                ..Cell::blank()
+            };
+        }
+        // LF at row 0 (above region) — should move cursor to row 1 but NOT scroll
+        g.cursor_row = 0;
+        g.cursor_col = 0;
+        g.feed(b"\n");
+        assert_eq!(g.screen[0][0].ch, 'A', "row 0 should be untouched");
+        assert_eq!(
+            g.screen[1][0].ch, 'B',
+            "row 1 should be untouched since cursor moved into region without scrolling"
+        );
+    }
+
+    // ── Insert/Delete line outside scroll region ──────────────────────────
+
+    #[test]
+    fn insert_line_outside_scroll_region_noop() {
+        let mut g = Grid::new(5, 5);
+        for row in 0..5 {
+            for col in 0..5 {
+                g.screen[row][col] = Cell {
+                    ch: (b'A' + row as u8) as char,
+                    width: 1,
+                    ..Cell::blank()
+                };
+            }
+        }
+        g.feed(b"\x1b[2;4r"); // scroll region rows 2-4 (0-based: 1-3)
+        g.cursor_row = 0; // outside region (above)
+        g.cursor_col = 0;
+        g.feed(b"\x1b[L"); // IL 1 — should be no-op outside scroll region
+        assert_eq!(g.screen[0][0].ch, 'A', "row 0 should be untouched");
+        assert_eq!(g.screen[1][0].ch, 'B', "row 1 should be untouched");
+    }
+
+    #[test]
+    fn delete_line_outside_scroll_region_noop() {
+        let mut g = Grid::new(5, 5);
+        for row in 0..5 {
+            for col in 0..5 {
+                g.screen[row][col] = Cell {
+                    ch: (b'A' + row as u8) as char,
+                    width: 1,
+                    ..Cell::blank()
+                };
+            }
+        }
+        g.feed(b"\x1b[2;4r"); // scroll region rows 2-4 (0-based: 1-3)
+        g.cursor_row = 4; // outside region (below)
+        g.cursor_col = 0;
+        g.feed(b"\x1b[M"); // DL 1 — should be no-op outside scroll region
+        assert_eq!(g.screen[3][0].ch, 'D', "row 3 should be untouched");
+        assert_eq!(g.screen[4][0].ch, 'E', "row 4 should be untouched");
+    }
+
+    // ── Cursor edge cases ──────────────────────────────────────────────────
+
+    #[test]
+    fn csi_cursor_position_zero_clamped() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[0;0H"); // CUP with 0 — should clamp to row=0, col=0
+        assert_eq!(g.cursor_row, 0);
+        assert_eq!(g.cursor_col, 0);
+    }
+
+    #[test]
+    fn csi_cursor_position_beyond_screen_clamped() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[999;999H"); // CUP far beyond bounds
+        assert_eq!(g.cursor_row, 23); // clamped to rows-1
+        assert_eq!(g.cursor_col, 79); // clamped to cols-1
+    }
+
+    #[test]
+    fn csi_cursor_forward_with_param() {
+        let mut g = grid_24x80();
+        g.cursor_col = 5;
+        g.feed(b"\x1b[10C"); // CUF 10
+        assert_eq!(g.cursor_col, 15);
+    }
+
+    #[test]
+    fn csi_cursor_back_with_param() {
+        let mut g = grid_24x80();
+        g.cursor_col = 20;
+        g.feed(b"\x1b[10D"); // CUB 10
+        assert_eq!(g.cursor_col, 10);
+    }
+
+    #[test]
+    fn csi_cursor_up_with_param() {
+        let mut g = grid_24x80();
+        g.cursor_row = 15;
+        g.feed(b"\x1b[5A"); // CUU 5
+        assert_eq!(g.cursor_row, 10);
+    }
+
+    #[test]
+    fn csi_cursor_down_with_param() {
+        let mut g = grid_24x80();
+        g.cursor_row = 5;
+        g.feed(b"\x1b[10B"); // CUD 10
+        assert_eq!(g.cursor_row, 15);
+    }
+
+    // ── Tab operations ─────────────────────────────────────────────────────
+
+    #[test]
+    fn tab_stops_at_multiple_of_8() {
+        let mut g = grid_24x80();
+        g.feed(b"\t");
+        assert_eq!(g.cursor_col, 8);
+        g.feed(b"\t");
+        assert_eq!(g.cursor_col, 16);
+    }
+
+    #[test]
+    fn tab_at_edge_clamped() {
+        let mut g = Grid::new(10, 3);
+        g.cursor_col = 9; // last column
+        g.feed(b"\t"); // should clamp to cols-1 = 9 (no wrap)
+        assert_eq!(g.cursor_col, 9);
+    }
+
+    #[test]
+    fn tab_after_multiple_tabs() {
+        let mut g = Grid::new(30, 3);
+        g.feed(b"\t\t\t"); // col 8, 16, 24
+        assert_eq!(g.cursor_col, 24);
+    }
+
+    // ── Resize edge cases ──────────────────────────────────────────────────
+
+    #[test]
+    fn resize_noop_same_size() {
+        let mut g = Grid::new(10, 5);
+        g.feed(b"Hello");
+        let content_before = g.screen[0][0].ch;
+        g.resize(10, 5);
+        assert_eq!(g.cols, 10);
+        assert_eq!(g.rows, 5);
+        assert_eq!(
+            g.screen[0][0].ch, content_before,
+            "content unchanged after noop resize"
+        );
+    }
+
+    #[test]
+    fn resize_zero_cols_no_panic() {
+        let mut g = Grid::new(10, 5);
+        g.resize(0, 5); // cols=0 shouldn't panic
+        assert_eq!(g.cols, 0);
+        assert_eq!(g.rows, 5);
+    }
+
+    // ── Feed edge cases ────────────────────────────────────────────────────
+
+    #[test]
+    fn feed_empty_bytes() {
+        let mut g = grid_24x80();
+        g.feed(b""); // no-op should not crash
+        assert_eq!(g.cursor_col, 0);
+        assert_eq!(g.cursor_row, 0);
+    }
+
+    #[test]
+    fn feed_multiline_does_not_truncate() {
+        let mut g = Grid::new(5, 10);
+        // Feed 100 chars into a 5-wide grid = 20 lines
+        let input: Vec<u8> = (0..100).map(|i| b'A' + (i % 26) as u8).collect();
+        g.feed(&input);
+        // Should have scrolled several lines
+        assert!(g.scrollback.len() > 0);
+    }
+
+    // ── Reverse index edge cases ──────────────────────────────────────────
+
+    #[test]
+    fn esc_m_at_row_zero_with_scroll_region() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[5;10r"); // scroll region rows 5-10
+        g.cursor_row = 4; // top of scroll region
+        g.cursor_col = 0;
+        g.feed(b"\x1bM"); // RI at top of scroll region should scroll region down
+        assert_eq!(g.cursor_row, 4, "cursor should stay at row 4");
+    }
+
+    #[test]
+    fn esc_m_at_top_of_screen_no_scroll() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1bM"); // RI at row 0, top of default scroll region
+                          // Should scroll the default region down
+        assert_eq!(g.cursor_row, 0);
+    }
+
+    // ── Character width edge cases ─────────────────────────────────────────
+
+    #[test]
+    fn unicode_width_combining() {
+        // Combining characters have width 0
+        assert_eq!(unicode_width('\u{0301}'), 0); // combining acute accent
+        assert_eq!(unicode_width('\u{20DD}'), 0); // combining enclosing circle
+    }
+
+    #[test]
+    fn unicode_width_control() {
+        // Most control chars have width 0 or None
+        assert_eq!(unicode_width('\0'), 0);
+        assert_eq!(unicode_width('\x01'), 0);
+    }
+
+    // ── Put char edge cases ────────────────────────────────────────────────
+
+    #[test]
+    fn put_char_at_last_column_wraps() {
+        let mut g = Grid::new(5, 3);
+        g.cursor_col = 4; // last column
+        g.cursor_row = 0;
+        g.feed(b"XY"); // Put 'X' at col 4, then 'Y' should wrap to row 1 col 0
+        assert_eq!(g.screen[0][4].ch, 'X', "X at col 4");
+        assert_eq!(g.screen[1][0].ch, 'Y', "Y wrapped to row 1 col 0");
+        assert!(g.wrapped[1], "row 1 should be marked wrapped");
+    }
+
+    #[test]
+    fn put_char_out_of_bounds_no_panic() {
+        let mut g = Grid::new(5, 3);
+        g.cursor_col = 10; // out of bounds
+        g.cursor_row = 5; // out of bounds
+        g.feed(b"X"); // should not panic
+    }
+
+    // ── Delta consistency ──────────────────────────────────────────────────
+
+    #[test]
+    fn take_delta_twice_empty() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta();
+        // No changes
+        let delta = g.take_delta();
+        assert!(delta.rows.is_empty());
+    }
+
+    #[test]
+    fn take_delta_after_resize() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta();
+        g.resize(40, 12);
+        let delta = g.take_delta();
+        // After resize, rows should be marked dirty
+        assert_eq!(delta.rows.len(), 12);
+    }
+
+    #[test]
+    fn take_delta_after_alt_screen_switch() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta();
+        g.feed(b"\x1b[?1049h"); // enter alt screen
+        let delta = g.take_delta();
+        assert!(
+            delta.rows.len() > 0,
+            "alt screen switch should mark all rows dirty"
+        );
+    }
+
+    // ── OSC 8 hyperlinks with params ───────────────────────────────────────
+
+    #[test]
+    fn osc_8_hyperlink_with_id_param() {
+        let mut g = grid_24x80();
+        // OSC 8 with id parameter
+        g.feed(b"\x1b]8;id=myid;https://example.com\x07");
+        g.feed(b"Link");
+        for col in 0..4 {
+            assert_eq!(
+                g.screen[0][col].hyperlink.as_deref(),
+                Some("https://example.com"),
+                "cell at col {col} should have hyperlink"
+            );
+        }
+    }
+
+    #[test]
+    fn osc_8_hyperlink_empty_params() {
+        let mut g = grid_24x80();
+        // OSC 8 open with empty params (just semicolons)
+        g.feed(b"\x1b]8;;\x07"); // empty URL = close (no-op if no open)
+        g.feed(b"NoLink");
+        for col in 0..6 {
+            assert!(g.screen[0][col].hyperlink.is_none());
+        }
+    }
+
+    #[test]
+    fn osc_8_hyperlink_overwrite_previous() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]8;;http://first\x07");
+        g.feed(b"AA");
+        g.feed(b"\x1b]8;;http://second\x07");
+        g.feed(b"BB");
+        assert_eq!(g.screen[0][0].hyperlink.as_deref(), Some("http://first"));
+        assert_eq!(g.screen[0][2].hyperlink.as_deref(), Some("http://second"));
+    }
+
+    // ── OSC 133 additional edge cases ──────────────────────────────────────
+
+    #[test]
+    fn osc_133_command_finished_with_large_exit_code() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;D;255\x07");
+        assert_eq!(g.command_finished, Some(255));
+    }
+
+    #[test]
+    fn osc_133_unknown_marker_ignored() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;Z\x07"); // unknown marker
+        assert!(g.command_started.is_none());
+        assert!(g.command_finished.is_none());
+    }
+
+    // ── Empty / unknown escapes ───────────────────────────────────────────
+
+    #[test]
+    fn unknown_csi_ignored() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b[?9999h"); // unknown DECSET mode
+                                // Should not crash or affect known modes
+        assert!(!g.mouse_x10);
+        assert!(!g.mouse_sgr);
+    }
+
+    #[test]
+    fn unknown_esc_sequence_ignored() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b(0"); // unknown SCS sequence (ESC ( )
+                           // Should not crash
+        assert_eq!(g.cursor_col, 0);
+    }
+
+    #[test]
+    fn csi_without_params_uses_default() {
+        let mut g = grid_24x80();
+        g.cursor_row = 10;
+        g.cursor_col = 20;
+        g.feed(b"\x1b[A"); // CUU with default param = 1
+        assert_eq!(g.cursor_row, 9);
+        g.feed(b"\x1b[B"); // CUD default = 1
+        assert_eq!(g.cursor_row, 10);
+        g.feed(b"\x1b[C"); // CUF default = 1
+        assert_eq!(g.cursor_col, 21);
+        g.feed(b"\x1b[D"); // CUB default = 1
+        assert_eq!(g.cursor_col, 20);
+    }
+
+    // ── Sequential operations ──────────────────────────────────────────────
+
+    #[test]
+    fn feed_then_resize_then_feed() {
+        let mut g = Grid::new(10, 5);
+        g.feed(b"Hello");
+        g.resize(20, 10);
+        g.feed(b" World");
+        assert_eq!(g.screen[0][0].ch, 'H');
+        assert_eq!(g.screen[0][5].ch, ' ');
+        assert_eq!(g.screen[0][6].ch, 'W');
     }
 }
