@@ -2,17 +2,14 @@
 
 ## Session summary
 
-**Language support for 12 new languages ✅**
-- Added 16 tree-sitter grammar crate dependencies (all compile on Windows)
-- Wrote highlight queries for: HTML, CSS, SCSS, LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
-- Registered TypeScript, C++, TOML, Markdown grammars (had queries, never registered)
-- Used raw FFI helper macro for older grammars with incompatible tree-sitter versions
-- All 22 languages now registered in `register_grammars()`
-
-**Syntax crate test coverage increased ✅**
-- Added 17 new unit tests across engine.rs, outline.rs, fold.rs
-- Total tests in crabide-syntax: 86 (up from 69)
-- Covers: SyntaxEngine creation, outline dispatch, symbol kind variants, fold kind mapping for new languages, node helper functions
+**Git fetch/pull/push/merge/rebase operations added ✅**
+- Added `GitEvent::FetchCompleted` and `GitEvent::PushCompleted` variants for rich result reporting
+- Added `GitCommand::Fetch/Pull/Push/Merge/Rebase` variants with full git2 implementations
+- Added public API methods on `GitService` for all 5 operations
+- Implemented: fetch (single branch or all), pull (merge or rebase, with fast-forward detection), push (with force option), merge (with conflict detection), rebase (with conflict detection)
+- Added `Action::GitFetch/GitPull/GitPush/GitMerge/GitRebase` action variants and registered in command palette
+- Wired all new actions in app.rs dispatch with appropriate status messages
+- All 925 workspace tests pass, zero warnings (clippy + check)
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
 
@@ -31,27 +28,28 @@
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all 903 workspace tests pass (86 syntax, 160 terminal, 112 UI, etc.)
+- **TESTS** — all 925 workspace tests pass
 
 ## Remaining roadmap items — pick next available
 
-### Medium tasks (all easy items are done)
-
-**Phase 6 (Git):**
-- [ ] fetch/pull/push/merge/rebase
+### Phase 6 (Git):
 - [ ] stash (push, pop, list, drop)
 - [ ] log / history / graph view
 - [ ] tag management, remote management, submodule support, conflict resolution
 
-**Phase 8 (DAP):**
+### Phase 8 (DAP):
 - [ ] attach workflow, evaluate, setVariable, threads, function/exception breakpoints
 
-**Phase 9 (Extensions):**
+### Phase 9 (Extensions):
 - [ ] WASM editor/workspace/commands host implementations
 - [ ] Registry download with checksum verification
 
-**Phase 4 (UI):**
+### Phase 4 (UI):
 - [ ] Minimap, split editor, context menu, drag-and-drop tabs, scrollbar annotations, peek view, output panel, settings UI, keybindings editor, theme picker, welcome screen, multi-cursor Alt+Click, column select mode
 
-**Phase 12:**
+### Phase 12:
 - [ ] Update checker, crash reporter, installers (Windows/macOS/Linux), CI workflows, performance pass, README/docs site
+
+## Cross-cutting
+- [ ] Feature flag matrix test
+- [ ] `crabide-workspace` crate tracking in Phase 1/2
