@@ -1292,6 +1292,10 @@ impl crabideApp {
                 self.ui_state.git_panel.stash_entries = stashes;
                 self.ui_state.set_status("Git stash list updated");
             }
+            LogReady { entries } => {
+                self.ui_state.git_panel.log_entries = entries;
+                self.ui_state.set_status("Git log updated");
+            }
         }
     }
 
@@ -2315,6 +2319,14 @@ impl crabideApp {
                 if let Some(svc) = &self.git_service {
                     svc.stash_drop(0);
                     self.ui_state.set_status("Dropping latest stash...");
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
+            }
+            Action::GitLog => {
+                if let Some(svc) = &self.git_service {
+                    svc.log(None, 100);
+                    self.ui_state.set_status("Fetching commit history...");
                 } else {
                     self.ui_state.set_status("No git repository found");
                 }

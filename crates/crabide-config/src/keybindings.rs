@@ -167,6 +167,8 @@ pub enum Action {
     GitStashPush,
     GitStashPop,
     GitStashDrop,
+    /// Request commit log history.
+    GitLog,
     // Debug
     ToggleBreakpoint,
     StartDebug,
@@ -1490,6 +1492,7 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::GitStashPush, "Git: Stash Push");
     m.insert(Action::GitStashPop, "Git: Stash Pop");
     m.insert(Action::GitStashDrop, "Git: Stash Drop");
+    m.insert(Action::GitLog, "Git: Show History / Log");
     // Debug
     m.insert(Action::ToggleBreakpoint, "Debug: Toggle Breakpoint");
     m.insert(Action::StartDebug, "Debug: Start Debugging");

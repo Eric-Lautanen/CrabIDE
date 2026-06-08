@@ -459,6 +459,9 @@ pub enum GitEvent {
 
     /// Stash list updated.
     StashListUpdated { stashes: Vec<StashEntry> },
+
+    /// Commit log entries ready (in response to a log request).
+    LogReady { entries: Vec<CommitEntry> },
 }
 
 // ── VFS / File Events ─────────────────────────────────────────────────────────
@@ -844,6 +847,25 @@ pub struct StashEntry {
     pub branch: String,
 }
 
+/// A single commit entry returned by git log.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitEntry {
+    /// Full commit hash.
+    pub hash: String,
+    /// Author name.
+    pub author: String,
+    /// Author email.
+    pub author_email: String,
+    /// Author timestamp (Unix epoch seconds).
+    pub author_time: i64,
+    /// Commit message subject (first line).
+    pub message: String,
+    /// Parent commit hashes.
+    pub parents: Vec<String>,
+    /// Branch / tag labels that point to this commit (decorations).
+    pub ref_names: Vec<String>,
+}
+
 // ── Top-level event enum ─────────────────────────────────────────────────────
 
 /// All events that can be sent from background services to the UI.
@@ -1109,6 +1131,9 @@ impl fmt::Display for GitEvent {
             }
             GitEvent::StashListUpdated { stashes } => {
                 write!(f, "git stash list: {} entries", stashes.len())
+            }
+            GitEvent::LogReady { entries } => {
+                write!(f, "git log: {} entries", entries.len())
             }
         }
     }

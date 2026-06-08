@@ -237,6 +237,15 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = index;
     }
+
+    /// Request commit log history. If `branch` is None, show all refs.
+    /// `limit` caps entries (0 = unlimited).
+    pub fn log(&self, branch: Option<String>, limit: usize) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::Log { branch, limit });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (branch, limit);
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -333,6 +342,12 @@ enum GitCommand {
     /// Drop a stash by index.
     StashDrop {
         index: usize,
+    },
+    /// Request commit log. If `branch` is Some, log for that branch; otherwise all refs.
+    /// `limit` caps the number of entries (0 = no limit).
+    Log {
+        branch: Option<String>,
+        limit: usize,
     },
 }
 
@@ -614,6 +629,10 @@ mod git_support {
                     run_op(&event_tx, format!("stash drop @{{{index}}}"), || {
                         stash_drop_impl(&mut repo, index)
                     });
+                }
+
+                GitCommand::Log { branch, limit } => {
+                    send_log(&repo, &workdir, &event_tx, branch.as_deref(), limit);
                 }
 
                 GitCommand::Shutdown => break,
@@ -1510,5 +1529,109 @@ mod git_support {
     ) -> std::result::Result<(), git2::Error> {
         repo.stash_drop(index)?;
         Ok(())
+    }
+
+    fn send_log(
+        repo: &git2::Repository,
+        _workdir: &Path,
+        event_tx: &Sender<EditorEvent>,
+        branch: Option<&str>,
+        limit: usize,
+    ) {
+        use crabide_core::event::{CommitEntry, GitEvent};
+
+        // Build a revwalk
+        let mut revwalk = match repo.revwalk() {
+            Ok(w) => w,
+            Err(e) => {
+                warn!("revwalk: {}", e.message());
+                return;
+            }
+        };
+
+        if revwalk
+            .set_sorting(git2::Sort::TIME | git2::Sort::TOPOLOGICAL)
+            .is_err()
+        {
+            warn!("revwalk set_sorting failed");
+            return;
+        }
+
+        if let Some(branch_name) = branch {
+            // Walk only the named branch's history
+            let ref_spec = format!("refs/heads/{branch_name}");
+            if revwalk.push_ref(&ref_spec).is_err() {
+                // Try remote ref
+                let remote_spec = format!("refs/remotes/{branch_name}");
+                if revwalk.push_ref(&remote_spec).is_err() {
+                    warn!("log: branch '{branch_name}' not found");
+                    return;
+                }
+            }
+        } else {
+            // Walk all refs (reachable commits)
+            if revwalk.push_glob("*").is_err() {
+                warn!("log: no refs to walk");
+                return;
+            }
+        }
+
+        // Collect decorations (ref names) for each commit
+        let mut decorations: HashMap<git2::Oid, Vec<String>> = HashMap::new();
+        if let Ok(refdb) = repo.references() {
+            for ref_result in refdb.flatten() {
+                let name = ref_result.name().unwrap_or("").to_owned();
+                if let Some(target) = ref_result.target() {
+                    decorations.entry(target).or_default().push(name);
+                }
+            }
+        }
+
+        let mut entries: Vec<CommitEntry> = Vec::new();
+        for oid_result in revwalk {
+            let oid = match oid_result {
+                Ok(o) => o,
+                Err(e) => {
+                    warn!("revwalk iteration: {}", e.message());
+                    continue;
+                }
+            };
+
+            let commit = match repo.find_commit(oid) {
+                Ok(c) => c,
+                Err(e) => {
+                    warn!("find_commit {}: {}", oid, e.message());
+                    continue;
+                }
+            };
+
+            let hash = oid.to_string();
+            let author = commit.author();
+            let message = commit
+                .summary()
+                .ok()
+                .flatten()
+                .unwrap_or("(no message)")
+                .to_owned();
+            let parents: Vec<String> = commit.parents().map(|p| p.id().to_string()).collect();
+
+            let ref_names = decorations.remove(&oid).unwrap_or_default();
+
+            entries.push(CommitEntry {
+                hash,
+                author: author.name().unwrap_or("Unknown").to_owned(),
+                author_email: author.email().unwrap_or("").to_owned(),
+                author_time: author.when().seconds(),
+                message,
+                parents,
+                ref_names,
+            });
+
+            if limit > 0 && entries.len() >= limit {
+                break;
+            }
+        }
+
+        let _ = event_tx.send(EditorEvent::Git(GitEvent::LogReady { entries }));
     }
 }
