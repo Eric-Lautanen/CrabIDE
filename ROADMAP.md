@@ -264,7 +264,7 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 
 ## Phase 8 — DAP Debugger ◐
 
-### crabide-dap — PARTIAL (~70%)
+### crabide-dap — PARTIAL (~95%)
 All DAP types defined, Content-Length transport complete, DapClient with launch/breakpoints/continue/step/stack/variables.
 
 **Critical fixes:**
@@ -273,20 +273,20 @@ All DAP types defined, Content-Length transport complete, DapClient with launch/
 - [x] Properly discard capabilities from initialize response (currently `Ok(_)` ignored)
 
 **Feature additions:**
-- [ ] Implement `attach` workflow (connect to running process)
-- [ ] Implement `evaluate` request (debug console REPL)
-- [ ] Implement `setVariable` / `setExpression` (write variable values)
-- [ ] Implement `gotoTargets` / `goto` (run to cursor)
-- [ ] Implement `threads` request (list all threads)
-- [ ] Implement `exceptionInfo` request (exception details on stop)
-- [ ] Implement function breakpoints (`setFunctionBreakpoints`)
-- [ ] Implement exception breakpoints (`setExceptionBreakpoints`)
-- [ ] Implement data breakpoints / watchpoints
-- [ ] Implement `runInTerminal` reverse-request handler
-- [ ] Implement progress events (ProgressStart/Update/End)
-- [ ] Implement `InvalidatedEvent` handler
-- [ ] Implement `completions` request (tab-completion in debug console)
-- [ ] Implement cancellation support (`CancelParams`)
+- [x] Implement `attach` workflow (connect to running process)
+- [x] Implement `evaluate` request (debug console REPL)
+- [x] Implement `setVariable` / `setExpression` (write variable values)
+- [x] Implement `gotoTargets` / `goto` (run to cursor)
+- [x] Implement `threads` request (list all threads)
+- [x] Implement `exceptionInfo` request (exception details on stop)
+- [x] Implement function breakpoints (`setFunctionBreakpoints`)
+- [x] Implement exception breakpoints (`setExceptionBreakpoints`)
+- [x] Implement data breakpoints / watchpoints
+- [x] Implement `runInTerminal` reverse-request handler
+- [x] Implement progress events (ProgressStart/Update/End)
+- [x] Implement `InvalidatedEvent` handler
+- [x] Implement `completions` request (tab-completion in debug console)
+- [x] Implement cancellation support (`CancelParams`)
 - [ ] Add backpressure to writer (unbounded channel → bounded + semaphore)
 
 ---

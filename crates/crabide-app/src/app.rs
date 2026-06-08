@@ -1436,6 +1436,143 @@ impl crabideApp {
                 self.ui_state
                     .set_status(format!("Debugger error: {message}"));
             }
+
+            EvaluateReady {
+                request_id,
+                result,
+                type_name,
+                variables_reference,
+                named_variables,
+                indexed_variables,
+            } => {
+                log::debug!("DAP evaluate #{request_id}: {result} ({:?})", type_name);
+                self.ui_state.dap_panel.last_evaluate_result =
+                    Some(crabide_core::event::EvaluateResult {
+                        expression: String::new(),
+                        result,
+                        type_name,
+                        variables_reference,
+                        named_variables,
+                        indexed_variables,
+                    });
+            }
+
+            ThreadsReady { threads } => {
+                log::debug!("DAP threads: {} threads", threads.len());
+                self.ui_state.dap_panel.threads = threads;
+            }
+
+            SetVariableDone {
+                request_id,
+                success,
+            } => {
+                log::debug!("DAP setVariable #{request_id}: success={success}");
+                if !success {
+                    self.ui_state
+                        .dap_panel
+                        .append_console(OutputCategory::Stderr, "Failed to set variable".into());
+                }
+            }
+
+            FunctionBreakpointsReady { breakpoints } => {
+                log::debug!(
+                    "DAP function breakpoints: {} breakpoints",
+                    breakpoints.len()
+                );
+                self.ui_state.dap_panel.function_breakpoints = breakpoints;
+            }
+
+            ExceptionInfoReady {
+                request_id: _,
+                description,
+                exception_type,
+                break_mode,
+            } => {
+                log::debug!(
+                    "DAP exception info: {:?} ({:?}) break_mode={:?}",
+                    description,
+                    exception_type,
+                    break_mode
+                );
+                self.ui_state.dap_panel.last_exception = Some(
+                    format!(
+                        "{:?}: {:?} (mode: {:?})",
+                        exception_type, description, break_mode
+                    )
+                    .trim_matches('"')
+                    .to_owned(),
+                );
+            }
+
+            ExceptionBreakpointsSet => {
+                log::debug!("DAP exception breakpoints set");
+            }
+
+            GotoTargetsReady {
+                request_id,
+                targets,
+            } => {
+                log::debug!("DAP gotoTargets #{request_id}: {} targets", targets.len());
+                self.ui_state.dap_panel.goto_targets = targets;
+            }
+
+            ModulesReady { modules } => {
+                log::debug!("DAP modules: {}", modules.len());
+                self.ui_state.dap_panel.modules = modules;
+            }
+
+            ProgressStart {
+                progress_id,
+                title,
+                message,
+                percentage,
+            } => {
+                log::debug!("DAP progress {progress_id}: {title} ({message:?}) {percentage:?}");
+                self.ui_state
+                    .dap_panel
+                    .progress
+                    .insert(progress_id, (title, message, percentage));
+            }
+
+            ProgressUpdate {
+                progress_id,
+                message,
+                percentage,
+            } => {
+                log::debug!("DAP progress update {progress_id}: {message:?} {percentage:?}");
+                if let Some(entry) = self.ui_state.dap_panel.progress.get_mut(&progress_id) {
+                    if let Some(msg) = message {
+                        entry.1 = Some(msg);
+                    }
+                    entry.2 = percentage;
+                }
+            }
+
+            ProgressEnd { progress_id } => {
+                log::debug!("DAP progress end {progress_id}");
+                self.ui_state.dap_panel.progress.remove(&progress_id);
+            }
+
+            Invalidated {
+                areas,
+                thread_id,
+                stack_frame_id,
+            } => {
+                log::debug!(
+                    "DAP invalidated: areas={areas:?} thread={thread_id:?} frame={stack_frame_id:?}"
+                );
+                // If stacks or variables were invalidated, re-fetch them.
+                if areas.iter().any(|a| a == "stacks" || a == "variables") {
+                    if let Some(client) = &self.dap_client {
+                        if let Some(tid) = thread_id {
+                            client.request_stack_trace(tid);
+                        }
+                        if let Some(fid) = stack_frame_id {
+                            client.request_variables(fid);
+                        }
+                    }
+                }
+            }
         }
     }
 

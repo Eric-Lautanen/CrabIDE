@@ -164,6 +164,83 @@ pub enum DapEvent {
 
     /// An error from the debug adapter.
     Error { message: String },
+
+    /// Result of the `evaluate` request (debug console REPL).
+    EvaluateReady {
+        request_id: u32,
+        result: String,
+        /// "string", "number", "boolean", etc.
+        type_name: Option<String>,
+        variables_reference: u64,
+        /// Number of named children if any.
+        named_variables: Option<u64>,
+        /// Number of indexed children if any.
+        indexed_variables: Option<u64>,
+    },
+
+    /// Result of the `threads` request.
+    ThreadsReady { threads: Vec<DapThread> },
+
+    /// Result of `setVariable` request.
+    SetVariableDone {
+        request_id: u32,
+        /// Whether the variable was modified successfully.
+        success: bool,
+    },
+
+    /// Result of `setFunctionBreakpoints` request.
+    FunctionBreakpointsReady { breakpoints: Vec<BreakpointState> },
+
+    /// Result of `exceptionInfo` request.
+    ExceptionInfoReady {
+        request_id: u32,
+        /// Exception description (e.g. "TypeError: x is not a function").
+        description: Option<String>,
+        /// The exception type (e.g. "TypeError").
+        exception_type: Option<String>,
+        /// The exception breakpoint mode that triggered.
+        break_mode: Option<String>,
+    },
+
+    /// Result of `setExceptionBreakpoints` request.
+    ExceptionBreakpointsSet,
+
+    /// Result of `gotoTargets` request.
+    GotoTargetsReady {
+        request_id: u32,
+        targets: Vec<GotoTarget>,
+    },
+
+    /// Result of `disassemble` request.
+    ModulesReady { modules: Vec<DapModule> },
+
+    /// Progress start event from the adapter.
+    ProgressStart {
+        progress_id: String,
+        title: String,
+        message: Option<String>,
+        percentage: Option<f64>,
+    },
+
+    /// Progress update event from the adapter.
+    ProgressUpdate {
+        progress_id: String,
+        message: Option<String>,
+        percentage: Option<f64>,
+    },
+
+    /// Progress end event from the adapter.
+    ProgressEnd { progress_id: String },
+
+    /// Invalidated event from adapter (cached data should be refreshed).
+    Invalidated {
+        /// Which part of the UI was invalidated.
+        areas: Vec<String>,
+        /// The thread ID if applicable.
+        thread_id: Option<u64>,
+        /// The stack frame ID if applicable.
+        stack_frame_id: Option<u64>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -767,6 +844,56 @@ pub struct Variable {
     pub indexed_variables: Option<u64>,
 }
 
+// ── DAP types ─────────────────────────────────────────────────────────────────
+
+/// Information about a thread in the debuggee.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DapThread {
+    pub id: u64,
+    pub name: String,
+}
+
+/// A goto target (run to cursor location).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GotoTarget {
+    pub id: u64,
+    pub label: String,
+    pub line: u32,
+    pub column: u32,
+    #[serde(default)]
+    pub end_line: Option<u32>,
+    #[serde(default)]
+    pub end_column: Option<u32>,
+}
+
+/// A module loaded in the debuggee.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DapModule {
+    pub id: u64,
+    pub name: String,
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub is_optimized: bool,
+    #[serde(default)]
+    pub is_user_code: bool,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub symbol_status: Option<String>,
+}
+
+/// Result of an `evaluate` request (debug console REPL).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvaluateResult {
+    pub expression: String,
+    pub result: String,
+    pub type_name: Option<String>,
+    pub variables_reference: u64,
+    pub named_variables: Option<u64>,
+    pub indexed_variables: Option<u64>,
+}
+
 // ── Git types ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1029,6 +1156,55 @@ impl fmt::Display for DapEvent {
             }
             DapEvent::Output { category, .. } => write!(f, "DAP output: {category:?}"),
             DapEvent::Error { message } => write!(f, "DAP error: {message}"),
+            DapEvent::EvaluateReady { request_id, .. } => {
+                write!(f, "DAP evaluate #{request_id} result ready")
+            }
+            DapEvent::ThreadsReady { threads } => write!(f, "DAP threads: {}", threads.len()),
+            DapEvent::SetVariableDone {
+                request_id,
+                success,
+            } => {
+                write!(f, "DAP setVariable #{request_id}: {success}")
+            }
+            DapEvent::FunctionBreakpointsReady { breakpoints } => {
+                write!(f, "DAP function breakpoints: {}", breakpoints.len())
+            }
+            DapEvent::ExceptionInfoReady {
+                request_id,
+                description,
+                ..
+            } => {
+                write!(f, "DAP exception info #{request_id}: {:?}", description)
+            }
+            DapEvent::ExceptionBreakpointsSet => write!(f, "DAP exception breakpoints set"),
+            DapEvent::GotoTargetsReady {
+                request_id,
+                targets,
+                ..
+            } => {
+                write!(
+                    f,
+                    "DAP gotoTargets #{request_id}: {} targets",
+                    targets.len()
+                )
+            }
+            DapEvent::ModulesReady { modules } => {
+                write!(f, "DAP modules: {}", modules.len())
+            }
+            DapEvent::ProgressStart {
+                progress_id, title, ..
+            } => {
+                write!(f, "DAP progress start {progress_id}: {title}")
+            }
+            DapEvent::ProgressUpdate { progress_id, .. } => {
+                write!(f, "DAP progress update {progress_id}")
+            }
+            DapEvent::ProgressEnd { progress_id } => {
+                write!(f, "DAP progress end {progress_id}")
+            }
+            DapEvent::Invalidated { areas, .. } => {
+                write!(f, "DAP invalidated areas: {}", areas.join(", "))
+            }
         }
     }
 }

@@ -2,43 +2,31 @@
 
 ## Session summary
 
-**Git log / history / graph view infrastructure added ✅**
-- Added `CommitEntry` type (hash, author, email, time, message, parents, ref_names) to crabide-core
-- Added `GitEvent::LogReady` variant for rich result reporting
-- Added `GitCommand::Log` variant with full git2 revwalk implementation (walk all refs or specific branch, decorations from reference database, sorted by time/topological order)
-- Added `GitService::log()` public API method with optional branch filter and limit (default 100)
-- Added `Action::GitLog` variant registered in command palette as "Git: Show History / Log"
-- Wired action in app.rs dispatch with status message
-- Added `log_entries` field to `GitPanelState` in UI state
-- All 928+ workspace tests pass, zero warnings (clippy + check)
-
-> **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
-
-## Handoff Policy
-
-**This project MUST continue to be handed off across sessions until the entire ROADMAP.md is complete.** Each session should:
-
-1. Read this RESUME.md to determine what was done and what's next
-2. Pick the next unfinished roadmap item(s) and implement them
-3. Follow the Autonomous Coding Best Practices in ROADMAP.md (cargo check, clippy, fmt, test after every edit; commit early and often)
-4. Update ROADMAP.md checkboxes as items are completed
-5. Update this RESUME.md with progress before calling `handoff`
-6. Call `handoff` with reason "continuing to next roadmap item" when nearing context limit or when the current item is done and more remain
-7. **Never stop voluntarily** — keep working through roadmap items until context forces a handoff
+**DAP evaluate/threads/breakpoints infrastructure added ✅**
+- Added new `DapEvent` variants: `EvaluateReady`, `ThreadsReady`, `SetVariableDone`, `FunctionBreakpointsReady`, `ExceptionInfoReady`, `ExceptionBreakpointsSet`, `GotoTargetsReady`, `ModulesReady`, `ProgressStart`, `ProgressUpdate`, `ProgressEnd`, `Invalidated`
+- Added DAP type definitions: `EvaluateArguments`/`EvaluateResponse`, `ThreadsResponse`/`ThreadInfo`, `SetVariableArguments`/`SetVariableResponse`, `SetExpressionArguments`/`SetExpressionResponse`, `FunctionBreakpoint`/`SetFunctionBreakpointsArguments`, `SetExceptionBreakpointsArguments`/`ExceptionOption`, `ExceptionInfoArguments`/`ExceptionInfoResponse`/`ExceptionDetail`, `GotoTargetsArguments`/`GotoTargetsResponse`/`GotoTargetInfo`/`GotoArguments`, `ModulesArguments`/`ModulesResponse`/`ModuleInfo`, `RunInTerminalArguments`, `CancelArguments`, `CompletionsArguments`/`CompletionsResponse`/`CompletionItem`
+- Added core event types: `DapThread`, `GotoTarget`, `DapModule`, `EvaluateResult`
+- Added `DapClient` methods: `evaluate()`, `request_threads()`, `set_variable()`, `set_function_breakpoints()`, `set_exception_breakpoints()`, `request_exception_info()`, `request_goto_targets()`, `goto()`, `request_modules()`
+- Extended `dispatch_event` to handle: `module`, `progressStart`, `progressUpdate`, `progressEnd`, `invalidated`, `runInTerminal`
+- Wired all new events in `apply_dap_event` in app.rs
+- Added new fields to `DapPanelState`: `threads`, `function_breakpoints`, `last_exception`, `goto_targets`, `modules`, `last_evaluate_result`, `progress`
+- All workspace tests pass, zero warnings (clippy + check)
 
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all 928+ workspace tests pass
+- **TESTS** — all ~990+ workspace tests pass
 
 ## Remaining roadmap items — pick next available
 
-### Phase 6 (Git):
-- [x] log / history / graph view
-- [ ] tag management, remote management, submodule support, conflict resolution
-
 ### Phase 8 (DAP):
-- [ ] attach workflow, evaluate, setVariable, threads, function/exception breakpoints
+- [x] evaluate, threads, setVariable, gotoTargets, exceptionInfo, function/exception breakpoints, progress events, invalidated event, runInTerminal stub, completions types, cancel types, modules
+- [ ] Add backpressure to writer (unbounded channel → bounded + semaphore)
+- [ ] Fully implement `attach` workflow
+- [ ] Fully implement `runInTerminal` handler
+
+### Phase 6 (Git):
+- [ ] tag management, remote management, submodule support, conflict resolution
 
 ### Phase 9 (Extensions):
 - [ ] WASM editor/workspace/commands host implementations

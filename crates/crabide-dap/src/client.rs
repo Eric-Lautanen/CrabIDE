@@ -7,15 +7,18 @@ use std::path::PathBuf;
 use tokio::process::{Child, Command};
 
 use crabide_core::event::{
-    BreakpointState, DapEvent, EditorEvent, OutputCategory, StackFrame, StopReason, Variable,
+    BreakpointState, DapEvent, DapThread, EditorEvent, GotoTarget, OutputCategory, StackFrame,
+    StopReason, Variable,
+};
+
+use crate::types::{
+    DisconnectArguments, EvaluateArguments, InitializeRequestArguments, LaunchConfig,
+    LaunchRequestArguments, ScopesArguments, SetBreakpointsArguments,
+    SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments,
+    Source, SourceBreakpoint, StackTraceArguments, VariablesArguments,
 };
 
 use crate::transport::DapTransport;
-use crate::types::{
-    DisconnectArguments, InitializeRequestArguments, LaunchConfig, LaunchRequestArguments,
-    ScopesArguments, SetBreakpointsArguments, Source, SourceBreakpoint, StackTraceArguments,
-    VariablesArguments,
-};
 
 // ── DapClient ─────────────────────────────────────────────────────────────────
 
@@ -428,6 +431,294 @@ impl DapClient {
             }
         });
     }
+
+    // ── Evaluate ────────────────────────────────────────────────────────────────
+
+    /// Evaluate an expression in the context of a stack frame (debug console REPL).
+    pub fn evaluate(&self, expression: String, frame_id: Option<u64>, context: Option<String>) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let args = EvaluateArguments {
+                expression,
+                context,
+                frame_id,
+            };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("evaluate", val).await {
+                Ok(Some(body)) => {
+                    if let Ok(resp) = serde_json::from_value::<crate::types::EvaluateResponse>(body)
+                    {
+                        let _ = event_tx.send(EditorEvent::Dap(DapEvent::EvaluateReady {
+                            request_id: 0,
+                            result: resp.result,
+                            type_name: resp.type_name,
+                            variables_reference: resp.variables_reference,
+                            named_variables: resp.named_variables,
+                            indexed_variables: resp.indexed_variables,
+                        }));
+                    }
+                }
+                Err(e) => log::warn!("DAP evaluate: {e}"),
+                Ok(None) => {}
+            }
+        });
+    }
+
+    // ── Threads ─────────────────────────────────────────────────────────────────
+
+    /// List all threads in the debuggee.
+    pub fn request_threads(&self) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            match t.request("threads", json!({})).await {
+                Ok(Some(body)) => {
+                    if let Ok(resp) = serde_json::from_value::<crate::types::ThreadsResponse>(body)
+                    {
+                        let threads: Vec<DapThread> = resp
+                            .threads
+                            .into_iter()
+                            .map(|th| DapThread {
+                                id: th.id,
+                                name: th.name,
+                            })
+                            .collect();
+                        let _ = event_tx.send(EditorEvent::Dap(DapEvent::ThreadsReady { threads }));
+                    }
+                }
+                Err(e) => log::warn!("DAP threads: {e}"),
+                Ok(None) => {}
+            }
+        });
+    }
+
+    // ── Set variable ────────────────────────────────────────────────────────────
+
+    /// Modify a variable's value.
+    pub fn set_variable(&self, variables_reference: u64, name: String, value: String) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let args = SetVariableArguments {
+                variables_reference,
+                name,
+                value,
+            };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("setVariable", val).await {
+                Ok(_) => {
+                    let _ = event_tx.send(EditorEvent::Dap(DapEvent::SetVariableDone {
+                        request_id: 0,
+                        success: true,
+                    }));
+                }
+                Err(e) => {
+                    log::warn!("DAP setVariable: {e}");
+                    let _ = event_tx.send(EditorEvent::Dap(DapEvent::SetVariableDone {
+                        request_id: 0,
+                        success: false,
+                    }));
+                }
+            }
+        });
+    }
+
+    // ── Function breakpoints ────────────────────────────────────────────────────
+
+    /// Set function breakpoints.
+    pub fn set_function_breakpoints(&self, breakpoints: Vec<String>) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let fb: Vec<crate::types::FunctionBreakpoint> = breakpoints
+                .into_iter()
+                .map(|name| crate::types::FunctionBreakpoint {
+                    name,
+                    condition: None,
+                    hit_condition: None,
+                })
+                .collect();
+            let args = SetFunctionBreakpointsArguments { breakpoints: fb };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("setFunctionBreakpoints", val).await {
+                Ok(Some(body)) => {
+                    if let Ok(resp) =
+                        serde_json::from_value::<crate::types::SetBreakpointsResponse>(body)
+                    {
+                        let states: Vec<BreakpointState> = resp
+                            .breakpoints
+                            .into_iter()
+                            .map(|bp| BreakpointState {
+                                id: bp.id,
+                                verified: bp.verified,
+                                message: bp.message,
+                                source_path: bp.source.and_then(|s| s.path).map(PathBuf::from),
+                                line: bp.line,
+                                column: bp.column,
+                            })
+                            .collect();
+                        let _ =
+                            event_tx.send(EditorEvent::Dap(DapEvent::FunctionBreakpointsReady {
+                                breakpoints: states,
+                            }));
+                    }
+                }
+                Err(e) => log::warn!("DAP setFunctionBreakpoints: {e}"),
+                Ok(None) => {}
+            }
+        });
+    }
+
+    // ── Exception breakpoints ──────────────────────────────────────────────────
+
+    /// Set exception breakpoints (which exception types should break).
+    pub fn set_exception_breakpoints(&self, filters: Vec<String>) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let args = SetExceptionBreakpointsArguments {
+                filters,
+                exception_options: Vec::new(),
+            };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("setExceptionBreakpoints", val).await {
+                Ok(_) => {
+                    let _ = event_tx.send(EditorEvent::Dap(DapEvent::ExceptionBreakpointsSet));
+                }
+                Err(e) => log::warn!("DAP setExceptionBreakpoints: {e}"),
+            }
+        });
+    }
+
+    // ── Exception info ─────────────────────────────────────────────────────────
+
+    /// Request exception info for a stopped thread.
+    pub fn request_exception_info(&self, thread_id: u64) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let args = crate::types::ExceptionInfoArguments { thread_id };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("exceptionInfo", val).await {
+                Ok(Some(body)) => {
+                    if let Ok(resp) =
+                        serde_json::from_value::<crate::types::ExceptionInfoResponse>(body)
+                    {
+                        let exception_id = resp.exception_id.clone();
+                        let _ = event_tx.send(EditorEvent::Dap(DapEvent::ExceptionInfoReady {
+                            request_id: 0,
+                            description: resp.description.or(exception_id),
+                            exception_type: resp.exception_id,
+                            break_mode: resp.break_mode,
+                        }));
+                    }
+                }
+                Err(e) => log::warn!("DAP exceptionInfo: {e}"),
+                Ok(None) => {}
+            }
+        });
+    }
+
+    // ── Goto targets / run to cursor ───────────────────────────────────────────
+
+    /// Request goto targets for a given source location.
+    pub fn request_goto_targets(&self, source_path: String, line: u32, column: Option<u32>) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let source = Source {
+                name: None,
+                path: Some(source_path),
+                source_reference: None,
+            };
+            let args = crate::types::GotoTargetsArguments {
+                source,
+                line,
+                column,
+            };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("gotoTargets", val).await {
+                Ok(Some(body)) => {
+                    if let Ok(resp) =
+                        serde_json::from_value::<crate::types::GotoTargetsResponse>(body)
+                    {
+                        let targets: Vec<GotoTarget> = resp
+                            .targets
+                            .into_iter()
+                            .map(|gt| GotoTarget {
+                                id: gt.id,
+                                label: gt.label,
+                                line: gt.line,
+                                column: gt.column,
+                                end_line: gt.end_line,
+                                end_column: gt.end_column,
+                            })
+                            .collect();
+                        let _ = event_tx.send(EditorEvent::Dap(DapEvent::GotoTargetsReady {
+                            request_id: 0,
+                            targets,
+                        }));
+                    }
+                }
+                Err(e) => log::warn!("DAP gotoTargets: {e}"),
+                Ok(None) => {}
+            }
+        });
+    }
+
+    /// Execute a goto (run to cursor).
+    pub fn goto(&self, thread_id: u64, target_id: u64) {
+        let t = self.transport.clone();
+        self.rt.spawn(async move {
+            let args = crate::types::GotoArguments {
+                thread_id,
+                target_id,
+            };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            if let Err(e) = t.request("goto", val).await {
+                log::warn!("DAP goto: {e}");
+            }
+        });
+    }
+
+    // ── Modules ─────────────────────────────────────────────────────────────────
+
+    /// Request loaded modules.
+    pub fn request_modules(&self) {
+        let t = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        self.rt.spawn(async move {
+            let args = crate::types::ModulesArguments {
+                start_module: None,
+                module_count: None,
+            };
+            let val = serde_json::to_value(args).unwrap_or(json!({}));
+            match t.request("modules", val).await {
+                Ok(Some(body)) => {
+                    if let Ok(resp) = serde_json::from_value::<crate::types::ModulesResponse>(body)
+                    {
+                        let modules: Vec<crabide_core::event::DapModule> = resp
+                            .modules
+                            .into_iter()
+                            .map(|m| crabide_core::event::DapModule {
+                                id: m.id,
+                                name: m.name,
+                                path: m.path,
+                                is_optimized: m.is_optimized,
+                                is_user_code: m.is_user_code,
+                                version: m.version,
+                                symbol_status: m.symbol_status,
+                            })
+                            .collect();
+                        let _ = event_tx.send(EditorEvent::Dap(DapEvent::ModulesReady { modules }));
+                    }
+                }
+                Err(e) => log::warn!("DAP modules: {e}"),
+                Ok(None) => {}
+            }
+        });
+    }
 }
 
 // ── Event dispatch helper ─────────────────────────────────────────────────────
@@ -505,6 +796,101 @@ fn dispatch_event(
                     breakpoint: state,
                 }));
             }
+        }
+
+        "module" => {
+            if let Some(Some(body)) = body.as_ref().map(|b| b.get("module")) {
+                let mid = body.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+                let name = body
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                log::debug!("DAP module event: {name} (id={mid})");
+            }
+        }
+
+        "progressStart" => {
+            if let Some(body) = body {
+                let progress_id = body
+                    .get("progressId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                let title = body
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                let message = body
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned);
+                let percentage = body.get("percentage").and_then(|v| v.as_f64());
+                let _ = event_tx.send(EditorEvent::Dap(DapEvent::ProgressStart {
+                    progress_id,
+                    title,
+                    message,
+                    percentage,
+                }));
+            }
+        }
+
+        "progressUpdate" => {
+            if let Some(body) = body {
+                let progress_id = body
+                    .get("progressId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                let message = body
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned);
+                let percentage = body.get("percentage").and_then(|v| v.as_f64());
+                let _ = event_tx.send(EditorEvent::Dap(DapEvent::ProgressUpdate {
+                    progress_id,
+                    message,
+                    percentage,
+                }));
+            }
+        }
+
+        "progressEnd" => {
+            if let Some(body) = body {
+                let progress_id = body
+                    .get("progressId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                let _ = event_tx.send(EditorEvent::Dap(DapEvent::ProgressEnd { progress_id }));
+            }
+        }
+
+        "invalidated" => {
+            if let Some(body) = body {
+                let areas: Vec<String> = body
+                    .get("areas")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let thread_id = body.get("threadId").and_then(|v| v.as_u64());
+                let stack_frame_id = body.get("stackFrameId").and_then(|v| v.as_u64());
+                let _ = event_tx.send(EditorEvent::Dap(DapEvent::Invalidated {
+                    areas,
+                    thread_id,
+                    stack_frame_id,
+                }));
+            }
+        }
+
+        "runInTerminal" => {
+            log::debug!("DAP: runInTerminal reverse-request received (not yet implemented)");
+            // TODO: Implement runInTerminal handler
         }
 
         other => log::debug!("DAP: unhandled event {other:?}"),

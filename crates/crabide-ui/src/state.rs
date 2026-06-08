@@ -1107,6 +1107,34 @@ pub struct DapPanelState {
     pub pending_expand_var: Option<u64>,
     /// Set/clear breakpoints for these files (path → 0-based line list).
     pub pending_set_breakpoints: Vec<(std::path::PathBuf, Vec<u32>)>,
+
+    // ── Threads ────────────────────────────────────────────────────────────
+    /// Thread list from the adapter.
+    pub threads: Vec<crabide_core::event::DapThread>,
+
+    // ── Function breakpoints ───────────────────────────────────────────────
+    /// Verified function breakpoint states.
+    pub function_breakpoints: Vec<crabide_core::event::BreakpointState>,
+
+    // ── Exception info ─────────────────────────────────────────────────────
+    /// Last exception description string.
+    pub last_exception: Option<String>,
+
+    // ── Goto targets ───────────────────────────────────────────────────────
+    /// Available goto targets for "run to cursor".
+    pub goto_targets: Vec<crabide_core::event::GotoTarget>,
+
+    // ── Modules ────────────────────────────────────────────────────────────
+    /// Loaded modules from the debuggee.
+    pub modules: Vec<crabide_core::event::DapModule>,
+
+    // ── Evaluate ───────────────────────────────────────────────────────────
+    /// Last evaluate result.
+    pub last_evaluate_result: Option<crabide_core::event::EvaluateResult>,
+
+    // ── Progress ───────────────────────────────────────────────────────────
+    /// Active progress indicators (progress_id → (title, message, percentage)).
+    pub progress: std::collections::HashMap<String, (String, Option<String>, Option<f64>)>,
 }
 
 impl Default for DapPanelState {
@@ -1141,6 +1169,13 @@ impl Default for DapPanelState {
             pending_stack_trace: false,
             pending_expand_var: None,
             pending_set_breakpoints: Vec::new(),
+            threads: Vec::new(),
+            function_breakpoints: Vec::new(),
+            last_exception: None,
+            goto_targets: Vec::new(),
+            modules: Vec::new(),
+            last_evaluate_result: None,
+            progress: std::collections::HashMap::new(),
         }
     }
 }
@@ -1169,6 +1204,13 @@ impl DapPanelState {
         self.variables.clear();
         self.expanded_var_refs.clear();
         self.breakpoint_states.clear();
+        self.threads.clear();
+        self.function_breakpoints.clear();
+        self.goto_targets.clear();
+        self.modules.clear();
+        self.last_evaluate_result = None;
+        self.last_exception = None;
+        self.progress.clear();
     }
 }
 
