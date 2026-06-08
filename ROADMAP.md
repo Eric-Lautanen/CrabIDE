@@ -247,9 +247,9 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 
 **Gaps:**
 - [ ] Implement OSC 8 hyperlinks (parse `\e]8;...;url\a...\e]8;;\a` → clickable links)
-- [ ] Implement DECSTBM (scroll regions) — needed for `less`/`vim`/`tmux`
-- [ ] Implement Insert/Delete Line (CSI L / CSI M)
-- [ ] Implement Insert/Delete Character (CSI @ / CSI P)
+- [x] Implement DECSTBM (scroll regions) — needed for `less`/`vim`/`tmux`
+- [x] Implement Insert/Delete Line (CSI L / CSI M)
+- [x] Implement Insert/Delete Character (CSI @ / CSI P)
 - [ ] Implement mouse reporting (DECSET 1000/1002/1003)
 - [x] Implement bracketed paste mode (DECSET 2004)
 - [x] Implement cursor visibility toggle (DECSET 25)
