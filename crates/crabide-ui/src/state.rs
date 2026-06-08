@@ -432,6 +432,9 @@ mod tests {
             scroll_top: 0,
             cursor_visible: true,
             bracketed_paste: false,
+            mouse_x10: false,
+            mouse_normal: false,
+            mouse_button_event: false,
             rows: vec![crabide_core::event::ChangedRow {
                 row: 5,
                 cells: vec![
@@ -1356,6 +1359,12 @@ pub struct TerminalInstance {
     pub exited: bool,
     /// Whether bracketed paste mode is active (DECSET 2004).
     pub bracketed_paste: bool,
+    /// Whether X10 mouse reporting is active (DECSET 1000).
+    pub mouse_x10: bool,
+    /// Whether normal mouse tracking is active (DECSET 1002).
+    pub mouse_normal: bool,
+    /// Whether button-event mouse tracking is active (DECSET 1003).
+    pub mouse_button_event: bool,
 }
 
 impl TerminalInstance {
@@ -1375,6 +1384,9 @@ impl TerminalInstance {
             scrollback_len: 0,
             exited: false,
             bracketed_paste: false,
+            mouse_x10: false,
+            mouse_normal: false,
+            mouse_button_event: false,
         }
     }
 
@@ -1384,6 +1396,9 @@ impl TerminalInstance {
         self.cursor_row = delta.cursor_row;
         self.cursor_visible = delta.cursor_visible;
         self.bracketed_paste = delta.bracketed_paste;
+        self.mouse_x10 = delta.mouse_x10;
+        self.mouse_normal = delta.mouse_normal;
+        self.mouse_button_event = delta.mouse_button_event;
         self.scrollback_len = delta.scroll_top;
 
         for changed in &delta.rows {

@@ -153,6 +153,14 @@ pub struct Grid {
     /// Bottom row of the scroll region (0-based, inclusive). Default rows-1.
     scroll_bottom: u16,
 
+    // Mouse reporting modes
+    /// DECSET 1000 — X10 mouse reporting (button press only, no release/motion).
+    pub mouse_x10: bool,
+    /// DECSET 1002 — normal mouse tracking (button press, release, motion while dragging).
+    pub mouse_normal: bool,
+    /// DECSET 1003 — button-event mouse tracking (all motion events).
+    pub mouse_button_event: bool,
+
     // vte parser
     parser: Parser,
 }
@@ -185,6 +193,9 @@ impl Grid {
             bracketed_paste: false,
             scroll_top: 0,
             scroll_bottom: rows.saturating_sub(1),
+            mouse_x10: false,
+            mouse_normal: false,
+            mouse_button_event: false,
             parser: Parser::new(),
         }
     }
@@ -258,6 +269,9 @@ impl Grid {
             scroll_top: self.scrollback.len() as u32,
             cursor_visible: self.cursor_visible,
             bracketed_paste: self.bracketed_paste,
+            mouse_x10: self.mouse_x10,
+            mouse_normal: self.mouse_normal,
+            mouse_button_event: self.mouse_button_event,
         }
     }
 
@@ -707,6 +721,25 @@ impl Perform for Grid {
             }
             'l' if params.iter().any(|s| s.first().copied() == Some(2004)) => {
                 self.bracketed_paste = false;
+            }
+            // Mouse reporting modes
+            'h' if params.iter().any(|s| s.first().copied() == Some(1000)) => {
+                self.mouse_x10 = true;
+            }
+            'l' if params.iter().any(|s| s.first().copied() == Some(1000)) => {
+                self.mouse_x10 = false;
+            }
+            'h' if params.iter().any(|s| s.first().copied() == Some(1002)) => {
+                self.mouse_normal = true;
+            }
+            'l' if params.iter().any(|s| s.first().copied() == Some(1002)) => {
+                self.mouse_normal = false;
+            }
+            'h' if params.iter().any(|s| s.first().copied() == Some(1003)) => {
+                self.mouse_button_event = true;
+            }
+            'l' if params.iter().any(|s| s.first().copied() == Some(1003)) => {
+                self.mouse_button_event = false;
             }
             // Alternate screen: switch in (?1049h) / out (?1049l)
             'h' if params.iter().any(|s| s.first().copied() == Some(1049)) => {

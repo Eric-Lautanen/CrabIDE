@@ -234,6 +234,12 @@ pub struct TerminalGridDelta {
     pub cursor_visible: bool,
     /// Whether bracketed paste mode is active (DECSET 2004).
     pub bracketed_paste: bool,
+    /// Whether X10 mouse reporting is active (DECSET 1000).
+    pub mouse_x10: bool,
+    /// Whether normal mouse tracking is active (DECSET 1002).
+    pub mouse_normal: bool,
+    /// Whether button-event mouse tracking is active (DECSET 1003).
+    pub mouse_button_event: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -1144,6 +1150,9 @@ mod tests {
                 scroll_top: 0,
                 cursor_visible: true,
                 bracketed_paste: false,
+                mouse_x10: false,
+                mouse_normal: false,
+                mouse_button_event: false,
             },
         };
         let s = format!("{evt}");
