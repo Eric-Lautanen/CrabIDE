@@ -136,6 +136,28 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = path;
     }
+
+    /// Request staged diff hunks for `path` (sent back as `DiffStagedUpdated`).
+    pub fn request_diff_staged(&self, uri: DocumentUri, path: PathBuf) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::DiffStaged { uri, path });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (uri, path);
+    }
+
+    /// Request listing of all local and remote branches (sent back as `BranchesListed`).
+    pub fn list_branches(&self) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ListBranches);
+    }
+
+    /// Delete a local branch by name.
+    pub fn delete_branch(&self, name: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::DeleteBranch(name));
+        #[cfg(not(feature = "git-support"))]
+        let _ = name;
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -161,13 +183,14 @@ use std::path::Path;
 use std::thread;
 
 #[cfg(feature = "git-support")]
-use crabide_core::event::{BlameLine, DiffHunk, FileStatus, HunkKind, StatusKind};
+use crabide_core::event::{BlameLine, BranchInfo, DiffHunk, FileStatus, HunkKind, StatusKind};
 
 /// Commands sent to the git background worker thread.
 #[cfg(feature = "git-support")]
 enum GitCommand {
     Refresh,
     DiffHunks { uri: DocumentUri, path: PathBuf },
+    DiffStaged { uri: DocumentUri, path: PathBuf },
     Blame { uri: DocumentUri, path: PathBuf },
     StageFile(PathBuf),
     UnstageFile(PathBuf),
@@ -176,6 +199,8 @@ enum GitCommand {
     Commit { message: String },
     CheckoutBranch(String),
     CreateBranch(String),
+    ListBranches,
+    DeleteBranch(String),
     DiscardFile(PathBuf),
     Shutdown,
 }
@@ -232,6 +257,10 @@ mod git_support {
                     send_diff_hunks(&repo, &workdir, uri, &path, &event_tx);
                 }
 
+                GitCommand::DiffStaged { uri, path } => {
+                    send_diff_staged(&repo, &workdir, uri, &path, &event_tx);
+                }
+
                 GitCommand::Blame { uri, path } => {
                     send_blame(&repo, &workdir, uri, &path, &event_tx);
                 }
@@ -279,6 +308,16 @@ mod git_support {
                         create_branch_impl(&repo, &name)
                     });
                     send_head_info(&repo, &event_tx);
+                }
+
+                GitCommand::ListBranches => {
+                    send_branch_list(&repo, &event_tx);
+                }
+
+                GitCommand::DeleteBranch(name) => {
+                    run_op(&event_tx, format!("delete branch {name}"), || {
+                        delete_branch_impl(&repo, &name)
+                    });
                 }
 
                 GitCommand::DiscardFile(path) => {
@@ -661,6 +700,177 @@ mod git_support {
         let mut checkout = git2::build::CheckoutBuilder::new();
         checkout.force().path(rel);
         repo.checkout_head(Some(&mut checkout))?;
+        Ok(())
+    }
+
+    fn send_diff_staged(
+        repo: &git2::Repository,
+        workdir: &Path,
+        uri: DocumentUri,
+        path: &Path,
+        event_tx: &Sender<EditorEvent>,
+    ) {
+        use crabide_core::event::GitEvent;
+        let rel_path = match path.strip_prefix(workdir) {
+            Ok(p) => p,
+            Err(_) => {
+                warn!("diff_staged: path not under workdir: {}", path.display());
+                return;
+            }
+        };
+
+        let mut opts = git2::DiffOptions::new();
+        opts.pathspec(rel_path.to_string_lossy().as_ref());
+
+        // Diff index (staging area) vs HEAD tree.
+        let diff = match repo.head().ok().and_then(|h| h.peel_to_commit().ok()) {
+            Some(commit) => match commit.tree() {
+                Ok(tree) => repo.diff_tree_to_index(Some(&tree), None, Some(&mut opts)),
+                Err(e) => {
+                    warn!("diff staged tree: {}", e.message());
+                    return;
+                }
+            },
+            None => {
+                // No HEAD commit — no staged changes to compare against.
+                let _ = event_tx.send(EditorEvent::Git(GitEvent::DiffStagedUpdated {
+                    uri,
+                    hunks: vec![],
+                }));
+                return;
+            }
+        };
+
+        let diff = match diff {
+            Ok(d) => d,
+            Err(e) => {
+                warn!("diff staged: {}", e.message());
+                return;
+            }
+        };
+
+        let mut hunks: Vec<DiffHunk> = Vec::new();
+        let _ = diff.foreach(
+            &mut |_, _| true,
+            None,
+            Some(&mut |_, hunk: git2::DiffHunk<'_>| {
+                let old_lines = hunk.old_lines();
+                let new_lines = hunk.new_lines();
+                let kind = if old_lines == 0 {
+                    HunkKind::Added
+                } else if new_lines == 0 {
+                    HunkKind::Removed
+                } else {
+                    HunkKind::Modified
+                };
+                hunks.push(DiffHunk {
+                    old_start: hunk.old_start(),
+                    old_lines,
+                    new_start: hunk.new_start(),
+                    new_lines,
+                    kind,
+                });
+                true
+            }),
+            None,
+        );
+
+        let _ = event_tx.send(EditorEvent::Git(GitEvent::DiffStagedUpdated { uri, hunks }));
+    }
+
+    fn send_branch_list(repo: &git2::Repository, event_tx: &Sender<EditorEvent>) {
+        use crabide_core::event::GitEvent;
+
+        // Determine current HEAD branch name.
+        let current_head = repo.head().ok().and_then(|h| {
+            if h.is_branch() {
+                h.shorthand().map(|s| s.to_owned()).ok()
+            } else {
+                None
+            }
+        });
+
+        let mut branches: Vec<BranchInfo> = Vec::new();
+
+        // Gather local branches.
+        if let Ok(local) = repo.branches(Some(git2::BranchType::Local)) {
+            for branch_result in local.flatten() {
+                let (branch, _type) = branch_result;
+                let info = make_branch_info(repo, &branch, true, &current_head);
+                branches.push(info);
+            }
+        }
+
+        // Gather remote branches.
+        if let Ok(remotes) = repo.branches(Some(git2::BranchType::Remote)) {
+            for branch_result in remotes.flatten() {
+                let (branch, _type) = branch_result;
+                let info = make_branch_info(repo, &branch, false, &current_head);
+                branches.push(info);
+            }
+        }
+
+        let _ = event_tx.send(EditorEvent::Git(GitEvent::BranchesListed { branches }));
+    }
+
+    fn make_branch_info(
+        repo: &git2::Repository,
+        branch: &git2::Branch<'_>,
+        is_local: bool,
+        current_head: &Option<String>,
+    ) -> BranchInfo {
+        let ref_name = branch.get().name().unwrap_or("").to_owned();
+        let shorthand = branch.get().shorthand().unwrap_or("").to_owned();
+        let is_current = is_local && Some(&shorthand) == current_head.as_ref();
+
+        let commit = branch
+            .get()
+            .peel_to_commit()
+            .map(|c| c.id().to_string())
+            .unwrap_or_else(|_| "0000000".into());
+
+        // Upstream tracking info (local branches only).
+        let (upstream, ahead, behind) = if is_local {
+            match branch.upstream() {
+                Ok(up) => {
+                    let up_shorthand = up.get().shorthand().ok().map(|s| s.to_owned());
+                    let (a, b) = branch
+                        .get()
+                        .peel_to_commit()
+                        .ok()
+                        .and_then(|c1| {
+                            up.get()
+                                .peel_to_commit()
+                                .ok()
+                                .and_then(|c2| repo.graph_ahead_behind(c1.id(), c2.id()).ok())
+                        })
+                        .unwrap_or((0, 0));
+                    (up_shorthand, a, b)
+                }
+                Err(_) => (None, 0, 0),
+            }
+        } else {
+            (None, 0, 0)
+        };
+
+        BranchInfo {
+            ref_name,
+            shorthand,
+            is_local,
+            is_current,
+            commit,
+            upstream,
+            ahead,
+            behind,
+        }
+    }
+
+    fn delete_branch_impl(
+        repo: &git2::Repository,
+        name: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        let mut branch = repo.find_branch(name, git2::BranchType::Local)?;
+        branch.delete()?;
         Ok(())
     }
 }

@@ -416,6 +416,12 @@ pub enum GitEvent {
         hunks: Vec<DiffHunk>,
     },
 
+    /// Diff hunks for staged changes (index vs HEAD) for a specific file.
+    DiffStagedUpdated {
+        uri: DocumentUri,
+        hunks: Vec<DiffHunk>,
+    },
+
     /// Inline blame annotations for a file updated.
     BlameUpdated {
         uri: DocumentUri,
@@ -427,6 +433,9 @@ pub enum GitEvent {
         branch: Option<String>,
         commit: String,
     },
+
+    /// List of all branches (local + remote) in the repository.
+    BranchesListed { branches: Vec<BranchInfo> },
 
     /// An operation (commit, stage, etc.) completed.
     OperationCompleted { operation: String },
@@ -747,6 +756,27 @@ pub struct FileStatus {
     pub worktree_status: StatusKind,
 }
 
+/// Information about a single branch (local or remote).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchInfo {
+    /// Full ref name, e.g. "refs/heads/main" or "refs/remotes/origin/main".
+    pub ref_name: String,
+    /// Short display name, e.g. "main" or "origin/main".
+    pub shorthand: String,
+    /// Whether this is a local branch.
+    pub is_local: bool,
+    /// Whether this is the currently checked-out branch.
+    pub is_current: bool,
+    /// Commit hash this branch points to.
+    pub commit: String,
+    /// Upstream branch shorthand (if tracking), e.g. "origin/main".
+    pub upstream: Option<String>,
+    /// Whether the branch is ahead of its upstream (if tracked).
+    pub ahead: usize,
+    /// Whether the branch is behind its upstream (if tracked).
+    pub behind: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StatusKind {
     Untracked,
@@ -998,6 +1028,9 @@ impl fmt::Display for GitEvent {
             GitEvent::DiffHunksUpdated { uri, hunks } => {
                 write!(f, "git diff: {} ({} hunks)", uri, hunks.len())
             }
+            GitEvent::DiffStagedUpdated { uri, hunks } => {
+                write!(f, "git diff-staged: {} ({} hunks)", uri, hunks.len())
+            }
             GitEvent::BlameUpdated { uri, lines } => {
                 write!(f, "git blame: {} ({} lines)", uri, lines.len())
             }
@@ -1008,6 +1041,9 @@ impl fmt::Display for GitEvent {
                     branch.as_deref().unwrap_or("detached"),
                     commit
                 )
+            }
+            GitEvent::BranchesListed { branches } => {
+                write!(f, "git branches: {} listed", branches.len())
             }
             GitEvent::OperationCompleted { operation } => {
                 write!(f, "git {operation} completed")
@@ -1433,8 +1469,16 @@ mod tests {
     fn terminal_color_scheme_round_trip_default() {
         let scheme = TerminalColorScheme::dark();
         // Default fg/bg round-trip through the rendering logic
-        let fg = (scheme.foreground.0, scheme.foreground.1, scheme.foreground.2);
-        let bg = (scheme.background.0, scheme.background.1, scheme.background.2);
+        let fg = (
+            scheme.foreground.0,
+            scheme.foreground.1,
+            scheme.foreground.2,
+        );
+        let bg = (
+            scheme.background.0,
+            scheme.background.1,
+            scheme.background.2,
+        );
         assert_eq!(fg, scheme.foreground);
         assert_eq!(bg, scheme.background);
     }

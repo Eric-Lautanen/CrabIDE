@@ -14,8 +14,8 @@ use crabide_buffer::{CursorSet, SnippetEngine, SnippetTabstop};
 use crabide_config::{Action, Color, ColorTheme, KeybindingEngine, WhenContext};
 use crabide_core::{
     event::{
-        BlameLine, Diagnostic, DiffHunk, FileStatus, FoldingRange, OutputCategory, StackFrame,
-        TerminalCell, TerminalColor, TerminalColorScheme, Variable,
+        BlameLine, BranchInfo, Diagnostic, DiffHunk, FileStatus, FoldingRange, OutputCategory,
+        StackFrame, TerminalCell, TerminalColor, TerminalColorScheme, Variable,
     },
     types::{BufferId, DocumentUri, Language, Position, Range},
 };
@@ -499,7 +499,12 @@ mod tests {
     #[test]
     fn terminal_panel_active_with_instance() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
+        state.instances.push(TerminalInstance::new(
+            1,
+            80,
+            24,
+            TerminalColorScheme::dark(),
+        ));
         assert!(state.active().is_some());
         assert_eq!(state.active().unwrap().id, 1);
         assert!(state.active_mut().is_some());
@@ -508,8 +513,18 @@ mod tests {
     #[test]
     fn terminal_panel_by_id_mut() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
-        state.instances.push(TerminalInstance::new(2, 80, 24, TerminalColorScheme::dark()));
+        state.instances.push(TerminalInstance::new(
+            1,
+            80,
+            24,
+            TerminalColorScheme::dark(),
+        ));
+        state.instances.push(TerminalInstance::new(
+            2,
+            80,
+            24,
+            TerminalColorScheme::dark(),
+        ));
         let found = state.by_id_mut(2);
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, 2);
@@ -519,8 +534,18 @@ mod tests {
     #[test]
     fn terminal_panel_remove_by_id() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
-        state.instances.push(TerminalInstance::new(2, 80, 24, TerminalColorScheme::dark()));
+        state.instances.push(TerminalInstance::new(
+            1,
+            80,
+            24,
+            TerminalColorScheme::dark(),
+        ));
+        state.instances.push(TerminalInstance::new(
+            2,
+            80,
+            24,
+            TerminalColorScheme::dark(),
+        ));
         state.active_idx = 1;
         state.remove_by_id(1);
         assert_eq!(state.instances.len(), 1);
@@ -530,7 +555,12 @@ mod tests {
     #[test]
     fn terminal_panel_remove_by_id_adjusts_active() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
+        state.instances.push(TerminalInstance::new(
+            1,
+            80,
+            24,
+            TerminalColorScheme::dark(),
+        ));
         state.remove_by_id(1);
         assert!(state.instances.is_empty());
         assert_eq!(state.active_idx, 0);
@@ -1158,6 +1188,8 @@ pub struct EditorTab {
     pub diagnostics: Vec<Diagnostic>,
     /// Git diff hunks for gutter markers.
     pub git_hunks: Vec<DiffHunk>,
+    /// Git staged diff hunks (index vs HEAD) for the staged review view.
+    pub git_staged_hunks: Vec<DiffHunk>,
     /// Breakpoints set in this file (0-based line numbers).
     pub breakpoints: Vec<u32>,
     /// Gutter markers contributed by extensions for this document.
@@ -1206,6 +1238,7 @@ impl EditorTab {
             highlight_spans: Vec::new(),
             diagnostics: Vec::new(),
             git_hunks: Vec::new(),
+            git_staged_hunks: Vec::new(),
             breakpoints: Vec::new(),
             extension_gutter_markers: Vec::new(),
             cursors: CursorSet::new(),
@@ -1280,6 +1313,9 @@ pub struct GitPanelState {
     /// Blame lines keyed by absolute path, populated on request.
     pub blame_lines: IndexMap<PathBuf, Vec<BlameLine>>,
 
+    /// List of local and remote branches.
+    pub branches: Vec<BranchInfo>,
+
     // ── Pending actions drained by the app each frame ─────────────────────────
     pub pending_stage_file: Option<PathBuf>,
     pub pending_unstage_file: Option<PathBuf>,
@@ -1299,6 +1335,7 @@ impl Default for GitPanelState {
             unstaged_files: Vec::new(),
             commit_message: String::new(),
             blame_lines: IndexMap::new(),
+            branches: Vec::new(),
             pending_stage_file: None,
             pending_unstage_file: None,
             pending_stage_all: false,

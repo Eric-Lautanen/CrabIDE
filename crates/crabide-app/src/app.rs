@@ -1169,6 +1169,13 @@ impl crabideApp {
                 }
             }
 
+            DiffStagedUpdated { uri, hunks } => {
+                // Staged diff data can be stored similarly for review UI.
+                if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
+                    tab.git_staged_hunks = hunks;
+                }
+            }
+
             StatusRefreshed { statuses } => {
                 // Split into staged (index has changes) and unstaged (worktree has changes).
                 let staged: Vec<FileStatus> = statuses
@@ -1214,6 +1221,10 @@ impl crabideApp {
                 if let Some(svc) = &self.git_service {
                     svc.refresh();
                 }
+            }
+
+            BranchesListed { branches } => {
+                self.ui_state.git_panel.branches = branches;
             }
 
             OperationFailed { operation, error } => {
