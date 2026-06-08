@@ -5,6 +5,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// ── Window geometry ─────────────────────────────────────────────────────────────
+
 /// Persisted window geometry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowState {
@@ -28,13 +30,13 @@ impl Default for WindowState {
 }
 
 /// Path to the window state file in the user config directory.
-pub fn state_path() -> Option<PathBuf> {
-    home_dir().map(|h| h.join(".crabide").join("window_state.json"))
+fn window_state_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join("window_state.json"))
 }
 
 /// Load saved window state, or return defaults if the file doesn't exist or is corrupt.
-pub fn load() -> WindowState {
-    let path = match state_path() {
+pub fn load_window_state() -> WindowState {
+    let path = match window_state_path() {
         Some(p) => p,
         None => return WindowState::default(),
     };
@@ -45,27 +47,45 @@ pub fn load() -> WindowState {
 }
 
 /// Save window state to disk. Creates parent directories if needed.
-pub fn save(state: &WindowState) {
-    let path = match state_path() {
+pub fn save_window_state(state: &WindowState) {
+    with_json_file(&window_state_path(), state, "window state");
+}
+
+// ── Session (open files) ────────────────────────────────────────────────────────
+
+/// Persisted set of open editor file paths to restore on next launch.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SessionState {
+    /// File paths that were open when the editor last closed.
+    pub open_files: Vec<String>,
+}
+
+/// Path to the session state file.
+fn session_state_path() -> Option<PathBuf> {
+    config_dir().map(|d| d.join("session.json"))
+}
+
+/// Load session state (list of files open in last session).
+pub fn load_session() -> SessionState {
+    let path = match session_state_path() {
         Some(p) => p,
-        None => return,
+        None => return SessionState::default(),
     };
-    let json = match serde_json::to_string_pretty(state) {
-        Ok(j) => j,
-        Err(e) => {
-            log::error!("Failed to serialize window state: {e}");
-            return;
-        }
-    };
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            log::error!("Failed to create config dir for window state: {e}");
-            return;
-        }
+    match std::fs::read_to_string(&path) {
+        Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
+        Err(_) => SessionState::default(),
     }
-    if let Err(e) = std::fs::write(&path, json) {
-        log::error!("Failed to write window state: {e}");
-    }
+}
+
+/// Save session state (list of open file paths).
+pub fn save_session(state: &SessionState) {
+    with_json_file(&session_state_path(), state, "session");
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────────
+
+fn config_dir() -> Option<PathBuf> {
+    home_dir().map(|h| h.join(".crabide"))
 }
 
 fn home_dir() -> Option<PathBuf> {
@@ -76,5 +96,28 @@ fn home_dir() -> Option<PathBuf> {
     #[cfg(not(windows))]
     {
         std::env::var_os("HOME").map(PathBuf::from)
+    }
+}
+
+fn with_json_file<T: Serialize>(path: &Option<PathBuf>, value: &T, label: &str) {
+    let path = match path {
+        Some(p) => p,
+        None => return,
+    };
+    let json = match serde_json::to_string_pretty(value) {
+        Ok(j) => j,
+        Err(e) => {
+            log::error!("Failed to serialize {label}: {e}");
+            return;
+        }
+    };
+    if let Some(parent) = path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            log::error!("Failed to create config dir for {label}: {e}");
+            return;
+        }
+    }
+    if let Err(e) = std::fs::write(path, json) {
+        log::error!("Failed to write {label}: {e}");
     }
 }

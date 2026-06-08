@@ -156,7 +156,7 @@ fn main() -> Result<()> {
     let rt_handle = rt.handle().clone();
 
     // Load persisted window state (size, position, maximized) from last session.
-    let win = window_state::load();
+    let win = window_state::load_window_state();
 
     // eframe / egui (glow / OpenGL renderer)
     // glow replaces the wgpu renderer. OpenGL is sufficient for 2D text+UI and

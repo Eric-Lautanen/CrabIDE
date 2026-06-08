@@ -278,6 +278,26 @@ impl crabideApp {
         for path in initial_paths {
             app.open_path(path);
         }
+        // Restore session files (from last session) that weren't already opened via CLI.
+        let session = crate::window_state::load_session();
+        let existing: std::collections::HashSet<String> = app
+            .ui_state
+            .tabs
+            .iter()
+            .filter_map(|t| {
+                t.uri
+                    .to_file_path()
+                    .map(|p| p.to_string_lossy().to_string())
+            })
+            .collect();
+        for file_path in &session.open_files {
+            if !existing.contains(file_path) {
+                let p = std::path::PathBuf::from(file_path);
+                if p.exists() {
+                    app.open_path(p);
+                }
+            }
+        }
         app
     }
 
@@ -3595,7 +3615,23 @@ impl eframe::App for crabideApp {
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         log::info!("crabide exiting");
-        crate::window_state::save(&self.window_state);
+        crate::window_state::save_window_state(&self.window_state);
+        // Save session: collect open file URIs as filesystem paths (skip untitled).
+        let open_files: Vec<String> = self
+            .ui_state
+            .tabs
+            .iter()
+            .filter_map(|tab| {
+                let uri = &tab.uri;
+                // Only persist file:// URIs, skip untitled documents.
+                if uri.as_str().starts_with("file://") {
+                    uri.to_file_path().map(|p| p.to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        crate::window_state::save_session(&crate::window_state::SessionState { open_files });
     }
 }
 
