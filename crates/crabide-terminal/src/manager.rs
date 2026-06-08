@@ -11,12 +11,14 @@ use tokio::runtime::Handle;
 
 use crabide_core::event::EditorEvent;
 
+use crabide_core::event::TerminalColorScheme;
+
 use crate::pty::{spawn_pty, PtyHandle};
 
 // ── TerminalProfile ───────────────────────────────────────────────────────────
 
 /// Configuration for a terminal instance.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct TerminalProfile {
     /// Override the shell binary (None = OS default).
     pub shell: Option<String>,
@@ -24,6 +26,19 @@ pub struct TerminalProfile {
     pub env: Vec<(String, String)>,
     /// Override font size (None = inherit from editor).
     pub font_size: Option<f32>,
+    /// Color scheme / theme for this terminal.
+    pub color_scheme: TerminalColorScheme,
+}
+
+impl Default for TerminalProfile {
+    fn default() -> Self {
+        Self {
+            shell: None,
+            env: Vec::new(),
+            font_size: None,
+            color_scheme: TerminalColorScheme::dark(),
+        }
+    }
 }
 
 // ── TerminalManager ───────────────────────────────────────────────────────────

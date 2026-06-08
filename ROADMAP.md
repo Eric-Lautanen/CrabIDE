@@ -255,7 +255,7 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 - [x] Implement cursor visibility toggle (DECSET 25)
 - [x] Implement ESC M reverse index (RI) with scroll region support
 - [x] Implement content reflow on terminal resize
-- [ ] Add configurable color scheme / theme to TerminalProfile
+- [x] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
 - [x] Implement OSC 133 shell integration markers (prompt start/end)
 - [x] No unit tests in crate (now has 102 tests)

@@ -18,6 +18,18 @@ OSC 8 hyperlinks and OSC 133 shell integration are now fully implemented and ver
 - `pty_reader_loop` emits `CommandStarted` / `CommandFinished` events on change
 - 7 new unit tests
 
+**TerminalColorScheme ✅**
+- `TerminalColorScheme` defined in `crabide-core::event` with dark/light/default
+- 16 ANSI colors + default fg/bg/cursor + selection bg are customizable
+- `TerminalProfile.color_scheme` field stores per-terminal theme
+- `TerminalInstance.color_scheme` propagated to UI rendering
+- `terminal_color_to_egui()` and `effective_colors()` accept scheme parameter
+- ANSI 16 colors resolve from scheme instead of hardcoded `SYSTEM` array
+- Cursor color uses scheme
+- Tab strip and grid background derived from scheme
+- 5 new unit tests for TerminalColorScheme
+- 1 pre-existing `resize_stable` dead_code warning remains (unrelated)
+
 **Breaking change:** `Cell` no longer derives `Copy` (due to `Option<String>`).
 `Cell::BLANK` const replaced with `Cell::blank()` function.
 All tests updated.

@@ -19,7 +19,7 @@
 use egui::{pos2, vec2, Color32, FontId, Key, Modifiers, Rect, Ui, Vec2};
 
 use crabide_config::Action;
-use crabide_core::event::{CellAttrs, TerminalColor};
+use crabide_core::event::{CellAttrs, TerminalColor, TerminalColorScheme};
 use crabide_terminal::{
     encode_mouse_motion, encode_mouse_press, encode_mouse_release, encode_mouse_scroll,
     MouseButton, ScrollDirection,
@@ -43,10 +43,29 @@ pub const MIN_HEIGHT: f32 = 120.0;
 pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
     let mut actions = Vec::new();
 
-    let panel_bg = Color32::from_rgb(0x1a, 0x1a, 0x1a);
-    let tab_bg = Color32::from_rgb(0x25, 0x25, 0x26);
-    let tab_fg = Color32::from_rgb(0xcc, 0xcc, 0xcc);
-    let tab_active_bg = Color32::from_rgb(0x1e, 0x1e, 0x1e);
+    // Determine active color scheme (first instance or default).
+    let active_scheme = state
+        .terminal
+        .active()
+        .map(|i| &i.color_scheme)
+        .unwrap_or_else(|| {
+            // Use a static default for the empty state.
+            static DEFAULT_SCHEME: TerminalColorScheme = TerminalColorScheme::dark_const();
+            &DEFAULT_SCHEME
+        });
+    let default_bg = Color32::from_rgb(
+        active_scheme.background.0,
+        active_scheme.background.1,
+        active_scheme.background.2,
+    );
+
+    let tab_bg = default_bg.linear_multiply(1.2); // slightly lighter
+    let tab_fg = Color32::from_rgb(
+        active_scheme.foreground.0,
+        active_scheme.foreground.1,
+        active_scheme.foreground.2,
+    );
+    let tab_active_bg = default_bg;
     let tab_active_fg = Color32::WHITE;
 
     // ── Tab strip ─────────────────────────────────────────────────────────────
@@ -156,7 +175,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
 
     // ── Cell grid ─────────────────────────────────────────────────────────────
     let grid_rect = ui.available_rect_before_wrap();
-    ui.painter().rect_filled(grid_rect, 0.0, panel_bg);
+    ui.painter().rect_filled(grid_rect, 0.0, default_bg);
 
     if state.terminal.instances.is_empty() {
         ui.painter().text(
@@ -215,8 +234,8 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
 
         // Paint non-default backgrounds first (including REVERSE cells)
         for (col, cell) in row_cells[..row_col_count].iter().enumerate() {
-            let (_, bg) = effective_colors(cell);
-            if bg != panel_bg {
+            let (_, bg) = effective_colors(cell, &inst.color_scheme);
+            if bg != default_bg {
                 let rect = Rect::from_min_size(
                     pos2(grid_rect.min.x + col as f32 * cell_w, y),
                     vec2(cell_w, cell_h),
@@ -228,10 +247,10 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
         // Paint text as color-runs (consecutive cells with same effective fg)
         let mut run_start = 0;
         while run_start < row_col_count {
-            let (run_fg, _) = effective_colors(&row_cells[run_start]);
+            let (run_fg, _) = effective_colors(&row_cells[run_start], &inst.color_scheme);
             let mut run_end = run_start + 1;
             while run_end < row_col_count {
-                let (c, _) = effective_colors(&row_cells[run_end]);
+                let (c, _) = effective_colors(&row_cells[run_end], &inst.color_scheme);
                 if c != run_fg {
                     break;
                 }
@@ -267,15 +286,20 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
             if cur_screen_row < visible_rows && cursor_col < visible_cols {
                 let cx = grid_rect.min.x + cursor_col as f32 * cell_w;
                 let cy = grid_rect.min.y + cur_screen_row as f32 * cell_h;
+                let cursor_color = Color32::from_rgb(
+                    inst.color_scheme.cursor.0,
+                    inst.color_scheme.cursor.1,
+                    inst.color_scheme.cursor.2,
+                );
                 painter.rect_filled(
                     Rect::from_min_size(pos2(cx, cy), vec2(cell_w, cell_h)),
                     0.0,
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 80),
+                    cursor_color.linear_multiply(0.3),
                 );
                 painter.rect_stroke(
                     Rect::from_min_size(pos2(cx, cy), vec2(cell_w, cell_h)),
                     0.0,
-                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 180)),
+                    egui::Stroke::new(1.0, cursor_color.linear_multiply(0.7)),
                     egui::StrokeKind::Inside,
                 );
             }
@@ -488,9 +512,12 @@ pub fn encode_key(key: Key, mods: Modifiers, text: Option<&str>) -> Option<Vec<u
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
 /// Return the effective (fg, bg) colors for a cell, handling REVERSE video.
-fn effective_colors(cell: &crate::state::DisplayCell) -> (Color32, Color32) {
-    let fg = terminal_color_to_egui(cell.fg, false, &cell.attrs);
-    let bg = terminal_color_to_egui(cell.bg, true, &cell.attrs);
+fn effective_colors(
+    cell: &crate::state::DisplayCell,
+    scheme: &TerminalColorScheme,
+) -> (Color32, Color32) {
+    let fg = terminal_color_to_egui(cell.fg, false, &cell.attrs, scheme);
+    let bg = terminal_color_to_egui(cell.bg, true, &cell.attrs, scheme);
     if cell.attrs.contains(CellAttrs::REVERSE) {
         (bg, fg)
     } else {
@@ -499,15 +526,34 @@ fn effective_colors(cell: &crate::state::DisplayCell) -> (Color32, Color32) {
 }
 
 /// Convert a `TerminalColor` to an egui `Color32`.
-pub fn terminal_color_to_egui(color: TerminalColor, is_bg: bool, attrs: &CellAttrs) -> Color32 {
+pub fn terminal_color_to_egui(
+    color: TerminalColor,
+    is_bg: bool,
+    attrs: &CellAttrs,
+    scheme: &TerminalColorScheme,
+) -> Color32 {
     match color {
         TerminalColor::Default => {
             if is_bg {
-                Color32::from_rgb(0x1a, 0x1a, 0x1a)
+                Color32::from_rgb(
+                    scheme.background.0,
+                    scheme.background.1,
+                    scheme.background.2,
+                )
             } else if attrs.contains(CellAttrs::DIM) {
-                Color32::from_rgb(0x88, 0x88, 0x88)
+                // Dimmed foreground: reduce intensity of the foreground color
+                let (r, g, b) = (
+                    scheme.foreground.0 / 2,
+                    scheme.foreground.1 / 2,
+                    scheme.foreground.2 / 2,
+                );
+                Color32::from_rgb(r, g, b)
             } else {
-                Color32::from_rgb(0xcc, 0xcc, 0xcc)
+                Color32::from_rgb(
+                    scheme.foreground.0,
+                    scheme.foreground.1,
+                    scheme.foreground.2,
+                )
             }
         }
         TerminalColor::Rgb(r, g, b) => {
@@ -517,12 +563,14 @@ pub fn terminal_color_to_egui(color: TerminalColor, is_bg: bool, attrs: &CellAtt
                 Color32::from_rgb(r, g, b)
             }
         }
-        TerminalColor::Indexed(idx) => xterm_256_to_egui(idx, attrs.contains(CellAttrs::DIM)),
+        TerminalColor::Indexed(idx) => {
+            xterm_256_to_egui(idx, attrs.contains(CellAttrs::DIM), scheme)
+        }
     }
 }
 
-fn xterm_256_to_egui(idx: u8, dim: bool) -> Color32 {
-    let (r, g, b) = xterm_256_rgb(idx);
+fn xterm_256_to_egui(idx: u8, dim: bool, scheme: &TerminalColorScheme) -> Color32 {
+    let (r, g, b) = xterm_256_rgb(idx, scheme);
     let (r, g, b) = if dim {
         (r / 2, g / 2, b / 2)
     } else {
@@ -531,27 +579,10 @@ fn xterm_256_to_egui(idx: u8, dim: bool) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
-fn xterm_256_rgb(idx: u8) -> (u8, u8, u8) {
-    const SYSTEM: [(u8, u8, u8); 16] = [
-        (0x00, 0x00, 0x00),
-        (0x80, 0x00, 0x00),
-        (0x00, 0x80, 0x00),
-        (0x80, 0x80, 0x00),
-        (0x00, 0x00, 0x80),
-        (0x80, 0x00, 0x80),
-        (0x00, 0x80, 0x80),
-        (0xc0, 0xc0, 0xc0),
-        (0x80, 0x80, 0x80),
-        (0xff, 0x00, 0x00),
-        (0x00, 0xff, 0x00),
-        (0xff, 0xff, 0x00),
-        (0x00, 0x00, 0xff),
-        (0xff, 0x00, 0xff),
-        (0x00, 0xff, 0xff),
-        (0xff, 0xff, 0xff),
-    ];
-    if (idx as usize) < SYSTEM.len() {
-        return SYSTEM[idx as usize];
+fn xterm_256_rgb(idx: u8, scheme: &TerminalColorScheme) -> (u8, u8, u8) {
+    // Use the scheme's ANSI colors for the first 16 colors.
+    if (idx as usize) < scheme.ansi.len() {
+        return scheme.ansi[idx as usize];
     }
     if idx >= 232 {
         let v = (8 + (idx - 232) as u32 * 10).min(255) as u8;

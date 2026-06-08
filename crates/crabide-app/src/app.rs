@@ -345,11 +345,10 @@ impl crabideApp {
                 .next()
                 .or_else(|| std::env::current_dir().ok());
             // Default size (will be immediately corrected by the panel's resize signal).
-            let id = self
-                .terminal_manager
-                .new_terminal(80, 24, cwd, &TerminalProfile::default());
+            let profile = TerminalProfile::default();
+            let id = self.terminal_manager.new_terminal(80, 24, cwd, &profile);
             if let Some(id) = id {
-                let inst = TerminalInstance::new(id, 80, 24);
+                let inst = TerminalInstance::new(id, 80, 24, profile.color_scheme);
                 self.ui_state.terminal.instances.push(inst);
                 self.ui_state.terminal.active_idx = self.ui_state.terminal.instances.len() - 1;
                 self.ui_state.terminal.has_focus = true;

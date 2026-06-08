@@ -15,7 +15,7 @@ use crabide_config::{Action, Color, ColorTheme, KeybindingEngine, WhenContext};
 use crabide_core::{
     event::{
         BlameLine, Diagnostic, DiffHunk, FileStatus, FoldingRange, OutputCategory, StackFrame,
-        TerminalCell, TerminalColor, Variable,
+        TerminalCell, TerminalColor, TerminalColorScheme, Variable,
     },
     types::{BufferId, DocumentUri, Language, Position, Range},
 };
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn terminal_instance_new() {
-        let inst = TerminalInstance::new(42, 80, 24);
+        let inst = TerminalInstance::new(42, 80, 24, TerminalColorScheme::dark());
         assert_eq!(inst.id, 42);
         assert_eq!(inst.title, "Terminal 42");
         assert_eq!(inst.cols, 80);
@@ -425,7 +425,7 @@ mod tests {
 
     #[test]
     fn terminal_instance_apply_delta() {
-        let mut inst = TerminalInstance::new(1, 80, 24);
+        let mut inst = TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark());
         let delta = crabide_core::event::TerminalGridDelta {
             cursor_col: 5,
             cursor_row: 10,
@@ -465,7 +465,7 @@ mod tests {
 
     #[test]
     fn terminal_instance_resize() {
-        let mut inst = TerminalInstance::new(1, 80, 24);
+        let mut inst = TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark());
         inst.resize(120, 30);
         assert_eq!(inst.cols, 120);
         assert_eq!(inst.grid_rows, 30);
@@ -499,7 +499,7 @@ mod tests {
     #[test]
     fn terminal_panel_active_with_instance() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24));
+        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
         assert!(state.active().is_some());
         assert_eq!(state.active().unwrap().id, 1);
         assert!(state.active_mut().is_some());
@@ -508,8 +508,8 @@ mod tests {
     #[test]
     fn terminal_panel_by_id_mut() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24));
-        state.instances.push(TerminalInstance::new(2, 80, 24));
+        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
+        state.instances.push(TerminalInstance::new(2, 80, 24, TerminalColorScheme::dark()));
         let found = state.by_id_mut(2);
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, 2);
@@ -519,8 +519,8 @@ mod tests {
     #[test]
     fn terminal_panel_remove_by_id() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24));
-        state.instances.push(TerminalInstance::new(2, 80, 24));
+        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
+        state.instances.push(TerminalInstance::new(2, 80, 24, TerminalColorScheme::dark()));
         state.active_idx = 1;
         state.remove_by_id(1);
         assert_eq!(state.instances.len(), 1);
@@ -530,7 +530,7 @@ mod tests {
     #[test]
     fn terminal_panel_remove_by_id_adjusts_active() {
         let mut state = TerminalPanelState::default();
-        state.instances.push(TerminalInstance::new(1, 80, 24));
+        state.instances.push(TerminalInstance::new(1, 80, 24, TerminalColorScheme::dark()));
         state.remove_by_id(1);
         assert!(state.instances.is_empty());
         assert_eq!(state.active_idx, 0);
@@ -1375,9 +1375,11 @@ pub struct TerminalInstance {
     pub mouse_button_event: bool,
     /// Whether SGR extended mouse mode is active (DECSET 1006).
     pub mouse_sgr: bool,
+    /// Color scheme for rendering this terminal.
+    pub color_scheme: TerminalColorScheme,
 }
 impl TerminalInstance {
-    pub fn new(id: u32, cols: u16, grid_rows: u16) -> Self {
+    pub fn new(id: u32, cols: u16, grid_rows: u16, color_scheme: TerminalColorScheme) -> Self {
         let blank_row = vec![DisplayCell::BLANK; cols as usize];
         Self {
             id,
@@ -1397,6 +1399,7 @@ impl TerminalInstance {
             mouse_normal: false,
             mouse_button_event: false,
             mouse_sgr: false,
+            color_scheme,
         }
     }
 }

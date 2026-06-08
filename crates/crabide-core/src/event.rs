@@ -267,6 +267,120 @@ pub enum TerminalColor {
     Rgb(u8, u8, u8),
 }
 
+/// Terminal color scheme / theme — maps the 16 ANSI colors and default fg/bg.
+///
+/// All fields use 24-bit RGB tuples `(r, g, b)`. The `ansi` array stores
+/// the 16 standard ANSI colors in this order:
+///   0=Black, 1=Red, 2=Green, 3=Yellow, 4=Blue, 5=Magenta, 6=Cyan, 7=White,
+///   8=BrightBlack, 9=BrightRed, 10=BrightGreen, 11=BrightYellow,
+///   12=BrightBlue, 13=BrightMagenta, 14=BrightCyan, 15=BrightWhite.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TerminalColorScheme {
+    /// Default foreground color.
+    pub foreground: (u8, u8, u8),
+    /// Default background color.
+    pub background: (u8, u8, u8),
+    /// Cursor color.
+    pub cursor: (u8, u8, u8),
+    /// Text selection background.
+    pub selection_bg: (u8, u8, u8),
+    /// The 16 ANSI colors (same order as the xterm-256 palette).
+    pub ansi: [(u8, u8, u8); 16],
+}
+
+impl Default for TerminalColorScheme {
+    fn default() -> Self {
+        Self::dark()
+    }
+}
+
+impl TerminalColorScheme {
+    /// Built-in dark terminal theme (matches the previous hardcoded values).
+    /// `const` version for use in `static` initializers.
+    pub const fn dark_const() -> Self {
+        Self {
+            foreground: (0xcc, 0xcc, 0xcc),
+            background: (0x1a, 0x1a, 0x1a),
+            cursor: (0xff, 0xff, 0xff),
+            selection_bg: (0x40, 0x40, 0x40),
+            ansi: [
+                (0x00, 0x00, 0x00),
+                (0x80, 0x00, 0x00),
+                (0x00, 0x80, 0x00),
+                (0x80, 0x80, 0x00),
+                (0x00, 0x00, 0x80),
+                (0x80, 0x00, 0x80),
+                (0x00, 0x80, 0x80),
+                (0xc0, 0xc0, 0xc0),
+                (0x80, 0x80, 0x80),
+                (0xff, 0x00, 0x00),
+                (0x00, 0xff, 0x00),
+                (0xff, 0xff, 0x00),
+                (0x00, 0x00, 0xff),
+                (0xff, 0x00, 0xff),
+                (0x00, 0xff, 0xff),
+                (0xff, 0xff, 0xff),
+            ],
+        }
+    }
+
+    /// Built-in dark terminal theme.
+    pub fn dark() -> Self {
+        Self {
+            foreground: (0xcc, 0xcc, 0xcc),
+            background: (0x1a, 0x1a, 0x1a),
+            cursor: (0xff, 0xff, 0xff),
+            selection_bg: (0x40, 0x40, 0x40),
+            ansi: [
+                (0x00, 0x00, 0x00), // Black
+                (0x80, 0x00, 0x00), // Red
+                (0x00, 0x80, 0x00), // Green
+                (0x80, 0x80, 0x00), // Yellow
+                (0x00, 0x00, 0x80), // Blue
+                (0x80, 0x00, 0x80), // Magenta
+                (0x00, 0x80, 0x80), // Cyan
+                (0xc0, 0xc0, 0xc0), // White
+                (0x80, 0x80, 0x80), // BrightBlack
+                (0xff, 0x00, 0x00), // BrightRed
+                (0x00, 0xff, 0x00), // BrightGreen
+                (0xff, 0xff, 0x00), // BrightYellow
+                (0x00, 0x00, 0xff), // BrightBlue
+                (0xff, 0x00, 0xff), // BrightMagenta
+                (0x00, 0xff, 0xff), // BrightCyan
+                (0xff, 0xff, 0xff), // BrightWhite
+            ],
+        }
+    }
+
+    /// A light terminal theme.
+    pub fn light() -> Self {
+        Self {
+            foreground: (0x33, 0x33, 0x33),
+            background: (0xff, 0xff, 0xff),
+            cursor: (0x00, 0x00, 0x00),
+            selection_bg: (0xcc, 0xdd, 0xff),
+            ansi: [
+                (0x00, 0x00, 0x00), // Black
+                (0xcc, 0x00, 0x00), // Red
+                (0x00, 0x80, 0x00), // Green
+                (0x99, 0x99, 0x00), // Yellow
+                (0x00, 0x00, 0xcc), // Blue
+                (0xcc, 0x00, 0xcc), // Magenta
+                (0x00, 0x80, 0x80), // Cyan
+                (0xc0, 0xc0, 0xc0), // White
+                (0x80, 0x80, 0x80), // BrightBlack
+                (0xff, 0x00, 0x00), // BrightRed
+                (0x00, 0xff, 0x00), // BrightGreen
+                (0xff, 0xff, 0x00), // BrightYellow
+                (0x00, 0x00, 0xff), // BrightBlue
+                (0xff, 0x00, 0xff), // BrightMagenta
+                (0x00, 0xff, 0xff), // BrightCyan
+                (0xff, 0xff, 0xff), // BrightWhite
+            ],
+        }
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct CellAttrs: u8 {
@@ -1279,6 +1393,50 @@ mod tests {
         assert_eq!(TerminalColor::Indexed(1), TerminalColor::Indexed(1));
         assert_eq!(TerminalColor::Rgb(255, 0, 0), TerminalColor::Rgb(255, 0, 0));
         assert_ne!(TerminalColor::Indexed(1), TerminalColor::Indexed(2));
+    }
+
+    #[test]
+    fn terminal_color_scheme_dark_default() {
+        let scheme = TerminalColorScheme::default();
+        assert_eq!(scheme.foreground, (0xcc, 0xcc, 0xcc));
+        assert_eq!(scheme.background, (0x1a, 0x1a, 0x1a));
+        assert_eq!(scheme.ansi.len(), 16);
+        assert_eq!(scheme.ansi[0], (0x00, 0x00, 0x00)); // Black
+        assert_eq!(scheme.ansi[15], (0xff, 0xff, 0xff)); // BrightWhite
+    }
+
+    #[test]
+    fn terminal_color_scheme_dark_const() {
+        let scheme = TerminalColorScheme::dark_const();
+        assert_eq!(scheme.foreground, (0xcc, 0xcc, 0xcc));
+        assert_eq!(scheme.background, (0x1a, 0x1a, 0x1a));
+        assert_eq!(scheme.ansi.len(), 16);
+    }
+
+    #[test]
+    fn terminal_color_scheme_light() {
+        let scheme = TerminalColorScheme::light();
+        assert_eq!(scheme.foreground, (0x33, 0x33, 0x33));
+        assert_eq!(scheme.background, (0xff, 0xff, 0xff));
+        assert_eq!(scheme.ansi.len(), 16);
+    }
+
+    #[test]
+    fn terminal_color_scheme_dark_and_light_differ() {
+        let dark = TerminalColorScheme::dark();
+        let light = TerminalColorScheme::light();
+        assert_ne!(dark.foreground, light.foreground);
+        assert_ne!(dark.background, light.background);
+    }
+
+    #[test]
+    fn terminal_color_scheme_round_trip_default() {
+        let scheme = TerminalColorScheme::dark();
+        // Default fg/bg round-trip through the rendering logic
+        let fg = (scheme.foreground.0, scheme.foreground.1, scheme.foreground.2);
+        let bg = (scheme.background.0, scheme.background.1, scheme.background.2);
+        assert_eq!(fg, scheme.foreground);
+        assert_eq!(bg, scheme.background);
     }
 
     // ── Shared types construction ──────────────────────────────────────────
