@@ -777,7 +777,17 @@ impl Perform for Grid {
     fn hook(&mut self, _: &vte::Params, _: &[u8], _: bool, _: char) {}
     fn put(&mut self, _: u8) {}
     fn unhook(&mut self) {}
-    fn esc_dispatch(&mut self, _: &[u8], _: bool, _: u8) {}
+    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, byte: u8) {
+        // ESC M — Reverse Index (RI): move cursor up one line; if at top of
+        // scroll region, scroll the region down by one line.
+        if byte == b'M' {
+            if self.cursor_row == self.scroll_top {
+                self.scroll_down(1);
+            } else if self.cursor_row > 0 {
+                self.cursor_row -= 1;
+            }
+        }
+    }
 }
 
 // --- Helpers ---
@@ -1687,5 +1697,60 @@ mod tests {
         assert_eq!(g.screen[0][4].ch, 'F', "'F' should shift left to col 4");
         // Right edge should be blank
         assert_eq!(g.screen[0][9].ch, ' ', "col 9 should be blank (shifted in)");
+    }
+
+    // ── ESC M (Reverse Index / RI) ──────────────────────────────────────
+
+    #[test]
+    fn esc_m_reverse_index_moves_up() {
+        let mut g = grid_24x80();
+        g.cursor_row = 5;
+        g.feed(b"\x1bM");
+        assert_eq!(g.cursor_row, 4, "ESC M should move cursor up one line");
+    }
+
+    #[test]
+    fn esc_m_at_top_of_scroll_region_scrolls_down() {
+        let mut g = grid_24x80();
+        // Write 'X' on row 0
+        g.feed(b"X");
+        assert_eq!(g.screen[0][0].ch, 'X');
+        // ESC M at row 0 (top of default scroll region) should scroll down
+        g.cursor_col = 0;
+        g.feed(b"\x1bM");
+        // Row 0 should now be blank (scrolled down), X moved to row 1
+        assert_eq!(
+            g.screen[0][0].ch, ' ',
+            "row 0 should be blank after RI scroll"
+        );
+        assert_eq!(g.screen[1][0].ch, 'X', "X should have moved to row 1");
+    }
+
+    #[test]
+    fn esc_m_within_scroll_region() {
+        let mut g = grid_24x80();
+        // Set scroll region to rows 5-10 (1-based → 0-based: 4-10)
+        g.feed(b"\x1b[5;11r");
+        // DECSTBM moves cursor to home (0,0); move cursor to row 4 (top of scroll region)
+        g.cursor_row = 4;
+        g.cursor_col = 0;
+        // Write something on row 4
+        g.screen[4][0].ch = 'A';
+        // Verify scroll region is set correctly
+        assert_eq!(
+            g.scroll_top, 4,
+            "scroll_top should be 4 (0-based for row 5)"
+        );
+        assert_eq!(
+            g.scroll_bottom, 10,
+            "scroll_bottom should be 10 (0-based for row 11)"
+        );
+        // ESC M at top of scroll region should scroll region down
+        g.feed(b"\x1bM");
+        assert_eq!(
+            g.screen[4][0].ch, ' ',
+            "row 4 should be blank after RI in scroll region"
+        );
+        assert_eq!(g.screen[5][0].ch, 'A', "A should have moved to row 5");
     }
 }
