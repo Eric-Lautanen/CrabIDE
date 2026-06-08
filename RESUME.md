@@ -8,7 +8,6 @@
 - Loaded on startup in `main.rs` and applied to `eframe::ViewportBuilder`
 - Window size, position (from `outer_rect`), and maximized state tracked each frame
 - `serde` and `serde_json` workspace deps added to crabide-app crate
-- All workspace tests pass, zero new clippy warnings
 
 **Session restore (reopen files from last session) ✅**
 - Added `SessionState` struct with `open_files: Vec<String>` saved to `~/.crabide/session.json`
@@ -16,7 +15,11 @@
 - On startup, loads session file list and opens any files that still exist on disk
 - Deduplicates against CLI-provided paths to avoid reopening the same file twice
 - Handles missing/deleted files gracefully (silently skipped)
-- `WindowState` and `SessionState` share the same `~/.crabide/` config directory
+
+**`docs/` directory ✅**
+- Created `docs/README.md` with links to ARCHITECTURE, BUILD, CONTRIBUTING
+- Created `docs/ARCHITECTURE.md` with crate dependency graph and phase overview
+- All workspace tests pass, zero new clippy warnings
 
 **Unicode-width crate ✅**
 - Added `unicode-width` 0.2.2 workspace dependency
@@ -24,12 +27,10 @@
 - All 102 terminal tests pass
 
 **Git branch listing, deletion, staged diff ✅**
-- `BranchInfo` struct with ref_name, shorthand, is_local, is_current, commit, upstream, ahead/behind
-- `GitService::list_branches()` → `BranchesListed` event (local + remote branches with tracking info)
-- `GitService::delete_branch()` → reuses `OperationCompleted` / `OperationFailed`
-- `GitService::request_diff_staged()` → `DiffStagedUpdated` event (index vs HEAD tree)
+- `GitService::list_branches()` → `BranchesListed` event
+- `GitService::delete_branch()` → `OperationCompleted` / `OperationFailed`
+- `GitService::request_diff_staged()` → `DiffStagedUpdated` event
 - `GitPanelState.branches` and `EditorTab.git_staged_hunks` fields added to UI state
-- All existing tests pass, zero new clippy warnings
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
 
@@ -58,14 +59,14 @@
 - [x] Window state persistence (size, position, maximized state)
 - [x] Session restore (reopen files from last session)
 
-**Phase 7 (Terminal) — highest priority:**
+**Phase 7 (Terminal):**
 - [x] Implement mouse reporting (DECSET 1000/1002/1003)
 - [x] Implement content reflow on terminal resize
-- [x] Implement OSC 8 hyperlinks — parse `\e]8;...;url\a...\e]8;;\a` → clickable links
-- [x] Implement OSC 133 shell integration markers — prompt start/end detection
+- [x] Implement OSC 8 hyperlinks
+- [x] Implement OSC 133 shell integration markers
 - [x] Add configurable color scheme / theme to TerminalProfile
 - [x] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [ ] Add more unit tests to crabide-terminal (currently 102, roadmap says "no unit tests")
+- [ ] Add more unit tests to crabide-terminal (currently 102)
 
 **Phase 6 (Git):**
 - [x] Add branch listing (local + remote)
@@ -73,7 +74,7 @@
 - [x] Add diff for staged changes (index vs HEAD)
 
 **Cross-cutting:**
-- [ ] `docs/` directory (currently empty)
+- [x] `docs/` directory (now has README.md and ARCHITECTURE.md)
 
 ### Medium tasks (after easy items are done)
 

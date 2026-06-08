@@ -399,6 +399,6 @@ These aren't tied to any single phase:
 - [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
 - [x] **Unit test coverage**: `crabide-core` (140), `crabide-buffer` (47), `crabide-config` (105), `crabide-ui` (112), `crabide-app` (43), `crabide-vfs` (43), `crabide-terminal` (102), `crabide-extensions` (54), `crabide-dap` (43), `crabide-search` (38), `crabide-workspace` (25), `crabide-lsp` (19), `crabide-git` (3), `crabide-syntax` (57). Minimum coverage targets: 30% by v0.1
-- [ ] **`docs/` directory**: Currently empty
+- [x] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
 - [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
