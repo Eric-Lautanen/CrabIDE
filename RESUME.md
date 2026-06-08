@@ -2,7 +2,11 @@
 
 ## Session summary
 
-Implemented mouse reporting (DECSET 1000/1002/1003) for the terminal emulator. The core encoding logic and DECSET parsing is committed and working. The UI-side mouse event forwarding was written but has NOT been verified to compile yet — it needs `cargo check` and likely fixes.
+Mouse reporting (DECSET 1000/1002/1003) is now fully implemented and verified:
+- Core encoding logic (X10 + SGR protocols) committed and tested (86 tests, +14 new)
+- UI-side mouse event forwarding compiles and works with egui 0.34
+- Standalone encode functions avoid temporary Grid construction
+- `cargo check --workspace`, `cargo clippy --workspace`, `cargo fmt --all`, `cargo test --workspace` all green
 
 ## Handoff Policy
 
@@ -18,40 +22,30 @@ Implemented mouse reporting (DECSET 1000/1002/1003) for the terminal emulator. T
 
 ## What was done this session
 
-1. **Added DECSET 1006 (SGR extended mouse mode)** — New `mouse_sgr` field on `Grid`, `TerminalGridDelta`, `TerminalInstance`. Parsing of `?1006h`/`?1006l` in `csi_dispatch`. Committed as `dfdebc1`.
+1. **Refactored mouse encoding to standalone functions** — `encode_mouse_press()`, `encode_mouse_release()`, `encode_mouse_motion()`, `encode_mouse_scroll()` are now free functions in `grid.rs` that take mode flags as parameters instead of requiring a `Grid` instance. This eliminates the wasteful temporary `Grid::new()` construction.
 
-2. **Added mouse encoding types and methods** — `MouseButton` enum (Left/Middle/Right/ScrollUp/ScrollDown), `ScrollDirection` enum, `Grid::encode_mouse_press()`, `encode_mouse_release()`, `encode_mouse_motion()`, `encode_mouse_scroll()`, `mouse_reporting_active()`. X10 and SGR encoding helpers. All committed in `dfdebc1`.
+2. **Fixed UI-side mouse event forwarding** — Rewrote `terminal_panel.rs` mouse handling to use the standalone encode functions, fixed all egui API issues (`is_pointer_button_down_on` → `ui.input(|i| i.pointer.*)`), added `crabide-terminal` dependency to `crabide-ui`.
 
-3. **Re-exported `MouseButton` and `ScrollDirection`** from `crabide_terminal::lib.rs`. Committed in `dfdebc1`.
+3. **Added 14 unit tests** — Tests cover X10 press/release/motion, SGR press/release/motion, scroll up/down, right button, inactive modes, and SGR scroll encoding.
 
-4. **Wrote UI-side mouse event forwarding** in `crates/crabide-ui/src/panels/terminal_panel.rs` — Added ~60 lines of mouse event handling code that converts egui pointer events to terminal mouse escape sequences when a mouse reporting mode is active. **THIS HAS NOT BEEN VERIFIED TO COMPILE YET.** The next session must run `cargo check --workspace` and fix any issues.
+4. **Updated ROADMAP.md** — Marked mouse reporting as complete.
 
 ## Build status
-- **Last verified GREEN** — after commit `dfdebc1`, `cargo check`, `cargo clippy`, `cargo fmt`, `cargo test --workspace` all passed with zero warnings.
-- **UNVERIFIED** — The terminal_panel.rs mouse event code added AFTER the commit has NOT been checked. It likely has compilation issues (egui API usage may be wrong, temporary Grid construction is wasteful).
-
-## Critical: Fix terminal_panel.rs mouse code first
-
-The mouse event code in `terminal_panel.rs` (lines ~281-370) needs:
-1. `cargo check --workspace` to find compilation errors
-2. Fix any egui API issues (e.g., `is_pointer_button_pressed` may not exist — check egui docs)
-3. The temporary `Grid::new()` construction just to call encode methods is wasteful — refactor to use standalone encode functions or a helper struct that doesn't need a full Grid
-4. Run `cargo clippy --workspace` and `cargo fmt --all`
-5. Run `cargo test --workspace`
-6. Commit once green
+- **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
+- **CLIPPY** — zero warnings
+- **TESTS** — all workspace tests pass (including 86 terminal tests)
 
 ## Remaining roadmap items — pick next available
 
 ### Easy / self-contained (pick these first)
 
 **Phase 7 (Terminal) — highest priority:**
-- [ ] ~~Implement mouse reporting (DECSET 1000/1002/1003)~~ — NEARLY DONE, just need to fix UI-side code and add unit tests
 - [ ] Implement content reflow on terminal resize
 - [ ] Implement OSC 8 hyperlinks — parse `\e]8;...;url\a...\e]8;;\a` → clickable links
 - [ ] Implement OSC 133 shell integration markers — prompt start/end detection
 - [ ] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [ ] Add more unit tests to crabide-terminal (currently 72, roadmap says "no unit tests")
+- [ ] Add more unit tests to crabide-terminal (currently 86, roadmap says "no unit tests")
 
 **Phase 6 (Git):**
 - [ ] Add branch listing (local + remote)

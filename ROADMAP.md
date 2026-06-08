@@ -250,7 +250,7 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 - [x] Implement DECSTBM (scroll regions) — needed for `less`/`vim`/`tmux`
 - [x] Implement Insert/Delete Line (CSI L / CSI M)
 - [x] Implement Insert/Delete Character (CSI @ / CSI P)
-- [ ] Implement mouse reporting (DECSET 1000/1002/1003)
+- [x] Implement mouse reporting (DECSET 1000/1002/1003)
 - [x] Implement bracketed paste mode (DECSET 2004)
 - [x] Implement cursor visibility toggle (DECSET 25)
 - [x] Implement ESC M reverse index (RI) with scroll region support
