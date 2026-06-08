@@ -226,7 +226,7 @@ Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
 Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 
 **Gaps:**
-- [ ] Add fetch / pull / push / merge / rebase
+- [x] Add fetch / pull / push / merge / rebase
 - [x] Add branch listing (local + remote)
 - [x] Add branch deletion
 - [ ] Add stash (push, pop, list, drop)

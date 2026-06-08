@@ -159,6 +159,11 @@ pub enum Action {
     GitStageAll,
     GitUnstageAll,
     GitDiscardChanges,
+    GitFetch,
+    GitPull,
+    GitPush,
+    GitMerge,
+    GitRebase,
     // Debug
     ToggleBreakpoint,
     StartDebug,
@@ -1474,6 +1479,11 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::GitStageAll, "Git: Stage All Changes");
     m.insert(Action::GitUnstageAll, "Git: Unstage All Changes");
     m.insert(Action::GitDiscardChanges, "Git: Discard Changes");
+    m.insert(Action::GitFetch, "Git: Fetch from Remote");
+    m.insert(Action::GitPull, "Git: Pull from Remote");
+    m.insert(Action::GitPush, "Git: Push to Remote");
+    m.insert(Action::GitMerge, "Git: Merge Branch...");
+    m.insert(Action::GitRebase, "Git: Rebase onto Branch...");
     // Debug
     m.insert(Action::ToggleBreakpoint, "Debug: Toggle Breakpoint");
     m.insert(Action::StartDebug, "Debug: Start Debugging");

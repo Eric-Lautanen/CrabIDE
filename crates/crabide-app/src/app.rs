@@ -1255,6 +1255,38 @@ impl crabideApp {
                 self.ui_state
                     .set_status(format!("Git error ({operation}): {error}"));
             }
+
+            FetchCompleted {
+                remote,
+                branch,
+                message,
+            } => {
+                self.ui_state.set_status(format!(
+                    "Git fetch {remote}{}: {message}",
+                    branch
+                        .as_deref()
+                        .map(|b| format!(" {b}"))
+                        .unwrap_or_default()
+                ));
+            }
+
+            PushCompleted {
+                remote,
+                branch,
+                pushed,
+            } => {
+                self.ui_state.set_status(format!(
+                    "Git push {remote}{}: {pushed} commits pushed",
+                    branch
+                        .as_deref()
+                        .map(|b| format!(" {b}"))
+                        .unwrap_or_default()
+                ));
+                // Re-query status after push.
+                if let Some(svc) = &self.git_service {
+                    svc.refresh();
+                }
+            }
         }
     }
 
@@ -2217,6 +2249,46 @@ impl crabideApp {
             Action::GitDiscardChanges => {
                 self.ui_state
                     .set_status("Select a file in Source Control to discard");
+            }
+            Action::GitFetch => {
+                if let Some(svc) = &self.git_service {
+                    // Fetch from the default remote ("origin") for the current branch.
+                    let branch = self.ui_state.git_branch.clone();
+                    svc.fetch("origin".to_owned(), branch);
+                    self.ui_state.set_status("Fetching from origin...");
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
+            }
+            Action::GitPull => {
+                if let Some(svc) = &self.git_service {
+                    if let Some(branch) = &self.ui_state.git_branch {
+                        svc.pull("origin".to_owned(), branch.clone(), false);
+                        self.ui_state.set_status("Pulling from origin...");
+                    } else {
+                        self.ui_state.set_status("No branch checked out");
+                    }
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
+            }
+            Action::GitPush => {
+                if let Some(svc) = &self.git_service {
+                    let branch = self.ui_state.git_branch.clone();
+                    svc.push("origin".to_owned(), branch, false);
+                    self.ui_state.set_status("Pushing to origin...");
+                } else {
+                    self.ui_state.set_status("No git repository found");
+                }
+            }
+            Action::GitMerge => {
+                // Merge requires a branch name — show a prompt via status bar for now.
+                self.ui_state
+                    .set_status("Use Git panel to select a branch to merge");
+            }
+            Action::GitRebase => {
+                self.ui_state
+                    .set_status("Use Git panel to select a branch to rebase onto");
             }
 
             // ── View toggles already handled in UI ────────────────────────────

@@ -442,6 +442,20 @@ pub enum GitEvent {
 
     /// An operation failed.
     OperationFailed { operation: String, error: String },
+
+    /// Fetch from remote completed.
+    FetchCompleted {
+        remote: String,
+        branch: Option<String>,
+        message: String,
+    },
+
+    /// Push to remote completed.
+    PushCompleted {
+        remote: String,
+        branch: Option<String>,
+        pushed: usize,
+    },
 }
 
 // ── VFS / File Events ─────────────────────────────────────────────────────────
@@ -1050,6 +1064,34 @@ impl fmt::Display for GitEvent {
             }
             GitEvent::OperationFailed { operation, error } => {
                 write!(f, "git {operation} failed: {error}")
+            }
+            GitEvent::FetchCompleted {
+                remote,
+                branch,
+                message,
+            } => {
+                write!(
+                    f,
+                    "git fetch {remote}{} completed: {message}",
+                    branch
+                        .as_deref()
+                        .map(|b| format!(" {b}"))
+                        .unwrap_or_default()
+                )
+            }
+            GitEvent::PushCompleted {
+                remote,
+                branch,
+                pushed,
+            } => {
+                write!(
+                    f,
+                    "git push {remote}{} completed: {pushed} commits",
+                    branch
+                        .as_deref()
+                        .map(|b| format!(" {b}"))
+                        .unwrap_or_default()
+                )
             }
         }
     }

@@ -158,6 +158,55 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = name;
     }
+
+    /// Fetch from a remote. If `branch` is None, fetches all branches.
+    pub fn fetch(&self, remote: String, branch: Option<String>) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::Fetch { remote, branch });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (remote, branch);
+    }
+
+    /// Pull (fetch + merge) from `remote`/`branch`. If `rebase` is true, use rebase instead of merge.
+    pub fn pull(&self, remote: String, branch: String, rebase: bool) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::Pull {
+            remote,
+            branch,
+            rebase,
+        });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (remote, branch, rebase);
+    }
+
+    /// Push to `remote`. If `branch` is None, push the current branch.
+    /// If `force` is true, force-push (--force).
+    pub fn push(&self, remote: String, branch: Option<String>, force: bool) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::Push {
+            remote,
+            branch,
+            force,
+        });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (remote, branch, force);
+    }
+
+    /// Merge the named branch into the current branch.
+    pub fn merge(&self, branch: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::Merge { branch });
+        #[cfg(not(feature = "git-support"))]
+        let _ = branch;
+    }
+
+    /// Rebase the current branch onto the named branch.
+    pub fn rebase(&self, branch: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::Rebase { branch });
+        #[cfg(not(feature = "git-support"))]
+        let _ = branch;
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -189,20 +238,56 @@ use crabide_core::event::{BlameLine, BranchInfo, DiffHunk, FileStatus, HunkKind,
 #[cfg(feature = "git-support")]
 enum GitCommand {
     Refresh,
-    DiffHunks { uri: DocumentUri, path: PathBuf },
-    DiffStaged { uri: DocumentUri, path: PathBuf },
-    Blame { uri: DocumentUri, path: PathBuf },
+    DiffHunks {
+        uri: DocumentUri,
+        path: PathBuf,
+    },
+    DiffStaged {
+        uri: DocumentUri,
+        path: PathBuf,
+    },
+    Blame {
+        uri: DocumentUri,
+        path: PathBuf,
+    },
     StageFile(PathBuf),
     UnstageFile(PathBuf),
     StageAll,
     UnstageAll,
-    Commit { message: String },
+    Commit {
+        message: String,
+    },
     CheckoutBranch(String),
     CreateBranch(String),
     ListBranches,
     DeleteBranch(String),
     DiscardFile(PathBuf),
     Shutdown,
+    /// Fetch from remote (optionally a specific branch).
+    Fetch {
+        remote: String,
+        branch: Option<String>,
+    },
+    /// Pull (fetch + merge) from remote/branch. If `rebase` is true, rebase instead of merge.
+    Pull {
+        remote: String,
+        branch: String,
+        rebase: bool,
+    },
+    /// Push to remote. If `force`, use force push.
+    Push {
+        remote: String,
+        branch: Option<String>,
+        force: bool,
+    },
+    /// Merge the named branch into the current branch.
+    Merge {
+        branch: String,
+    },
+    /// Rebase the current branch onto the named branch.
+    Rebase {
+        branch: String,
+    },
 }
 
 #[cfg(feature = "git-support")]
@@ -324,6 +409,132 @@ mod git_support {
                     run_op(&event_tx, format!("discard {}", path.display()), || {
                         discard_file_impl(&repo, &workdir, &path)
                     });
+                    send_status(&repo, &event_tx);
+                }
+
+                GitCommand::Fetch { remote, branch } => {
+                    use crabide_core::event::GitEvent;
+                    let op_name = format!(
+                        "fetch {}{}",
+                        remote,
+                        branch
+                            .as_deref()
+                            .map(|b| format!(" {b}"))
+                            .unwrap_or_default()
+                    );
+                    match fetch_impl(&repo, &remote, branch.as_deref()) {
+                        Ok(msg) => {
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::FetchCompleted {
+                                remote: remote.clone(),
+                                branch: branch.clone(),
+                                message: msg,
+                            }));
+                            send_status(&repo, &event_tx);
+                        }
+                        Err(e) => {
+                            warn!("git fetch failed: {}", e.message());
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                operation: op_name,
+                                error: e.message().to_owned(),
+                            }));
+                        }
+                    }
+                }
+
+                GitCommand::Pull {
+                    remote,
+                    branch,
+                    rebase,
+                } => {
+                    use crabide_core::event::GitEvent;
+                    let op_name = format!("pull {remote} {branch}");
+                    if rebase {
+                        match pull_rebase_impl(&repo, &remote, &branch) {
+                            Ok(()) => {
+                                let _ =
+                                    event_tx.send(EditorEvent::Git(GitEvent::OperationCompleted {
+                                        operation: op_name,
+                                    }));
+                                send_head_info(&repo, &event_tx);
+                                send_status(&repo, &event_tx);
+                            }
+                            Err(e) => {
+                                warn!("git pull --rebase failed: {}", e.message());
+                                let _ =
+                                    event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                        operation: op_name,
+                                        error: e.message().to_owned(),
+                                    }));
+                            }
+                        }
+                    } else {
+                        match pull_merge_impl(&repo, &remote, &branch) {
+                            Ok(()) => {
+                                let _ =
+                                    event_tx.send(EditorEvent::Git(GitEvent::OperationCompleted {
+                                        operation: op_name,
+                                    }));
+                                send_head_info(&repo, &event_tx);
+                                send_status(&repo, &event_tx);
+                            }
+                            Err(e) => {
+                                warn!("git pull failed: {}", e.message());
+                                let _ =
+                                    event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                        operation: op_name,
+                                        error: e.message().to_owned(),
+                                    }));
+                            }
+                        }
+                    }
+                }
+
+                GitCommand::Push {
+                    remote,
+                    branch,
+                    force,
+                } => {
+                    use crabide_core::event::GitEvent;
+                    let op_name = format!(
+                        "push {}{}",
+                        remote,
+                        branch
+                            .as_deref()
+                            .map(|b| format!(" {b}"))
+                            .unwrap_or_default()
+                    );
+                    match push_impl(&repo, &remote, branch.as_deref(), force) {
+                        Ok(pushed) => {
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::PushCompleted {
+                                remote: remote.clone(),
+                                branch: branch.clone(),
+                                pushed,
+                            }));
+                            send_status(&repo, &event_tx);
+                        }
+                        Err(e) => {
+                            warn!("git push failed: {}", e.message());
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                operation: op_name,
+                                error: e.message().to_owned(),
+                            }));
+                        }
+                    }
+                }
+
+                GitCommand::Merge { branch } => {
+                    run_op(&event_tx, format!("merge {branch}"), || {
+                        merge_impl(&repo, &branch)
+                    });
+                    send_head_info(&repo, &event_tx);
+                    send_status(&repo, &event_tx);
+                }
+
+                GitCommand::Rebase { branch } => {
+                    run_op(&event_tx, format!("rebase onto {branch}"), || {
+                        rebase_impl(&repo, &branch)
+                    });
+                    send_head_info(&repo, &event_tx);
                     send_status(&repo, &event_tx);
                 }
 
@@ -871,6 +1082,286 @@ mod git_support {
     ) -> std::result::Result<(), git2::Error> {
         let mut branch = repo.find_branch(name, git2::BranchType::Local)?;
         branch.delete()?;
+        Ok(())
+    }
+
+    // ── fetch / pull / push / merge / rebase ─────────────────────────────
+
+    fn fetch_impl(
+        repo: &git2::Repository,
+        remote_name: &str,
+        branch: Option<&str>,
+    ) -> std::result::Result<String, git2::Error> {
+        let mut remote = repo.find_remote(remote_name)?;
+        let refspecs: Vec<String> = if let Some(b) = branch {
+            vec![format!("+refs/heads/{b}:refs/remotes/{remote_name}/{b}")]
+        } else {
+            // Fetch all branches — collect refspecs from remote config
+            let mut refs = Vec::new();
+            for rs in remote.fetch_refspecs()?.iter() {
+                if let Ok(Some(s)) = rs {
+                    refs.push(s.to_owned());
+                }
+            }
+            refs
+        };
+
+        let mut fetch_opts = git2::FetchOptions::new();
+        fetch_opts.download_tags(git2::AutotagOption::All);
+
+        let mut callbacks = git2::RemoteCallbacks::new();
+        callbacks.transfer_progress(|stats| {
+            debug!(
+                "fetch: {} bytes, {} objects",
+                stats.received_bytes(),
+                stats.total_objects()
+            );
+            true
+        });
+        fetch_opts.remote_callbacks(callbacks);
+
+        remote.fetch(&refspecs, Some(&mut fetch_opts), None)?;
+
+        let stats = remote.stats();
+        Ok(format!(
+            "{} objects received, {} bytes transferred",
+            stats.total_objects(),
+            stats.received_bytes()
+        ))
+    }
+
+    fn pull_merge_impl(
+        repo: &git2::Repository,
+        remote_name: &str,
+        branch: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        // First fetch
+        fetch_impl(repo, remote_name, Some(branch))?;
+
+        // Find the remote branch commit
+        let remote_ref_name = format!("refs/remotes/{remote_name}/{branch}");
+        let remote_oid = repo.refname_to_id(&remote_ref_name)?;
+        let remote_annotated = repo.find_annotated_commit(remote_oid)?;
+
+        // Find current HEAD commit
+        let head_commit = repo.head()?.peel_to_commit()?;
+
+        // Find the merge base
+        let merge_base_oid = repo.merge_base(head_commit.id(), remote_oid)?;
+
+        // Check for fast-forward
+        if merge_base_oid == head_commit.id() {
+            // Fast-forward
+            let head_ref = repo.head()?;
+            let refname = head_ref
+                .name()
+                .ok()
+                .ok_or_else(|| git2::Error::from_str("cannot get HEAD refname"))?;
+            let mut found_ref = repo.find_reference(refname)?;
+            found_ref.set_target(remote_oid, "pull: fast-forward")?;
+            repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))?;
+            return Ok(());
+        }
+
+        // Perform merge
+        let merge_preference = repo.merge_analysis(&[&remote_annotated])?;
+        if merge_preference
+            .0
+            .contains(git2::MergeAnalysis::ANALYSIS_NORMAL)
+        {
+            repo.merge(&[&remote_annotated], None, None)?;
+
+            // Check for conflicts
+            let mut index = repo.index()?;
+            if index.has_conflicts() {
+                return Err(git2::Error::from_str(
+                    "merge conflicts detected — resolve conflicts and commit manually",
+                ));
+            }
+
+            // Create merge commit
+            let sig = repo.signature()?;
+            let tree_oid = index.write_tree()?;
+            let tree = repo.find_tree(tree_oid)?;
+
+            let parent_commits: Vec<git2::Commit<'_>> =
+                vec![head_commit, repo.find_commit(remote_oid)?];
+            let parents: Vec<&git2::Commit<'_>> = parent_commits.iter().collect();
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &format!("Merge branch '{branch}' of {remote_name}"),
+                &tree,
+                &parents,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    fn pull_rebase_impl(
+        repo: &git2::Repository,
+        remote_name: &str,
+        branch: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        // First fetch
+        fetch_impl(repo, remote_name, Some(branch))?;
+
+        // Find the remote tracking branch
+        let remote_ref_name = format!("refs/remotes/{remote_name}/{branch}");
+        let onto_oid = repo.refname_to_id(&remote_ref_name)?;
+        let onto_annotated = repo.find_annotated_commit(onto_oid)?;
+
+        // Perform rebase
+        let head_annotated = repo
+            .head()?
+            .peel_to_commit()
+            .and_then(|c| repo.find_annotated_commit(c.id()))?;
+
+        let mut rebase = repo.rebase(Some(&head_annotated), Some(&onto_annotated), None, None)?;
+
+        let sig = repo.signature()?;
+        while let Some(op_result) = rebase.next() {
+            let _op = op_result?;
+            let idx = rebase.inmemory_index()?;
+            if idx.has_conflicts() {
+                return Err(git2::Error::from_str(
+                    "rebase conflicts detected — resolve conflicts and continue manually",
+                ));
+            }
+            rebase.commit(None, &sig, None)?;
+        }
+
+        rebase.finish(None)?;
+        Ok(())
+    }
+
+    fn push_impl(
+        repo: &git2::Repository,
+        remote_name: &str,
+        branch: Option<&str>,
+        force: bool,
+    ) -> std::result::Result<usize, git2::Error> {
+        let mut remote = repo.find_remote(remote_name)?;
+
+        // Determine what refspec to push
+        let head_branch = repo.head()?.shorthand().ok().map(|s| s.to_owned());
+        let branch_name = branch.or(head_branch.as_deref()).unwrap_or("main");
+
+        let prefix = if force { "+" } else { "" };
+        let refspec = format!("{prefix}refs/heads/{branch_name}:refs/heads/{branch_name}");
+
+        let mut callbacks = git2::RemoteCallbacks::new();
+        callbacks.push_update_reference(|refname, status| {
+            if let Some(msg) = status {
+                warn!("push ref {refname}: {msg}");
+            }
+            Ok(())
+        });
+        let mut push_opts = git2::PushOptions::new();
+        push_opts.remote_callbacks(callbacks);
+
+        remote.push(&[&refspec], Some(&mut push_opts))?;
+
+        Ok(1)
+    }
+
+    fn merge_impl(repo: &git2::Repository, branch: &str) -> std::result::Result<(), git2::Error> {
+        // Find the branch to merge
+        let branch_ref = repo.find_branch(branch, git2::BranchType::Local)?;
+        let branch_oid = branch_ref
+            .get()
+            .target()
+            .ok_or_else(|| git2::Error::from_str("branch has no target"))?;
+        let branch_annotated = repo.find_annotated_commit(branch_oid)?;
+
+        // Find current HEAD commit
+        let head_commit = repo.head()?.peel_to_commit()?;
+
+        // Check for fast-forward
+        let merge_base_oid = repo.merge_base(head_commit.id(), branch_oid)?;
+        if merge_base_oid == head_commit.id() {
+            // Fast-forward: just move HEAD
+            let head_ref = repo.head()?;
+            let refname = head_ref
+                .name()
+                .ok()
+                .ok_or_else(|| git2::Error::from_str("cannot get HEAD refname"))?;
+            let mut found_ref = repo.find_reference(refname)?;
+            found_ref.set_target(branch_oid, &format!("merge {branch}: fast-forward"))?;
+            repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))?;
+            return Ok(());
+        }
+
+        // Perform merge
+        repo.merge(&[&branch_annotated], None, None)?;
+
+        // Check for conflicts
+        let mut index = repo.index()?;
+        if index.has_conflicts() {
+            return Err(git2::Error::from_str(
+                "merge conflicts detected — resolve conflicts and commit manually",
+            ));
+        }
+
+        // Create merge commit
+        let sig = repo.signature()?;
+        let tree_oid = index.write_tree()?;
+        let tree = repo.find_tree(tree_oid)?;
+
+        let branch_commit = repo.find_commit(branch_oid)?;
+        let parent_commits: Vec<git2::Commit<'_>> = vec![head_commit, branch_commit];
+        let parents: Vec<&git2::Commit<'_>> = parent_commits.iter().collect();
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            &format!("Merge branch '{branch}'"),
+            &tree,
+            &parents,
+        )?;
+
+        Ok(())
+    }
+
+    fn rebase_impl(repo: &git2::Repository, branch: &str) -> std::result::Result<(), git2::Error> {
+        // Find the branch to rebase onto
+        let onto_branch = repo.find_branch(branch, git2::BranchType::Local)?;
+        let onto_oid = onto_branch
+            .get()
+            .target()
+            .ok_or_else(|| git2::Error::from_str("branch has no target"))?;
+        let onto_annotated = repo.find_annotated_commit(onto_oid)?;
+
+        // Find upstream: the merge base of current HEAD and the onto branch
+        let head_commit = repo.head()?.peel_to_commit()?;
+        let upstream_oid = repo.merge_base(head_commit.id(), onto_oid)?;
+        let upstream_annotated = repo.find_annotated_commit(upstream_oid)?;
+
+        let head_annotated = repo.find_annotated_commit(head_commit.id())?;
+
+        // Initialize rebase: replay commits from head (excluding upstream) onto onto
+        let mut rebase = repo.rebase(
+            Some(&head_annotated),
+            Some(&onto_annotated),
+            Some(&upstream_annotated),
+            None,
+        )?;
+
+        let sig = repo.signature()?;
+        while let Some(op_result) = rebase.next() {
+            let _op = op_result?;
+            let idx = rebase.inmemory_index()?;
+            if idx.has_conflicts() {
+                return Err(git2::Error::from_str(
+                    "rebase conflicts detected — resolve conflicts and continue manually",
+                ));
+            }
+            rebase.commit(None, &sig, None)?;
+        }
+
+        rebase.finish(None)?;
         Ok(())
     }
 }
