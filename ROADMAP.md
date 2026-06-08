@@ -128,7 +128,7 @@ Grammar registry (static + dynamic loading), highlight queries for 22 languages 
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
 - [x] Add custom fold marker support (`// #region` / `// #endregion`)
 - [x] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
-- [ ] No unit tests in crate (has 3 test modules, 69 tests — needs more coverage in engine/highlight)
+- [x] Improve unit test coverage (86 tests, up from 57; added engine/outline/fold tests)
 
 ---
 

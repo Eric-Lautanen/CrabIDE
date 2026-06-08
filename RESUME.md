@@ -2,47 +2,17 @@
 
 ## Session summary
 
-**Window state persistence ✅**
-- Added `WindowState` struct with serde JSON serialization
-- Saved to `~/.crabide/window_state.json` on app exit via `on_exit()`
-- Loaded on startup in `main.rs` and applied to `eframe::ViewportBuilder`
-- Window size, position (from `outer_rect`), and maximized state tracked each frame
-- `serde` and `serde_json` workspace deps added to crabide-app crate
+**Language support for 12 new languages ✅**
+- Added 16 tree-sitter grammar crate dependencies (all compile on Windows)
+- Wrote highlight queries for: HTML, CSS, SCSS, LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
+- Registered TypeScript, C++, TOML, Markdown grammars (had queries, never registered)
+- Used raw FFI helper macro for older grammars with incompatible tree-sitter versions
+- All 22 languages now registered in `register_grammars()`
 
-**Session restore (reopen files from last session) ✅**
-- Added `SessionState` struct with `open_files: Vec<String>` saved to `~/.crabide/session.json`
-- On exit, collects all open file:// URIs from editor tabs and saves them
-- On startup, loads session file list and opens any files that still exist on disk
-- Deduplicates against CLI-provided paths to avoid reopening the same file twice
-- Handles missing/deleted files gracefully (silently skipped)
-
-**`docs/` directory ✅**
-- Created `docs/README.md` with links to ARCHITECTURE, BUILD, CONTRIBUTING
-- Created `docs/ARCHITECTURE.md` with crate dependency graph and phase overview
-- All workspace tests pass, zero new clippy warnings
-
-**Unicode-width crate ✅**
-- Added `unicode-width` 0.2.2 workspace dependency
-- Replaced hand-rolled CJK/fullwidth/emoji width ranges with `unicode_width::UnicodeWidthChar::width()`
-- All 160 terminal tests pass
-
-**Git branch listing, deletion, staged diff ✅**
-- `GitService::list_branches()` → `BranchesListed` event
-- `GitService::delete_branch()` → `OperationCompleted` / `OperationFailed`
-- `GitService::request_diff_staged()` → `DiffStagedUpdated` event
-- `GitPanelState.branches` and `EditorTab.git_staged_hunks` fields added to UI state
-
-**Terminal test coverage increased ✅**
-- Added 58 new unit tests to crabide-terminal (now 160, up from 102)
-- Covers: SGR attributes (dim, strikethrough, reset variants, all-at-once)
-- ED 1 (erase to start of display) and ED 3 (scrollback erase)
-- DECSET mouse modes via feed() for 1000/1002/1003/1006
-- Scroll region edge cases, cursor edge cases, tab operations
-- Resize edge cases, feed edge cases, reverse index edge cases
-- Unicode width (combining, control chars), put_char edge cases
-- Delta consistency, OSC 8/133 edge cases, unknown escapes
-- Fixed `resize()` to properly mark all rows as dirty (was using `Vec::resize`
-  which only marks NEW entries, not existing truncated ones)
+**Syntax crate test coverage increased ✅**
+- Added 17 new unit tests across engine.rs, outline.rs, fold.rs
+- Total tests in crabide-syntax: 86 (up from 69)
+- Covers: SyntaxEngine creation, outline dispatch, symbol kind variants, fold kind mapping for new languages, node helper functions
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
 
@@ -61,15 +31,11 @@
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all workspace tests pass (160 terminal tests, 112 UI tests, etc.)
+- **TESTS** — all 903 workspace tests pass (86 syntax, 160 terminal, 112 UI, etc.)
 
 ## Remaining roadmap items — pick next available
 
 ### Medium tasks (all easy items are done)
-
-**Phase 2 (Syntax):**
-- [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
-- [ ] More unit test coverage for crabide-syntax
 
 **Phase 6 (Git):**
 - [ ] fetch/pull/push/merge/rebase
