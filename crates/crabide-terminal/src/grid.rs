@@ -1923,4 +1923,119 @@ mod tests {
         );
         assert_eq!(g.screen[5][0].ch, 'A', "A should have moved to row 5");
     }
+
+    // ── Mouse encoding ─────────────────────────────────────────────────────
+    #[test]
+    fn encode_mouse_press_x10() {
+        let result = encode_mouse_press(true, false, false, false, MouseButton::Left, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // X10: ESC [ M b x y  with b=32+0=32 (space), x=32+5+1=38 '&', y=32+3+1=36 '$'
+        assert_eq!(bytes, b"\x1b[M &$");
+    }
+
+    #[test]
+    fn encode_mouse_press_sgr() {
+        let result = encode_mouse_press(true, false, false, true, MouseButton::Left, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // SGR: ESC [ < 0 ; 6 ; 4 M
+        assert_eq!(bytes, b"\x1b[<0;6;4M");
+    }
+
+    #[test]
+    fn encode_mouse_press_inactive() {
+        let result = encode_mouse_press(false, false, false, false, MouseButton::Left, 5, 3);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn encode_mouse_release_x10() {
+        let result = encode_mouse_release(true, false, false, MouseButton::Left, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // X10 release: ESC [ M  b x y  where b=32+3=35 '#', x=38, y=36
+        assert_eq!(bytes, b"\x1b[M#&$");
+    }
+
+    #[test]
+    fn encode_mouse_release_sgr() {
+        let result = encode_mouse_release(true, false, true, MouseButton::Left, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // SGR release: ESC [ < 3 ; 6 ; 4 m
+        assert_eq!(bytes, b"\x1b[<3;6;4m");
+    }
+
+    #[test]
+    fn encode_mouse_release_inactive() {
+        let result = encode_mouse_release(false, false, false, MouseButton::Left, 5, 3);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn encode_mouse_motion_x10() {
+        let result = encode_mouse_motion(true, false, false, MouseButton::Left, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // X10 motion: button code (0) + 32 = 32, so b=32+32=64 '@'
+        assert_eq!(bytes, b"\x1b[M@&$");
+    }
+
+    #[test]
+    fn encode_mouse_motion_inactive() {
+        let result = encode_mouse_motion(false, false, false, MouseButton::Left, 5, 3);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn encode_mouse_scroll_x10_up() {
+        let result = encode_mouse_scroll(true, false, false, false, ScrollDirection::Up, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // ScrollUp button code = 4 + 64 = 68, b = 32 + 68 = 100 'd'
+        assert_eq!(bytes, b"\x1b[Md&$");
+    }
+
+    #[test]
+    fn encode_mouse_scroll_x10_down() {
+        let result = encode_mouse_scroll(true, false, false, false, ScrollDirection::Down, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // ScrollDown button code = 5 + 64 = 69, b = 32 + 69 = 101 'e'
+        assert_eq!(bytes, b"\x1b[Me&$");
+    }
+
+    #[test]
+    fn encode_mouse_scroll_inactive() {
+        let result = encode_mouse_scroll(false, false, false, false, ScrollDirection::Up, 5, 3);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn encode_mouse_right_button_x10() {
+        let result = encode_mouse_press(true, false, false, false, MouseButton::Right, 10, 5);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // Right button code = 2, b = 32+2=34 '"', x = 32+10+1=43 '+', y = 32+5+1=38 '&'
+        assert_eq!(bytes, b"\x1b[M\"+&");
+    }
+
+    #[test]
+    fn encode_mouse_right_button_sgr() {
+        let result = encode_mouse_press(true, false, false, true, MouseButton::Right, 10, 5);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // SGR: ESC [ < 2 ; 11 ; 6 M
+        assert_eq!(bytes, b"\x1b[<2;11;6M");
+    }
+
+    #[test]
+    fn encode_mouse_scroll_sgr() {
+        let result = encode_mouse_scroll(true, true, false, true, ScrollDirection::Down, 5, 3);
+        assert!(result.is_some());
+        let bytes = result.unwrap();
+        // ScrollDown = 5+64=69, SGR: ESC [ < 69 ; 6 ; 4 m (scroll is always release)
+        assert_eq!(bytes, b"\x1b[<69;6;4m");
+    }
 }
