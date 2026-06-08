@@ -134,6 +134,11 @@ pub struct Grid {
     // Dirty tracking: rows that changed since last delta extraction
     dirty: Vec<bool>,
 
+    /// Whether each screen row is a soft-wrapped continuation from the
+    /// previous row (true) or began with a hard newline (false).
+    /// Used for content reflow on terminal resize.
+    wrapped: Vec<bool>,
+
     // Window metadata
     /// OSC 0/2 — window title.
     pub title: Option<String>,
@@ -190,6 +195,7 @@ impl Grid {
             cur_bg: Color::Default,
             cur_attrs: Attrs::empty(),
             dirty,
+            wrapped: vec![false; rows as usize],
             title: None,
             cwd: None,
             cursor_visible: true,
@@ -300,30 +306,104 @@ impl Grid {
         self.parser = parser;
     }
 
-    /// Resize the grid to new dimensions.
+    /// Resize the grid to new dimensions, reflowing soft-wrapped content.
     pub fn resize(&mut self, cols: u16, rows: u16) {
         self.cols = cols;
         self.rows = rows;
 
-        let blank_row = || vec![Cell::BLANK; cols as usize];
+        // Only attempt reflow on the primary screen (not alt screen).
+        // Alt screen is used by full-screen apps (vim, htop) that handle their own layout.
+        if !self.alt_active {
+            // Build logical lines by merging consecutive wrapped rows
+            let screen = std::mem::take(&mut self.screen);
+            let wrapped = std::mem::take(&mut self.wrapped);
+            let mut logical: Vec<Vec<Cell>> = Vec::new();
 
-        // Resize existing rows
-        for row in &mut self.screen {
-            row.resize(cols as usize, Cell::BLANK);
+            let mut i = 0;
+            while i < screen.len() {
+                let mut merged = screen[i].clone();
+                // Trim trailing blanks from this row so merging is clean
+                while merged.last().map(|c| c.ch == ' ').unwrap_or(false) {
+                    merged.pop();
+                }
+                // If the NEXT row is a wrapped continuation, merge it
+                while i + 1 < screen.len() && i + 1 < wrapped.len() && wrapped[i + 1] {
+                    let next = &screen[i + 1];
+                    let mut trimmed = next.clone();
+                    while trimmed.last().map(|c| c.ch == ' ').unwrap_or(false) {
+                        trimmed.pop();
+                    }
+                    merged.extend(trimmed);
+                    i += 1;
+                }
+                logical.push(merged);
+                i += 1;
+            }
+
+            // Re-wrap logical lines at the new column width
+            let cols_u = cols as usize;
+            let rows_u = rows as usize;
+            let mut new_screen: Vec<Vec<Cell>> = Vec::new();
+            let mut new_wrapped: Vec<bool> = Vec::new();
+
+            for line in logical {
+                if cols_u == 0 {
+                    break;
+                }
+                // Split into chunks of cols_u
+                let mut offset = 0;
+                while offset < line.len() {
+                    let end = (offset + cols_u).min(line.len());
+                    let mut row: Vec<Cell> = line[offset..end].to_vec();
+                    // Pad with blanks if needed
+                    row.resize(cols_u, Cell::BLANK);
+                    if offset > 0 {
+                        new_wrapped.push(true);
+                    } else {
+                        new_wrapped.push(false);
+                    }
+                    new_screen.push(row);
+                    offset += cols_u;
+                }
+            }
+
+            // Ensure at least `rows` rows
+            while new_screen.len() < rows_u {
+                new_screen.push(vec![Cell::BLANK; cols_u]);
+                new_wrapped.push(false);
+            }
+            // Truncate if too many rows
+            new_screen.truncate(rows_u);
+            new_wrapped.truncate(rows_u);
+
+            self.screen = new_screen;
+            self.wrapped = new_wrapped;
+        } else {
+            // Alt screen: simple resize without reflow
+            let blank_row = || vec![Cell::BLANK; cols as usize];
+            for row in &mut self.screen {
+                row.resize(cols as usize, Cell::BLANK);
+            }
+            self.screen.resize_with(rows as usize, blank_row);
+            self.wrapped.resize(rows as usize, false);
         }
-        // Add or remove rows
-        self.screen.resize_with(rows as usize, blank_row);
-        self.dirty.resize(rows as usize, true);
 
-        // Same for alt screen
+        // Same simple resize for alt screen (stored separately)
+        let blank_row = || vec![Cell::BLANK; cols as usize];
         for row in &mut self.alt_screen {
             row.resize(cols as usize, Cell::BLANK);
         }
         self.alt_screen.resize_with(rows as usize, blank_row);
 
+        self.dirty.resize(rows as usize, true);
+
         // Clamp cursor
         self.cursor_col = self.cursor_col.min(cols.saturating_sub(1));
         self.cursor_row = self.cursor_row.min(rows.saturating_sub(1));
+
+        // Clamp scroll region
+        self.scroll_bottom = self.scroll_bottom.min(rows.saturating_sub(1));
+        self.scroll_top = self.scroll_top.min(self.scroll_bottom);
     }
 
     /// Extract a delta of all dirty rows since the last call, and clear dirty flags.
@@ -421,6 +501,10 @@ impl Grid {
         if self.cursor_col >= self.cols {
             self.cursor_col = 0;
             self.cursor_row += 1;
+            // Mark the new row as a soft-wrapped continuation
+            if (self.cursor_row as usize) < self.wrapped.len() {
+                self.wrapped[self.cursor_row as usize] = true;
+            }
             if self.cursor_row > self.scroll_bottom {
                 self.cursor_row = self.scroll_bottom;
                 self.scroll_up(1);
@@ -434,6 +518,7 @@ impl Grid {
         for _ in 0..count {
             // Remove the top row of the scroll region
             let removed = self.screen.remove(top);
+            self.wrapped.remove(top);
             // Only push to scrollback if the scroll region starts at row 0
             if top == 0 {
                 if self.scrollback.len() >= self.scrollback_limit {
@@ -444,6 +529,7 @@ impl Grid {
             // Insert a blank row at the bottom of the scroll region
             self.screen
                 .insert(bottom, vec![Cell::BLANK; self.cols as usize]);
+            self.wrapped.insert(bottom, false);
         }
         // Mark scroll region rows as dirty
         for r in top..=bottom {
@@ -459,9 +545,11 @@ impl Grid {
         for _ in 0..count {
             // Remove the bottom row of the scroll region
             self.screen.remove(bottom);
+            self.wrapped.remove(bottom);
             // Insert a blank row at the top of the scroll region
             self.screen
                 .insert(top, vec![Cell::BLANK; self.cols as usize]);
+            self.wrapped.insert(top, false);
         }
         // Mark scroll region rows as dirty
         for r in top..=bottom {
@@ -2037,5 +2125,87 @@ mod tests {
         let bytes = result.unwrap();
         // ScrollDown = 5+64=69, SGR: ESC [ < 69 ; 6 ; 4 m (scroll is always release)
         assert_eq!(bytes, b"\x1b[<69;6;4m");
+    }
+
+    // ── Content reflow on resize ─────────────────────────────────────────
+
+    #[test]
+    fn resize_wider_unwraps_lines() {
+        let mut g = Grid::new(5, 10);
+        g.feed(b"ABCDEFGHIJ");
+        // After feeding 10 chars into 5-wide grid:
+        // Row 0: ABCDE, wrapped=true at row 1
+        // Row 1: FGHIJ, wrapped=true at row 2
+        // Row 2: (blank)
+        assert!(
+            g.wrapped[1],
+            "row 1 should be marked as wrapped continuation"
+        );
+        assert!(
+            g.wrapped[2],
+            "row 2 should be marked as wrapped continuation"
+        );
+        // Widen to 10 cols
+        g.resize(10, 10);
+        // "ABCDEFGHIJ" should now fit on a single row
+        assert_eq!(g.screen[0][0].ch, 'A');
+        assert_eq!(g.screen[0][9].ch, 'J');
+        assert!(!g.wrapped[0], "row 0 should not be wrapped");
+    }
+
+    #[test]
+    fn resize_narrower_rewraps_content() {
+        let mut g = Grid::new(10, 10);
+        g.feed(b"ABCDEFGHIJ"); // fits on one row at 10 cols
+        assert_eq!(g.screen[0][9].ch, 'J');
+        // Narrow to 5 cols
+        g.resize(5, 10);
+        assert_eq!(g.screen[0][0].ch, 'A');
+        assert_eq!(g.screen[0][4].ch, 'E');
+        assert_eq!(g.screen[1][4].ch, 'J');
+        assert!(g.wrapped[1], "row 1 should be wrapped continuation");
+    }
+
+    #[test]
+    fn resize_preserves_non_wrapped_content() {
+        let mut g = Grid::new(10, 10);
+        g.feed(b"Hello\r\nWorld");
+        // "\r\n" gives a hard newline (CR resets col, LF moves down)
+        // Verify pre-resize state
+        assert!(!g.wrapped[0]);
+        assert!(!g.wrapped[1]);
+        assert_eq!(g.screen[0][0].ch, 'H', "pre: row 0 should start with H");
+        assert_eq!(g.screen[1][0].ch, 'W', "pre: row 1 should start with W");
+        // Widen
+        g.resize(20, 10);
+        // Both lines should still be on their own rows
+        assert_eq!(g.screen[0][0].ch, 'H', "row 0 should start with H");
+        assert_eq!(
+            g.screen[1][0].ch, 'W',
+            "row 1 should start with W after resize"
+        );
+    }
+
+    #[test]
+    fn resize_too_many_rows_truncates() {
+        let mut g = Grid::new(5, 20);
+        g.feed(b"ABCDEFGHIJ"); // wraps across rows 0, 1, 2
+        g.resize(5, 2);
+        assert_eq!(g.screen.len(), 2);
+        assert_eq!(g.wrapped.len(), 2);
+        assert_eq!(g.screen[0][0].ch, 'A');
+        assert_eq!(g.screen[0][4].ch, 'E');
+    }
+
+    #[test]
+    fn resize_alt_screen_no_reflow() {
+        let mut g = Grid::new(10, 10);
+        g.feed(b"Hello");
+        g.alt_active = true;
+        g.feed(b"AltContent");
+        g.resize(20, 10);
+        // Primary screen content should not have been reflowed
+        g.alt_active = false;
+        assert_eq!(g.screen[0][0].ch, 'H');
     }
 }
