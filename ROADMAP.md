@@ -251,8 +251,8 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 - [ ] Implement Insert/Delete Line (CSI L / CSI M)
 - [ ] Implement Insert/Delete Character (CSI @ / CSI P)
 - [ ] Implement mouse reporting (DECSET 1000/1002/1003)
-- [ ] Implement bracketed paste mode (DECSET 2004)
-- [ ] Implement cursor visibility toggle (DECSET 25)
+- [x] Implement bracketed paste mode (DECSET 2004)
+- [x] Implement cursor visibility toggle (DECSET 25)
 - [ ] Implement content reflow on terminal resize
 - [ ] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
