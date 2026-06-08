@@ -250,12 +250,14 @@ pub struct ChangedRow {
     pub cells: Vec<TerminalCell>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct TerminalCell {
     pub ch: char,
     pub fg: TerminalColor,
     pub bg: TerminalColor,
     pub attrs: CellAttrs,
+    /// OSC 8 hyperlink URL, if this cell is part of a hyperlink.
+    pub hyperlink: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

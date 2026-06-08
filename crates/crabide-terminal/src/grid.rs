@@ -31,7 +31,7 @@ use vte::{Parser, Perform};
 // --- Cell ---
 
 /// A single terminal cell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cell {
     pub ch: char,
     /// Number of columns this character occupies (1 for ASCII, 2 for CJK).
@@ -39,21 +39,26 @@ pub struct Cell {
     pub fg: Color,
     pub bg: Color,
     pub attrs: Attrs,
+    /// OSC 8 hyperlink URL if this cell is part of a clickable hyperlink.
+    pub hyperlink: Option<String>,
 }
 
 impl Cell {
-    pub const BLANK: Self = Self {
-        ch: ' ',
-        width: 1,
-        fg: Color::Default,
-        bg: Color::Default,
-        attrs: Attrs::empty(),
-    };
+    pub fn blank() -> Self {
+        Self {
+            ch: ' ',
+            width: 1,
+            fg: Color::Default,
+            bg: Color::Default,
+            attrs: Attrs::empty(),
+            hyperlink: None,
+        }
+    }
 }
 
 impl Default for Cell {
     fn default() -> Self {
-        Self::BLANK
+        Self::blank()
     }
 }
 
@@ -168,6 +173,16 @@ pub struct Grid {
     /// DECSET 1006 — SGR extended mouse mode (used by most modern terminals).
     pub mouse_sgr: bool,
 
+    // Hyperlink state (OSC 8)
+    /// Current hyperlink URL while a hyperlink sequence is open.
+    cur_hyperlink: Option<String>,
+
+    // Shell integration (OSC 133)
+    /// Set when OSC 133 C (command start) is received.
+    pub command_started: Option<String>,
+    /// Set when OSC 133 D (command finished) is received, with optional exit code.
+    pub command_finished: Option<i32>,
+
     // vte parser
     // vte parser
     parser: Parser,
@@ -175,7 +190,7 @@ pub struct Grid {
 
 impl Grid {
     pub fn new(cols: u16, rows: u16) -> Self {
-        let blank_row = vec![Cell::BLANK; cols as usize];
+        let blank_row = vec![Cell::blank(); cols as usize];
         let screen = vec![blank_row.clone(); rows as usize];
         let alt_screen = vec![blank_row.clone(); rows as usize];
         let dirty = vec![true; rows as usize]; // Start fully dirty
@@ -206,6 +221,9 @@ impl Grid {
             mouse_normal: false,
             mouse_button_event: false,
             mouse_sgr: false,
+            cur_hyperlink: None,
+            command_started: None,
+            command_finished: None,
             parser: Parser::new(),
         }
     }
@@ -356,7 +374,7 @@ impl Grid {
                     let end = (offset + cols_u).min(line.len());
                     let mut row: Vec<Cell> = line[offset..end].to_vec();
                     // Pad with blanks if needed
-                    row.resize(cols_u, Cell::BLANK);
+                    row.resize(cols_u, Cell::blank());
                     if offset > 0 {
                         new_wrapped.push(true);
                     } else {
@@ -369,7 +387,7 @@ impl Grid {
 
             // Ensure at least `rows` rows
             while new_screen.len() < rows_u {
-                new_screen.push(vec![Cell::BLANK; cols_u]);
+                new_screen.push(vec![Cell::blank(); cols_u]);
                 new_wrapped.push(false);
             }
             // Truncate if too many rows
@@ -380,18 +398,18 @@ impl Grid {
             self.wrapped = new_wrapped;
         } else {
             // Alt screen: simple resize without reflow
-            let blank_row = || vec![Cell::BLANK; cols as usize];
+            let blank_row = || vec![Cell::blank(); cols as usize];
             for row in &mut self.screen {
-                row.resize(cols as usize, Cell::BLANK);
+                row.resize(cols as usize, Cell::blank());
             }
             self.screen.resize_with(rows as usize, blank_row);
             self.wrapped.resize(rows as usize, false);
         }
 
         // Same simple resize for alt screen (stored separately)
-        let blank_row = || vec![Cell::BLANK; cols as usize];
+        let blank_row = || vec![Cell::blank(); cols as usize];
         for row in &mut self.alt_screen {
-            row.resize(cols as usize, Cell::BLANK);
+            row.resize(cols as usize, Cell::blank());
         }
         self.alt_screen.resize_with(rows as usize, blank_row);
 
@@ -424,6 +442,7 @@ impl Grid {
                         fg: color_to_event(c.fg),
                         bg: color_to_event(c.bg),
                         attrs: cell_attrs_to_event(c.attrs),
+                        hyperlink: c.hyperlink.clone(),
                     })
                     .collect();
                 changed_rows.push(ChangedRow {
@@ -470,6 +489,7 @@ impl Grid {
         // Cache before the mutable borrow of self via active_screen()
         let cols = self.cols as usize;
         let rows = self.rows as usize;
+        let hyperlink = self.cur_hyperlink.clone();
 
         if row < rows && col < cols {
             let cell = Cell {
@@ -478,6 +498,7 @@ impl Grid {
                 fg: self.cur_fg,
                 bg: self.cur_bg,
                 attrs: self.cur_attrs,
+                hyperlink: hyperlink.clone(),
             };
             let screen = self.active_screen();
             screen[row][col] = cell;
@@ -487,7 +508,8 @@ impl Grid {
                 screen[row][col + 1] = Cell {
                     ch: ' ',
                     width: 0,
-                    ..cell
+                    hyperlink,
+                    ..Cell::blank()
                 };
             }
             self.dirty[row] = true;
@@ -528,7 +550,7 @@ impl Grid {
             }
             // Insert a blank row at the bottom of the scroll region
             self.screen
-                .insert(bottom, vec![Cell::BLANK; self.cols as usize]);
+                .insert(bottom, vec![Cell::blank(); self.cols as usize]);
             self.wrapped.insert(bottom, false);
         }
         // Mark scroll region rows as dirty
@@ -548,7 +570,7 @@ impl Grid {
             self.wrapped.remove(bottom);
             // Insert a blank row at the top of the scroll region
             self.screen
-                .insert(top, vec![Cell::BLANK; self.cols as usize]);
+                .insert(top, vec![Cell::blank(); self.cols as usize]);
             self.wrapped.insert(top, false);
         }
         // Mark scroll region rows as dirty
@@ -718,11 +740,11 @@ impl Perform for Grid {
                         let col = self.cursor_col as usize;
                         if row < rows {
                             for c in col..cols {
-                                self.screen[row][c] = Cell::BLANK;
+                                self.screen[row][c] = Cell::blank();
                             }
                             self.mark_dirty(row);
                             for r in (row + 1)..rows {
-                                self.screen[r] = vec![Cell::BLANK; cols];
+                                self.screen[r] = vec![Cell::blank(); cols];
                                 self.mark_dirty(r);
                             }
                         }
@@ -731,13 +753,13 @@ impl Perform for Grid {
                         // Erase from start to cursor
                         let row = self.cursor_row as usize;
                         for r in 0..row {
-                            self.screen[r] = vec![Cell::BLANK; cols];
+                            self.screen[r] = vec![Cell::blank(); cols];
                             self.mark_dirty(r);
                         }
                         if row < rows {
                             let col = self.cursor_col as usize;
                             for c in 0..=col {
-                                self.screen[row][c] = Cell::BLANK;
+                                self.screen[row][c] = Cell::blank();
                             }
                             self.mark_dirty(row);
                         }
@@ -745,7 +767,7 @@ impl Perform for Grid {
                     2 | 3 => {
                         // Erase entire screen
                         for r in 0..rows {
-                            self.screen[r] = vec![Cell::BLANK; cols];
+                            self.screen[r] = vec![Cell::blank(); cols];
                             self.mark_dirty(r);
                         }
                         self.cursor_row = 0;
@@ -763,16 +785,16 @@ impl Perform for Grid {
                     match p1 {
                         0 => {
                             for c in col..cols {
-                                self.screen[row][c] = Cell::BLANK;
+                                self.screen[row][c] = Cell::blank();
                             }
                         }
                         1 => {
                             for c in 0..=col {
-                                self.screen[row][c] = Cell::BLANK;
+                                self.screen[row][c] = Cell::blank();
                             }
                         }
                         2 => {
-                            self.screen[row] = vec![Cell::BLANK; cols];
+                            self.screen[row] = vec![Cell::blank(); cols];
                         }
                         _ => {}
                     }
@@ -820,7 +842,7 @@ impl Perform for Grid {
                     for _ in 0..count {
                         self.screen.remove(bottom);
                         self.screen
-                            .insert(row, vec![Cell::BLANK; self.cols as usize]);
+                            .insert(row, vec![Cell::blank(); self.cols as usize]);
                     }
                     for r in row..=bottom {
                         self.mark_dirty(r);
@@ -839,7 +861,7 @@ impl Perform for Grid {
                     for _ in 0..count {
                         self.screen.remove(row);
                         self.screen
-                            .insert(bottom, vec![Cell::BLANK; self.cols as usize]);
+                            .insert(bottom, vec![Cell::blank(); self.cols as usize]);
                     }
                     for r in row..=bottom {
                         self.mark_dirty(r);
@@ -858,13 +880,13 @@ impl Perform for Grid {
                     // Shift characters right by `count`, discarding those past the edge
                     for c in (col..cols).rev() {
                         if c >= count {
-                            self.screen[row][c] = self.screen[row][c - count];
+                            self.screen[row][c] = self.screen[row][c - count].clone();
                         }
                     }
                     // Fill the inserted positions with blanks
                     for c in col..(col + count) {
                         if c < cols {
-                            self.screen[row][c] = Cell::BLANK;
+                            self.screen[row][c] = Cell::blank();
                         }
                     }
                     self.mark_dirty(row);
@@ -882,9 +904,9 @@ impl Perform for Grid {
                     // Shift characters left by `count`
                     for c in col..cols {
                         if c + count < cols {
-                            self.screen[row][c] = self.screen[row][c + count];
+                            self.screen[row][c] = self.screen[row][c + count].clone();
                         } else {
-                            self.screen[row][c] = Cell::BLANK;
+                            self.screen[row][c] = Cell::blank();
                         }
                     }
                     self.mark_dirty(row);
@@ -946,16 +968,59 @@ impl Perform for Grid {
             return;
         }
         let cmd = params[0];
-        let data = params.get(1).copied().unwrap_or(&[]);
 
         match cmd {
             b"0" | b"2" => {
-                // Set title
-                self.title = std::str::from_utf8(data).ok().map(|s| s.to_owned());
+                // Set title: OSC 0/2 ; title ST
+                let title_data = params.get(1).copied().unwrap_or(&[]);
+                self.title = std::str::from_utf8(title_data).ok().map(|s| s.to_owned());
             }
             b"7" => {
-                // Shell working directory
-                self.cwd = std::str::from_utf8(data).ok().map(|s| s.to_owned());
+                // Shell working directory: OSC 7 ; path ST
+                let cwd_data = params.get(1).copied().unwrap_or(&[]);
+                self.cwd = std::str::from_utf8(cwd_data).ok().map(|s| s.to_owned());
+            }
+            // OSC 8: hyperlinks
+            // Format: ESC ] 8 ; params ; url BEL
+            // Close:  ESC ] 8 ; ; BEL  (empty URL)
+            b"8" => {
+                let url = params.get(2).copied().unwrap_or(&[]);
+                if url.is_empty() {
+                    self.cur_hyperlink = None;
+                } else {
+                    self.cur_hyperlink = std::str::from_utf8(url).ok().map(|s| s.to_owned());
+                }
+            }
+            // OSC 133: shell integration
+            // Format: ESC ] 133 ; A/B/C/D/L [; data] ST
+            b"133" => {
+                let marker = params.get(1).copied().unwrap_or(&[]);
+                match marker {
+                    b"A" => {
+                        // Prompt start
+                    }
+                    b"B" => {
+                        // Prompt end
+                    }
+                    b"C" => {
+                        // Command started — optional text in params[2]
+                        let command = params
+                            .get(2)
+                            .and_then(|s| std::str::from_utf8(s).ok())
+                            .unwrap_or("")
+                            .to_owned();
+                        self.command_started = Some(command);
+                    }
+                    b"D" => {
+                        // Command finished — optional exit code in params[2]
+                        let exit_code = params
+                            .get(2)
+                            .and_then(|s| std::str::from_utf8(s).ok())
+                            .and_then(|s| s.trim().parse::<i32>().ok());
+                        self.command_finished = Some(exit_code.unwrap_or(0));
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }
@@ -1464,7 +1529,7 @@ mod tests {
     fn sgr_multiple_attributes() {
         let mut g = grid_24x80();
         g.feed(b"\x1b[1;4;7mX"); // bold + underline + reverse
-        let cell = g.screen[0][0];
+        let cell = g.screen[0][0].clone();
         assert!(cell.attrs.contains(Attrs::BOLD));
         assert!(cell.attrs.contains(Attrs::UNDERLINE));
         assert!(cell.attrs.contains(Attrs::REVERSE));
@@ -1782,7 +1847,7 @@ mod tests {
     #[test]
     fn cell_default_is_blank() {
         let c = Cell::default();
-        assert_eq!(c, Cell::BLANK);
+        assert_eq!(c, Cell::blank());
     }
 
     #[test]
@@ -1793,6 +1858,7 @@ mod tests {
             fg: Color::Named(NamedColor::Red),
             bg: Color::Default,
             attrs: Attrs::BOLD,
+            hyperlink: None,
         };
         assert_eq!(c.ch, 'A');
         assert_eq!(c.fg, Color::Named(NamedColor::Red));
@@ -1846,6 +1912,7 @@ mod tests {
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
+                    hyperlink: None,
                 };
             }
         }
@@ -1881,6 +1948,7 @@ mod tests {
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
+                    hyperlink: None,
                 };
             }
         }
@@ -1910,6 +1978,7 @@ mod tests {
                     fg: Color::Default,
                     bg: Color::Default,
                     attrs: Attrs::empty(),
+                    hyperlink: None,
                 };
             }
         }
@@ -2207,5 +2276,123 @@ mod tests {
         // Primary screen content should not have been reflowed
         g.alt_active = false;
         assert_eq!(g.screen[0][0].ch, 'H');
+    }
+
+    // ── OSC 8 Hyperlinks ─────────────────────────────────────────────────
+    #[test]
+    fn osc_8_hyperlink_open_and_close() {
+        let mut g = grid_24x80();
+        // Open hyperlink to https://example.com
+        g.feed(b"\x1b]8;;https://example.com\x07");
+        g.feed(b"Click me");
+        // Close hyperlink
+        g.feed(b"\x1b]8;;\x07");
+        // Cells should have the hyperlink URL
+        for col in 0..8 {
+            assert_eq!(
+                g.screen[0][col].hyperlink.as_deref(),
+                Some("https://example.com"),
+                "cell at col {col} should have hyperlink"
+            );
+        }
+        // After close, new cells should not have hyperlink
+        g.feed(b"X");
+        assert!(g.screen[0][8].hyperlink.is_none());
+    }
+
+    #[test]
+    fn osc_8_hyperlink_no_url_closes() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]8;;https://example.com\x07");
+        g.feed(b"A");
+        assert!(g.screen[0][0].hyperlink.is_some());
+        // Close with empty params
+        g.feed(b"\x1b]8;;\x07");
+        g.feed(b"B");
+        assert!(g.screen[0][1].hyperlink.is_none());
+    }
+
+    #[test]
+    fn osc_8_hyperlink_no_text_between() {
+        let mut g = grid_24x80();
+        // Open and immediately close
+        g.feed(b"\x1b]8;;https://example.com\x07\x1b]8;;\x07");
+        g.feed(b"NoLink");
+        for col in 0..6 {
+            assert!(
+                g.screen[0][col].hyperlink.is_none(),
+                "cell at col {col} should not have hyperlink"
+            );
+        }
+    }
+
+    #[test]
+    fn osc_8_hyperlink_in_delta() {
+        let mut g = grid_24x80();
+        let _ = g.take_delta(); // Clear initial dirty
+        g.feed(b"\x1b]8;;https://example.com\x07H\x1b]8;;\x07");
+        let delta = g.take_delta();
+        assert_eq!(delta.rows.len(), 1);
+        assert_eq!(
+            delta.rows[0].cells[0].hyperlink.as_deref(),
+            Some("https://example.com")
+        );
+    }
+
+    // ── OSC 133 Shell Integration ─────────────────────────────────────────
+    #[test]
+    fn osc_133_command_started() {
+        let mut g = grid_24x80();
+        assert!(g.command_started.is_none());
+        g.feed(b"\x1b]133;C\x07");
+        assert_eq!(g.command_started.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn osc_133_command_started_with_text() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;C;ls -la\x07");
+        assert_eq!(g.command_started.as_deref(), Some("ls -la"));
+    }
+
+    #[test]
+    fn osc_133_command_finished_no_code() {
+        let mut g = grid_24x80();
+        assert!(g.command_finished.is_none());
+        g.feed(b"\x1b]133;D\x07");
+        assert_eq!(g.command_finished, Some(0));
+    }
+
+    #[test]
+    fn osc_133_command_finished_with_code() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;D;42\x07");
+        assert_eq!(g.command_finished, Some(42));
+    }
+
+    #[test]
+    fn osc_133_command_finished_with_negative_code() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;D;-1\x07");
+        assert_eq!(g.command_finished, Some(-1));
+    }
+
+    #[test]
+    fn osc_133_prompt_markers_dont_set_command() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;A\x07"); // Prompt start
+        g.feed(b"\x1b]133;B\x07"); // Prompt end
+        assert!(g.command_started.is_none());
+        assert!(g.command_finished.is_none());
+    }
+
+    #[test]
+    fn osc_133_command_finished_is_one_shot() {
+        let mut g = grid_24x80();
+        g.feed(b"\x1b]133;D;0\x07");
+        assert_eq!(g.command_finished, Some(0));
+        // After reading the value, the app should clear it
+        g.command_finished = None;
+        assert!(g.command_finished.is_none());
     }
 }

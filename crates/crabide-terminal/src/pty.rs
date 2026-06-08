@@ -134,6 +134,8 @@ fn pty_reader_loop(
     let mut buf = vec![0u8; 4096];
     let mut prev_title: Option<String> = None;
     let mut prev_cwd: Option<String> = None;
+    let mut prev_cmd_started: Option<String> = None;
+    let mut prev_cmd_finished: Option<i32> = None;
 
     loop {
         use std::io::Read;
@@ -165,6 +167,26 @@ fn pty_reader_loop(
                 let _ = event_tx.send(EditorEvent::Terminal(TerminalEvent::CwdChanged {
                     terminal_id: id,
                     cwd: path,
+                }));
+            }
+        }
+
+        // OSC 133 shell integration events
+        if grid.command_started != prev_cmd_started {
+            prev_cmd_started = grid.command_started.clone();
+            if let Some(cmd) = &prev_cmd_started {
+                let _ = event_tx.send(EditorEvent::Terminal(TerminalEvent::CommandStarted {
+                    terminal_id: id,
+                    command: cmd.clone(),
+                }));
+            }
+        }
+        if grid.command_finished != prev_cmd_finished {
+            prev_cmd_finished = grid.command_finished;
+            if let Some(code) = prev_cmd_finished {
+                let _ = event_tx.send(EditorEvent::Terminal(TerminalEvent::CommandFinished {
+                    terminal_id: id,
+                    exit_code: code,
                 }));
             }
         }

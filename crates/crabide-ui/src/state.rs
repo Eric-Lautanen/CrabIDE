@@ -444,12 +444,14 @@ mod tests {
                         fg: TerminalColor::Default,
                         bg: TerminalColor::Default,
                         attrs: crabide_core::event::CellAttrs::empty(),
+                        hyperlink: None,
                     },
                     TerminalCell {
                         ch: 'i',
                         fg: TerminalColor::Default,
                         bg: TerminalColor::Default,
                         attrs: crabide_core::event::CellAttrs::empty(),
+                        hyperlink: None,
                     },
                 ],
             }],
@@ -741,6 +743,7 @@ mod tests {
             fg: TerminalColor::Rgb(255, 0, 0),
             bg: TerminalColor::Rgb(0, 0, 0),
             attrs: crabide_core::event::CellAttrs::empty(),
+            hyperlink: None,
         };
         let dc = DisplayCell::from(tc);
         assert_eq!(dc.ch, 'X');
@@ -1310,12 +1313,14 @@ impl Default for GitPanelState {
 // ── Terminal ──────────────────────────────────────────────────────────────────
 
 /// A single cell in the terminal display grid (UI copy).
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct DisplayCell {
     pub ch: char,
     pub fg: TerminalColor,
     pub bg: TerminalColor,
     pub attrs: crabide_core::event::CellAttrs,
+    /// OSC 8 hyperlink URL, if this cell is part of a clickable hyperlink.
+    pub hyperlink: Option<String>,
 }
 
 impl DisplayCell {
@@ -1324,6 +1329,7 @@ impl DisplayCell {
         fg: TerminalColor::Default,
         bg: TerminalColor::Default,
         attrs: crabide_core::event::CellAttrs::empty(),
+        hyperlink: None,
     };
 }
 
@@ -1334,6 +1340,7 @@ impl From<TerminalCell> for DisplayCell {
             fg: c.fg,
             bg: c.bg,
             attrs: c.attrs,
+            hyperlink: c.hyperlink,
         }
     }
 }
@@ -1419,7 +1426,7 @@ impl TerminalInstance {
             }
             for (col, cell) in changed.cells.iter().enumerate() {
                 if col < self.rows[row].len() {
-                    self.rows[row][col] = DisplayCell::from(*cell);
+                    self.rows[row][col] = DisplayCell::from(cell.clone());
                 }
             }
         }
