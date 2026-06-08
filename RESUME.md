@@ -10,6 +10,14 @@
 - `serde` and `serde_json` workspace deps added to crabide-app crate
 - All workspace tests pass, zero new clippy warnings
 
+**Session restore (reopen files from last session) ✅**
+- Added `SessionState` struct with `open_files: Vec<String>` saved to `~/.crabide/session.json`
+- On exit, collects all open file:// URIs from editor tabs and saves them
+- On startup, loads session file list and opens any files that still exist on disk
+- Deduplicates against CLI-provided paths to avoid reopening the same file twice
+- Handles missing/deleted files gracefully (silently skipped)
+- `WindowState` and `SessionState` share the same `~/.crabide/` config directory
+
 **Unicode-width crate ✅**
 - Added `unicode-width` 0.2.2 workspace dependency
 - Replaced hand-rolled CJK/fullwidth/emoji width ranges with `unicode_width::UnicodeWidthChar::width()`
@@ -48,7 +56,7 @@
 
 **Phase 10 (App):**
 - [x] Window state persistence (size, position, maximized state)
-- [ ] Session restore (reopen files from last session)
+- [x] Session restore (reopen files from last session)
 
 **Phase 7 (Terminal) — highest priority:**
 - [x] Implement mouse reporting (DECSET 1000/1002/1003)

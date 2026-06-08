@@ -332,7 +332,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [x] CLI argument parsing (manual parser with `-h`/`-V`/`--log` support — NOT using clap to minimize deps)
 - [x] `Ctrl+C` signal handler for graceful shutdown
 - [x] Window state persistence (size, position, maximized state)
-- [ ] Session restore (reopen files from last session)
+- [x] Session restore (reopen files from last session)
 
 ### Phase 12 items:
 - [ ] Settings UI panel (visual editor for settings.toml)
