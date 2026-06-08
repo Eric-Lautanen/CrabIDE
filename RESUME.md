@@ -2,37 +2,18 @@
 
 ## Session summary
 
-OSC 8 hyperlinks and OSC 133 shell integration are now fully implemented and verified:
+**Unicode-width crate ✅**
+- Added `unicode-width` 0.2.2 workspace dependency
+- Replaced hand-rolled CJK/fullwidth/emoji width ranges with `unicode_width::UnicodeWidthChar::width()`
+- All 102 terminal tests pass
 
-**OSC 8 hyperlinks ✅**
-- `Cell` struct gained `hyperlink: Option<String>` field (non-Copy, Clone retained)
-- `TerminalCell` and `DisplayCell` both carry hyperlink URLs to the UI
-- `cur_hyperlink` state tracked in `Grid`, applied to all printed cells
-- Parse `ESC ] 8 ; params ; url BEL` in `osc_dispatch` (open/close)
-- Hyperlinks flow through `take_delta()` to the UI layer
-- 4 new unit tests
-
-**OSC 133 shell integration ✅**
-- `Grid` now tracks `command_started: Option<String>` and `command_finished: Option<i32>`
-- Parse `ESC ] 133 ; C [; cmd] BEL` and `ESC ] 133 ; D [; code] BEL`
-- `pty_reader_loop` emits `CommandStarted` / `CommandFinished` events on change
-- 7 new unit tests
-
-**TerminalColorScheme ✅**
-- `TerminalColorScheme` defined in `crabide-core::event` with dark/light/default
-- 16 ANSI colors + default fg/bg/cursor + selection bg are customizable
-- `TerminalProfile.color_scheme` field stores per-terminal theme
-- `TerminalInstance.color_scheme` propagated to UI rendering
-- `terminal_color_to_egui()` and `effective_colors()` accept scheme parameter
-- ANSI 16 colors resolve from scheme instead of hardcoded `SYSTEM` array
-- Cursor color uses scheme
-- Tab strip and grid background derived from scheme
-- 5 new unit tests for TerminalColorScheme
-- 1 pre-existing `resize_stable` dead_code warning remains (unrelated)
-
-**Breaking change:** `Cell` no longer derives `Copy` (due to `Option<String>`).
-`Cell::BLANK` const replaced with `Cell::blank()` function.
-All tests updated.
+**Git branch listing, deletion, staged diff ✅**
+- `BranchInfo` struct with ref_name, shorthand, is_local, is_current, commit, upstream, ahead/behind
+- `GitService::list_branches()` → `BranchesListed` event (local + remote branches with tracking info)
+- `GitService::delete_branch()` → reuses `OperationCompleted` / `OperationFailed`
+- `GitService::request_diff_staged()` → `DiffStagedUpdated` event (index vs HEAD tree)
+- `GitPanelState.branches` and `EditorTab.git_staged_hunks` fields added to UI state
+- All existing tests pass, zero new clippy warnings
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
 
@@ -63,13 +44,13 @@ All tests updated.
 - [x] Implement OSC 8 hyperlinks — parse `\e]8;...;url\a...\e]8;;\a` → clickable links
 - [x] Implement OSC 133 shell integration markers — prompt start/end detection
 - [x] Add configurable color scheme / theme to TerminalProfile
-- [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
+- [x] Add Unicode width proper crate to replace approximate `unicode_width()`
 - [ ] Add more unit tests to crabide-terminal (currently 102, roadmap says "no unit tests")
 
 **Phase 6 (Git):**
-- [ ] Add branch listing (local + remote)
-- [ ] Add branch deletion
-- [ ] Add diff for staged changes (index vs HEAD)
+- [x] Add branch listing (local + remote)
+- [x] Add branch deletion
+- [x] Add diff for staged changes (index vs HEAD)
 
 **Phase 10 (App):**
 - [ ] Window state persistence (size, position, maximized state)

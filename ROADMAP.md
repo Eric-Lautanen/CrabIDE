@@ -227,14 +227,14 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 
 **Gaps:**
 - [ ] Add fetch / pull / push / merge / rebase
-- [ ] Add branch listing (local + remote)
-- [ ] Add branch deletion
+- [x] Add branch listing (local + remote)
+- [x] Add branch deletion
 - [ ] Add stash (push, pop, list, drop)
 - [ ] Add log / history / graph view
 - [ ] Add tag management
 - [ ] Add remote management (add, remove, list)
 - [ ] Add submodule support
-- [ ] Add diff for staged changes (index vs HEAD)
+- [x] Add diff for staged changes (index vs HEAD)
 - [ ] Add conflict resolution helpers
 - [x] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)
 
