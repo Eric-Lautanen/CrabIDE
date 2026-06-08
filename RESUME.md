@@ -2,19 +2,25 @@
 
 ## Session summary
 
-Mouse reporting (DECSET 1000/1002/1003) and content reflow on terminal resize are now fully implemented and verified:
+OSC 8 hyperlinks and OSC 133 shell integration are now fully implemented and verified:
 
-**Mouse reporting ✅**
-- Core encoding logic (X10 + SGR protocols) committed and tested (91 tests, +19 new)
-- UI-side mouse event forwarding compiles and works with egui 0.34
-- Standalone encode functions avoid temporary Grid construction
+**OSC 8 hyperlinks ✅**
+- `Cell` struct gained `hyperlink: Option<String>` field (non-Copy, Clone retained)
+- `TerminalCell` and `DisplayCell` both carry hyperlink URLs to the UI
+- `cur_hyperlink` state tracked in `Grid`, applied to all printed cells
+- Parse `ESC ] 8 ; params ; url BEL` in `osc_dispatch` (open/close)
+- Hyperlinks flow through `take_delta()` to the UI layer
+- 4 new unit tests
 
-**Content reflow on resize ✅**
-- `wrapped: Vec<bool>` field tracks soft-wrapped rows
-- Set in `put_char` when auto-wrap occurs; maintained through scroll_up/scroll_down
-- Reflow in `resize()`: merge wrapped rows into logical lines, re-split at new width
-- Handles widening (unwraps), narrowing (rewraps), hard newlines, truncation
-- 5 new unit tests
+**OSC 133 shell integration ✅**
+- `Grid` now tracks `command_started: Option<String>` and `command_finished: Option<i32>`
+- Parse `ESC ] 133 ; C [; cmd] BEL` and `ESC ] 133 ; D [; code] BEL`
+- `pty_reader_loop` emits `CommandStarted` / `CommandFinished` events on change
+- 7 new unit tests
+
+**Breaking change:** `Cell` no longer derives `Copy` (due to `Option<String>`).
+`Cell::BLANK` const replaced with `Cell::blank()` function.
+All tests updated.
 
 ## Handoff Policy
 
@@ -31,7 +37,7 @@ Mouse reporting (DECSET 1000/1002/1003) and content reflow on terminal resize ar
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all workspace tests pass (91 terminal tests, 112 UI tests, etc.)
+- **TESTS** — all workspace tests pass (102 terminal tests, 112 UI tests, etc.)
 
 ## Remaining roadmap items — pick next available
 
@@ -40,11 +46,11 @@ Mouse reporting (DECSET 1000/1002/1003) and content reflow on terminal resize ar
 **Phase 7 (Terminal) — highest priority:**
 - [x] Implement mouse reporting (DECSET 1000/1002/1003)
 - [x] Implement content reflow on terminal resize
-- [ ] Implement OSC 8 hyperlinks — parse `\e]8;...;url\a...\e]8;;\a` → clickable links
-- [ ] Implement OSC 133 shell integration markers — prompt start/end detection
+- [x] Implement OSC 8 hyperlinks — parse `\e]8;...;url\a...\e]8;;\a` → clickable links
+- [x] Implement OSC 133 shell integration markers — prompt start/end detection
 - [ ] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [ ] Add more unit tests to crabide-terminal (currently 91, roadmap says "no unit tests")
+- [ ] Add more unit tests to crabide-terminal (currently 102, roadmap says "no unit tests")
 
 **Phase 6 (Git):**
 - [ ] Add branch listing (local + remote)

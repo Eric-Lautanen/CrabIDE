@@ -246,7 +246,7 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY spawn/read/write/resize, manager with profiles.
 
 **Gaps:**
-- [ ] Implement OSC 8 hyperlinks (parse `\e]8;...;url\a...\e]8;;\a` → clickable links)
+- [x] Implement OSC 8 hyperlinks (parse `\e]8;...;url\a...\e]8;;\a` → clickable links)
 - [x] Implement DECSTBM (scroll regions) — needed for `less`/`vim`/`tmux`
 - [x] Implement Insert/Delete Line (CSI L / CSI M)
 - [x] Implement Insert/Delete Character (CSI @ / CSI P)
@@ -257,8 +257,8 @@ Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY 
 - [x] Implement content reflow on terminal resize
 - [ ] Add configurable color scheme / theme to TerminalProfile
 - [ ] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [ ] Implement OSC 133 shell integration markers (prompt start/end)
-- [ ] No unit tests in crate
+- [x] Implement OSC 133 shell integration markers (prompt start/end)
+- [x] No unit tests in crate (now has 102 tests)
 
 ---
 
@@ -398,7 +398,7 @@ These aren't tied to any single phase:
 - [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
 - [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [x] **Unit test coverage**: `crabide-core` (140), `crabide-buffer` (47), `crabide-config` (105), `crabide-ui` (112), `crabide-app` (43), `crabide-vfs` (43), `crabide-terminal` (53), `crabide-extensions` (54), `crabide-dap` (43), `crabide-search` (38), `crabide-workspace` (25), `crabide-lsp` (19), `crabide-git` (3), `crabide-syntax` (57). Minimum coverage targets: 30% by v0.1
+- [x] **Unit test coverage**: `crabide-core` (140), `crabide-buffer` (47), `crabide-config` (105), `crabide-ui` (112), `crabide-app` (43), `crabide-vfs` (43), `crabide-terminal` (102), `crabide-extensions` (54), `crabide-dap` (43), `crabide-search` (38), `crabide-workspace` (25), `crabide-lsp` (19), `crabide-git` (3), `crabide-syntax` (57). Minimum coverage targets: 30% by v0.1
 - [ ] **`docs/` directory**: Currently empty
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
 - [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
