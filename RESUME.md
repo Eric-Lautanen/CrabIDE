@@ -22,6 +22,8 @@ OSC 8 hyperlinks and OSC 133 shell integration are now fully implemented and ver
 `Cell::BLANK` const replaced with `Cell::blank()` function.
 All tests updated.
 
+> **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
+
 ## Handoff Policy
 
 **This project MUST continue to be handed off across sessions until the entire ROADMAP.md is complete.** Each session should:
