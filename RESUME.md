@@ -2,19 +2,14 @@
 
 ## Session summary
 
-**Git fetch/pull/push/merge/rebase operations added ✅**
-- Added `GitEvent::FetchCompleted` and `GitEvent::PushCompleted` variants for rich result reporting
-- Added `GitCommand::Fetch/Pull/Push/Merge/Rebase` variants with full git2 implementations
-- Added public API methods on `GitService` for all 5 operations
-- Implemented: fetch (single branch or all), pull (merge or rebase, with fast-forward detection), push (with force option), merge (with conflict detection), rebase (with conflict detection)
-- Added `Action::GitFetch/GitPull/GitPush/GitMerge/GitRebase` action variants and registered in command palette
-- Wired all new actions in app.rs dispatch with appropriate status messages
-
-**Git stash operations added ✅**
-- Added `GitEvent::StashListUpdated` event variant with `StashEntry` type
-- Added `GitCommand::StashPush/StashPop/StashList/StashDrop` variants with full git2 implementations
-- Added public API methods on `GitService` for stash operations
-- Added `Action::GitStashPush/GitStashPop/GitStashDrop` action variants registered in command palette
+**Git log / history / graph view infrastructure added ✅**
+- Added `CommitEntry` type (hash, author, email, time, message, parents, ref_names) to crabide-core
+- Added `GitEvent::LogReady` variant for rich result reporting
+- Added `GitCommand::Log` variant with full git2 revwalk implementation (walk all refs or specific branch, decorations from reference database, sorted by time/topological order)
+- Added `GitService::log()` public API method with optional branch filter and limit (default 100)
+- Added `Action::GitLog` variant registered in command palette as "Git: Show History / Log"
+- Wired action in app.rs dispatch with status message
+- Added `log_entries` field to `GitPanelState` in UI state
 - All 928+ workspace tests pass, zero warnings (clippy + check)
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
@@ -39,7 +34,7 @@
 ## Remaining roadmap items — pick next available
 
 ### Phase 6 (Git):
-- [ ] log / history / graph view
+- [x] log / history / graph view
 - [ ] tag management, remote management, submodule support, conflict resolution
 
 ### Phase 8 (DAP):
