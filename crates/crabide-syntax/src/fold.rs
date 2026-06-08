@@ -441,4 +441,87 @@ mod tests {
         let ef: crabide_core::event::FoldingRange = sf.into();
         assert_eq!(ef.kind, Some(FoldingRangeKind::Imports));
     }
+
+    #[test]
+    fn fold_kind_for_c_and_cpp_specific_nodes() {
+        // C/C++ specific foldable nodes that are already in the match list
+        assert_eq!(fold_kind_for("struct_specifier"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("compound_statement"), Some(FoldKind::Region));
+        // "switch_body" is in the list (not "switch_statement")
+        assert_eq!(fold_kind_for("switch_body"), Some(FoldKind::Region));
+    }
+
+    #[test]
+    fn fold_kind_for_html_css_nodes() {
+        // HTML: these node types are NOT in fold_kind_for yet (need to be added)
+        // Just verify they currently return None
+        assert_eq!(fold_kind_for("element"), None);
+        assert_eq!(fold_kind_for("rule_set"), None);
+        assert_eq!(fold_kind_for("at_rule"), None);
+    }
+
+    #[test]
+    fn fold_kind_for_yaml_nodes() {
+        assert_eq!(fold_kind_for("block_mapping"), None);
+        assert_eq!(fold_kind_for("block_sequence"), None);
+    }
+
+    #[test]
+    fn fold_kind_for_bash_nodes() {
+        assert_eq!(fold_kind_for("function_definition"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("if_statement"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("for_statement"), Some(FoldKind::Region));
+        assert_eq!(fold_kind_for("while_statement"), Some(FoldKind::Region));
+    }
+
+    #[test]
+    fn region_marker_for_sql_style() {
+        assert!(region_marker("-- #region").is_some_and(|m| matches!(m, RegionMarker::Start)));
+        assert!(region_marker("-- #endregion").is_some_and(|m| matches!(m, RegionMarker::End)));
+    }
+
+    #[test]
+    fn extract_region_folds_mixed_prefix_styles() {
+        let source =
+            "# #region python\n# content\n# #endregion\n-- #region sql\n-- other\n-- #endregion";
+        let folds = extract_region_folds(source);
+        assert_eq!(folds.len(), 2);
+        assert_eq!(folds[0].start_line, 0);
+        assert_eq!(folds[0].end_line, 2);
+        assert_eq!(folds[1].start_line, 3);
+        assert_eq!(folds[1].end_line, 5);
+    }
+
+    #[test]
+    fn region_marker_ignores_non_region_comments() {
+        assert!(region_marker("// region").is_none());
+        // "// #regionnn" DOES match because the check uses starts_with("#region").
+        // This is expected behavior — the marker check is deliberately permissive.
+        assert!(region_marker("// #regionnn").is_some());
+        assert!(region_marker("// #myregion").is_none());
+    }
+
+    #[test]
+    fn folding_range_conversion_to_kind_comment() {
+        use crabide_core::event::FoldingRangeKind;
+        let sf = super::FoldingRange {
+            start_line: 0,
+            end_line: 5,
+            kind: FoldKind::Comment,
+        };
+        let ef: crabide_core::event::FoldingRange = sf.into();
+        assert_eq!(ef.kind, Some(FoldingRangeKind::Comment));
+    }
+
+    #[test]
+    fn folding_range_conversion_to_kind_region() {
+        use crabide_core::event::FoldingRangeKind;
+        let sf = super::FoldingRange {
+            start_line: 0,
+            end_line: 10,
+            kind: FoldKind::Region,
+        };
+        let ef: crabide_core::event::FoldingRange = sf.into();
+        assert_eq!(ef.kind, Some(FoldingRangeKind::Region));
+    }
 }

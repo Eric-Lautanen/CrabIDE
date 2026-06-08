@@ -489,3 +489,38 @@ fn make_parser(entry: &GrammarEntry) -> Result<tree_sitter::Parser> {
         .map_err(|e| crabideError::Grammar(format!("set_language: {e}")))?;
     Ok(parser)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn syntax_engine_new_creates_empty_cache() {
+        let engine = SyntaxEngine::new();
+        // No documents registered yet
+        assert!(engine.cache.is_empty());
+    }
+
+    #[test]
+    fn close_document_nonexistent_is_noop() {
+        let engine = SyntaxEngine::new();
+        engine.close_document(BufferId::new());
+        // Should not panic
+    }
+
+    #[test]
+    fn ts_point_to_position_conversion() {
+        let point = tree_sitter::Point { row: 5, column: 12 };
+        let pos = crate::highlight::ts_point_to_position(point);
+        assert_eq!(pos.line, 5);
+        assert_eq!(pos.character, 12);
+    }
+
+    #[test]
+    fn ts_point_to_position_zero() {
+        let point = tree_sitter::Point { row: 0, column: 0 };
+        let pos = crate::highlight::ts_point_to_position(point);
+        assert_eq!(pos.line, 0);
+        assert_eq!(pos.character, 0);
+    }
+}

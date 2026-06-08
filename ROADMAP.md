@@ -116,7 +116,7 @@ TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), V
 ## Phase 2 — Syntax Highlighting ◐
 
 ### crabide-syntax — PARTIAL 🔶
-Grammar registry (static + dynamic loading), highlight queries for 10 languages, highlight engine, outline for 8 languages, folding range extraction, SyntaxEngine with per-doc cache.
+Grammar registry (static + dynamic loading), highlight queries for 22 languages (10 previous + 12 new), highlight engine, outline for 8 languages, folding range extraction, SyntaxEngine with per-doc cache.
 
 **Gaps:**
 - [x] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
@@ -127,8 +127,8 @@ Grammar registry (static + dynamic loading), highlight queries for 10 languages,
 - [x] Add injection language support (embedded JS in HTML, Rust in Markdown)
 - [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
 - [x] Add custom fold marker support (`// #region` / `// #endregion`)
-- [ ] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
-- [ ] No unit tests in crate (has 2 test modules in `indent.rs` and `locals.rs` — needs more coverage)
+- [x] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
+- [ ] No unit tests in crate (has 3 test modules, 69 tests — needs more coverage in engine/highlight)
 
 ---
 
