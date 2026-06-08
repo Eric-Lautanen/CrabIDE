@@ -186,6 +186,9 @@ pub struct crabideApp {
 
     /// Shared flag set by Ctrl+C handler; checked each frame to trigger graceful shutdown.
     shutdown_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
+
+    /// Persisted window geometry (last known size, position, maximized).
+    window_state: crate::window_state::WindowState,
 }
 
 impl crabideApp {
@@ -270,6 +273,7 @@ impl crabideApp {
             lsp_manager,
             lsp_request_id,
             shutdown_flag: None,
+            window_state: crate::window_state::WindowState::default(),
         };
         for path in initial_paths {
             app.open_path(path);
@@ -3572,10 +3576,26 @@ impl eframe::App for crabideApp {
         if !self.event_rx.is_empty() {
             ctx.request_repaint();
         }
+
+        // ── Window state tracking ─────────────────────────────────────────────
+        // Capture current window geometry so we can persist it on exit.
+        let vp = ctx.input(|i| i.viewport().clone());
+        if let Some(rect) = vp.inner_rect {
+            self.window_state.width = rect.width().max(640.0);
+            self.window_state.height = rect.height().max(400.0);
+        }
+        if let Some(rect) = vp.outer_rect {
+            self.window_state.x = Some(rect.min.x.max(0.0));
+            self.window_state.y = Some(rect.min.y.max(0.0));
+        }
+        if let Some(maximized) = vp.maximized {
+            self.window_state.maximized = maximized;
+        }
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         log::info!("crabide exiting");
+        crate::window_state::save(&self.window_state);
     }
 }
 

@@ -60,6 +60,10 @@ rfd.workspace = true
 # Image decoding (PNG only) for application icon loading
 image.workspace = true
 
+# Serialization for window state persistence
+serde.workspace = true
+serde_json.workspace = true
+
 # Tree-sitter grammar crates (registered at startup for syntax highlighting)
 tree-sitter-rust.workspace       = true
 tree-sitter-python.workspace     = true

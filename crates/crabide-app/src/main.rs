@@ -31,6 +31,7 @@
 
 mod app;
 mod icon_data;
+mod window_state;
 
 use anyhow::Result;
 use eframe::NativeOptions;
@@ -154,16 +155,27 @@ fn main() -> Result<()> {
 
     let rt_handle = rt.handle().clone();
 
+    // Load persisted window state (size, position, maximized) from last session.
+    let win = window_state::load();
+
     // eframe / egui (glow / OpenGL renderer)
     // glow replaces the wgpu renderer. OpenGL is sufficient for 2D text+UI and
     // avoids the D3D12/Vulkan/Metal GPU heap (~2050 MB) that wgpu allocates
     // even for a blank window. The entire wgpu dep subtree is dropped.
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("crabide")
+        .with_inner_size([win.width.max(640.0), win.height.max(400.0)])
+        .with_min_inner_size([640.0, 400.0])
+        .with_icon(load_icon());
+    if let (Some(x), Some(y)) = (win.x, win.y) {
+        viewport = viewport.with_position([x, y]);
+    }
+    if win.maximized {
+        viewport = viewport.with_maximized(true);
+    }
+
     let native_options = NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("crabide")
-            .with_inner_size([1280.0, 800.0])
-            .with_min_inner_size([640.0, 400.0])
-            .with_icon(load_icon()),
+        viewport,
         renderer: eframe::Renderer::Glow,
         ..Default::default()
     };
