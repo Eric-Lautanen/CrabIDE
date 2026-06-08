@@ -9,7 +9,13 @@
 - Implemented: fetch (single branch or all), pull (merge or rebase, with fast-forward detection), push (with force option), merge (with conflict detection), rebase (with conflict detection)
 - Added `Action::GitFetch/GitPull/GitPush/GitMerge/GitRebase` action variants and registered in command palette
 - Wired all new actions in app.rs dispatch with appropriate status messages
-- All 925 workspace tests pass, zero warnings (clippy + check)
+
+**Git stash operations added ✅**
+- Added `GitEvent::StashListUpdated` event variant with `StashEntry` type
+- Added `GitCommand::StashPush/StashPop/StashList/StashDrop` variants with full git2 implementations
+- Added public API methods on `GitService` for stash operations
+- Added `Action::GitStashPush/GitStashPop/GitStashDrop` action variants registered in command palette
+- All 928+ workspace tests pass, zero warnings (clippy + check)
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
 
@@ -28,12 +34,11 @@
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all 925 workspace tests pass
+- **TESTS** — all 928+ workspace tests pass
 
 ## Remaining roadmap items — pick next available
 
 ### Phase 6 (Git):
-- [ ] stash (push, pop, list, drop)
 - [ ] log / history / graph view
 - [ ] tag management, remote management, submodule support, conflict resolution
 
