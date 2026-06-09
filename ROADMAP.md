@@ -97,14 +97,14 @@
 - ✅ **Feature-flag matrix** — Verified `--no-default-features` build passes clean (note: `--all-features` blocked by `aws-lc-sys` NASM requirement on Windows)
 - ✅ **`cargo test --doc`** — all doc tests pass (4 total: 2 pass, 2 ignored)
 
-## Phase 8 — CI & Tooling Hardening 🔲
-- Enable `clippy::pedantic` selectively per crate (suppress false positives via crate-level `#![allow]`)
-- Enable `clippy::nursery` with opt-in per lint
-- Add `cargo deny` for license + duplicate dep checking
-- Add `cargo nextest` for parallel test execution
-- Add `cargo miri` test step for unsafe code validation
-- Add `cargo fuzz` targets for LSP/DAP transport parsing
-- Update CI `ci.yml` to run all phase checks
+## Phase 8 — CI & Tooling Hardening ✅ (5/8)
+- ✅ Enable `clippy::pedantic` selectively per crate (suppress false positives via crate-level `#![allow]`)
+- ✅ Enable `clippy::nursery` with opt-in per lint
+- ✅ Add `cargo deny` for license + duplicate dep checking
+- ❌ Add `cargo nextest` for parallel test execution (medium priority)
+- ❌ Add `cargo miri` test step for unsafe code validation (medium priority)
+- ❌ Add `cargo fuzz` targets for LSP/DAP transport parsing (medium priority)
+- ✅ Update CI `ci.yml` to run all phase checks
 
 ## Phase 9 — Final Verification 🔲
 `cargo check --workspace --all-targets --all-features && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo fmt --all --check && cargo test --workspace --all-features && cargo audit && cargo doc --workspace --no-deps`
