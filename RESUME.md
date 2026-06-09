@@ -51,7 +51,7 @@ Implemented three profiling subsystems for performance analysis:
 - [x] Feature flag matrix test (CI tests 9 combos)
 - [x] Phase 12 polish: packaging scripts, release workflow, docs, clippy cleanup
 - [x] Performance pass: egui frame time, LSP round-trip latency, heap profiling
-- [ ] Push to origin
+- [x] Push to origin
 
 ## What's next
-- Push to remote repository
+- No remaining items — all roadmap goals completed
