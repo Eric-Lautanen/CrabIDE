@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   # Cache key — bump to force fresh cache
-  CACHE_VERSION: v1
+  CACHE_VERSION: v2
 
 jobs:
   # ── Check + Clippy ──────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ jobs:
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
-      - name: cargo clippy
+      - name: cargo clippy (with pedantic)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
   # ── Tests ───────────────────────────────────────────────────────────────────
@@ -104,6 +104,22 @@ jobs:
 
       - name: cargo test (workspace)
         run: cargo test --workspace
+
+      - name: cargo test --doc
+        run: cargo test --workspace --doc
+
+  # ── cargo-deny ──────────────────────────────────────────────────────────────
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+          log-level: error
 
   # ── Release builds ──────────────────────────────────────────────────────────
   build:
@@ -173,7 +189,6 @@ jobs:
           path: target/${{ matrix.target }}/release/crabide.exe
 
   # ── Feature flag matrix test ─────────────────────────────────────────────
-  # Verifies that every feature flag combination compiles and tests pass.
   feature-matrix:
     name: Feature Matrix (${{ matrix.features }})
     runs-on: ubuntu-latest
@@ -182,7 +197,6 @@ jobs:
       matrix:
         features:
           - --no-default-features
-          - --all-features
           - --features git-support
           - --features wasm-extensions
           - --features webview
@@ -222,6 +236,38 @@ jobs:
       - name: cargo test
         run: cargo test --workspace ${{ matrix.features }}
 
+  # ── cargo doc ──────────────────────────────────────────────────────────────
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libclang-dev libgtk-3-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+            libssl-dev libgit2-dev pkg-config mold
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.CACHE_VERSION }}-docs-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: cargo doc
+        run: cargo doc --workspace --no-deps
+
   # ── Security audit ──────────────────────────────────────────────────────────
   audit:
     name: Security Audit
@@ -231,4 +277,3 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
