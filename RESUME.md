@@ -12,58 +12,60 @@
 
 ## Session summary
 
-**Phase 12: update checker ✅**
-- Background thread checks GitHub releases API on startup using `ureq`
-- New `update_available: Option<String>` field on `UiState`
-- `update_rx` channel delivers result to UI thread
-- Status bar message shown when a newer version is available
-- No new dependencies (ureq already declared at workspace level)
+**Phase 12 polish & release packaging ✅**
 
-**Phase 12: crash reporter ✅**
-- Panic hook writes crash details (timestamp, panic message, backtrace) to `~/.crabide/crash.log`
-- Installed early in main() before any services start
-- Falls back to stderr if crash.log is unwritable
-- No new dependencies added
+- Fixed `resize_stable` dead_code warning in `TerminalPanelState` (removed unused field)
+- Updated ROADMAP.md Phase 12 section marking Settings UI, Keybindings editor, Theme picker, Welcome screen as completed
+- Updated ARCHITECTURE.md status table (Phase 4/8/9/10 progress)
 
-**Phase 4 UI: settings panel ✅**
-- Settings editor overlay with grouped settings fields, editable controls (Ctrl+,)
-- New `Action::ToggleSettingsPanel` action variant with keybinding `Ctrl+,`
-- New `SettingsPanelState` / `SettingsField` / `SettingsFieldType` types for editable fields
-- New `settings_panel` panel rendering section headers + form controls (bool checkbox, int/float drag, string text, enum combo)
-- App layer populates common settings (font_size, tab_size, word_wrap, etc.) and persists changes
-- All Phase 4 UI features now complete ✅
+**Feature flag matrix CI test ✅**
+- Added `feature-matrix` job to `.github/workflows/ci.yml` testing 9 feature flag combinations:
+  `--no-default-features`, `--all-features`, and all individual + combined flag builds
+- Runs on ubuntu-latest with cargo check + test
 
-**Previous session: Phase 4 UI: keybindings editor ✅**
-- Keybindings editor overlay showing all keyboard shortcuts in a searchable table (Ctrl+K Ctrl+S)
-- New `Action::ToggleKeybindingsEditor` action variant with keybinding `Ctrl+K Ctrl+S`
-- New `KeybindingsEditorState` struct with visible flag, bindings list, and search query
-- New `keybindings_editor` panel rendering a centered modal window with search + scrollable table
-- App layer populates bindings list from `KeybindingEngine::bindings()` + `all_actions()` labels
-- Case-insensitive search across both command name and key combo
+**Packaging scripts ✅**
+- `tools/package-windows.ps1` — creates portable .zip + optional NSIS installer
+- `tools/package-macos.sh` — creates .app bundle + optional DMG
+- `tools/package-linux.sh` — creates AppImage + .deb + .rpm
 
-**Previous session: Phase 4 UI: theme picker ✅**
-- Implemented column/box selection via `Shift+Alt+drag` (like VS Code column select)
-- New `column_select` flag on `PointerEvent::Press` detected when both Shift+Alt are held
-- `column_select_anchor` field on `EditorTab` stores the press position for column selection
-- On drag with Shift+Alt held, creates a rectangular block of cursors spanning all lines in the vertical range, each with a selection covering the horizontal column range
-- Reuses existing `CursorSet::set_multi_selection()` to apply the box selection
-- Column select anchor is cleared on mouse release alongside `drag_anchor`
+**GitHub release workflow ✅**
+- `.github/workflows/release.yml` — triggered on `v*` tags
+- Builds for all 4 targets (Linux x86_64, macOS ARM64, macOS x86_64, Windows x86_64)
+- Runs platform-specific packaging scripts
+- Creates GitHub release with all artifacts
 
-**Previous session: Phase 4 UI: peek view ✅**
-- Added peek view overlay (like VS Code Peek) for inline definition/reference preview
-- New `PeekState` / `PeekKind` types in `UiState` with open/close/next/prev/selected_location
-- New `peek_view` panel rendering a split overlay: location list (left) + code preview (right)
-- Added `PeekDefinition`, `PeekReferences`, `PeekImplementation`, `PeekTypeDefinition`, `PeekDeclaration`, `ClosePeek` actions
-- Default keybindings: `Alt+F12` peek definition, `Shift+F12` / `Ctrl+Shift+F12` peek references
-- Peek uses existing LSP `textDocument/definition` etc. methods but stores results in peek state
-- Working keyboard navigation (Up/Down/Enter/Escape), mouse click/double-click, close button
-- LSP `LocationsReady` handler checks `pending_peek_method` flag to decide peek vs navigate
+**Documentation ✅**
+- `README.md` — rewritten with features table, CLI options, install instructions, architecture, keyboard shortcuts, dev/build docs
+- `CONTRIBUTING.md` — coding standards, commit conventions, dev workflow
+- `CHANGELOG.md` — full v0.1.0 changelog
+- `docs/BUILD.md` — build prerequisites, feature flags, packaging instructions
+- `docs/README.md` — updated as docs entry point
+- `LICENSE-MIT` / `LICENSE-APACHE` — added license files
+
+**Clippy fixes ✅**
+- Moved test modules to end of file in `highlight.rs` and `outline.rs` (items_after_test_module)
+- Fixed `unnecessary_literal_unwrap` in error.rs test
+- Fixed `field_reassign_with_default` in dap and ui tests
+- Fixed `bool_comparison` in ui state test
+- Fixed `needless_borrows_for_generic_args` in extensions test
+- Fixed `get_first` in buffer history test
+- Fixed `len_zero` in terminal grid test
+- Fixed unused import / dead code in extensions test
+- Removed unused `MockCapExtension` struct
+- Fixed `cloned_ref_to_slice_refs` in search lib test
+- All 1052 tests pass, zero clippy warnings, zero compiler warnings
 
 ## Build status
-- **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
+- **GREEN** — `cargo check --workspace` zero warnings
 - **CLIPPY** — zero warnings
-- **TESTS** — all workspace tests pass
+- **TESTS** — all 1052 workspace tests pass
 
 ## Cross-cutting
-- [ ] Feature flag matrix test (CI should test wasm-extensions/webview/remote-ssh/dev-containers)
-- [ ] Phase 12 polish: README, docs site, performance pass, CI release artifacts, packaging (Windows/macOS/Linux)
+- [x] Feature flag matrix test (CI tests 9 combos)
+- [x] Phase 12 polish: packaging scripts, release workflow, docs, clippy cleanup
+- [ ] Performance pass: egui frame time, LSP round-trip latency, heap profiling (remaining)
+- [ ] Push to origin
+
+## What's next
+- Performance pass: egui frame time profiling, LSP round-trip latency, heap profiling
+- Push to remote repository
