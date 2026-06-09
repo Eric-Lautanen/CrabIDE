@@ -65,5 +65,5 @@
 - **TESTS** — all workspace tests pass
 
 ## Cross-cutting
-- [ ] Feature flag matrix test
-- [ ] `crabide-workspace` crate tracking in Phase 1/2
+- [ ] Feature flag matrix test (CI should test wasm-extensions/webview/remote-ssh/dev-containers)
+- [ ] Phase 12 polish: README, docs site, performance pass, CI release artifacts, packaging (Windows/macOS/Linux)

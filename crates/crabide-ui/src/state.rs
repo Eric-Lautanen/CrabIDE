@@ -1569,9 +1569,7 @@ pub struct TerminalPanelState {
     pub pending_input: Vec<(u32, Vec<u8>)>,
     /// Request to resize a terminal (id, cols, rows).
     pub pending_resize: Option<(u32, u16, u16)>,
-    /// Debounce: last resize dimensions seen (cols, rows). Counts how many
-    /// consecutive frames the same size has been observed before sending PTY resize.
-    pub(crate) resize_stable: Option<(u16, u16, u8)>,
+    // (resize debounce field reserved for future use)
 }
 
 impl TerminalPanelState {
