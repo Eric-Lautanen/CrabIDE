@@ -269,7 +269,7 @@ fn format_shortcut(action: &Action, kb: &crabide_config::KeybindingEngine) -> St
 
     chords[0]
         .iter()
-        .map(|c| c.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(" ")
 }

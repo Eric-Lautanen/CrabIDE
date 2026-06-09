@@ -68,15 +68,12 @@ pub fn from_lsp_text_edit(e: lsp_types::TextEdit) -> TextEdit {
 pub fn from_lsp_diagnostic(d: lsp_types::Diagnostic) -> Diagnostic {
     Diagnostic {
         range: from_lsp_range(d.range),
-        severity: d
-            .severity
-            .map(|s| match s {
-                lsp_types::DiagnosticSeverity::ERROR => DiagnosticSeverity::Error,
-                lsp_types::DiagnosticSeverity::WARNING => DiagnosticSeverity::Warning,
-                lsp_types::DiagnosticSeverity::INFORMATION => DiagnosticSeverity::Information,
-                _ => DiagnosticSeverity::Hint,
-            })
-            .unwrap_or(DiagnosticSeverity::Hint),
+        severity: d.severity.map_or(DiagnosticSeverity::Hint, |s| match s {
+            lsp_types::DiagnosticSeverity::ERROR => DiagnosticSeverity::Error,
+            lsp_types::DiagnosticSeverity::WARNING => DiagnosticSeverity::Warning,
+            lsp_types::DiagnosticSeverity::INFORMATION => DiagnosticSeverity::Information,
+            _ => DiagnosticSeverity::Hint,
+        }),
         code: d.code.map(|c| match c {
             lsp_types::NumberOrString::Number(n) => n.to_string(),
             lsp_types::NumberOrString::String(s) => s,
@@ -119,8 +116,7 @@ pub fn from_lsp_completion_item(item: lsp_types::CompletionItem) -> CompletionIt
         || item
             .tags
             .as_deref()
-            .map(|tags| tags.contains(&lsp_types::CompletionItemTag::DEPRECATED))
-            .unwrap_or(false);
+            .is_some_and(|tags| tags.contains(&lsp_types::CompletionItemTag::DEPRECATED));
 
     CompletionItem {
         label: item.label,
@@ -173,11 +169,9 @@ fn from_lsp_completion_kind(k: lsp_types::CompletionItemKind) -> CompletionKind 
 pub fn from_lsp_inlay_hint(h: lsp_types::InlayHint) -> InlayHint {
     let label = match h.label {
         lsp_types::InlayHintLabel::String(s) => s,
-        lsp_types::InlayHintLabel::LabelParts(parts) => parts
-            .into_iter()
-            .map(|p| p.value)
-            .collect::<Vec<_>>()
-            .join(""),
+        lsp_types::InlayHintLabel::LabelParts(parts) => {
+            parts.into_iter().map(|p| p.value).collect::<String>()
+        }
     };
     let tooltip = h.tooltip.map(|t| match t {
         lsp_types::InlayHintTooltip::String(s) => s,

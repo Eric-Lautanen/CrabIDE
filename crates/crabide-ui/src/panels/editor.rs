@@ -162,8 +162,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             let preview_open = state
                 .extension_panels
                 .get("markdown-preview.panel")
-                .map(|p| p.open)
-                .unwrap_or(false);
+                .is_some_and(|p| p.open);
             let btn_label = if preview_open {
                 "👁 Close Preview"
             } else {
@@ -281,7 +280,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             .all()
             .iter()
             .filter(|c| c.has_selection())
-            .map(|c| c.range())
+            .map(crabide_buffer::Cursor::range)
             .collect::<Vec<_>>();
         diagnostics = tab.diagnostics.clone();
         git_hunks = tab.git_hunks.clone();
@@ -307,15 +306,11 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
     // When the pointer is over such an overlay we must NOT let new press
     // events fall through to the editor below.
     let editor_layer_id = ui.layer_id();
-    let pointer_blocked = ui
-        .input(|i| i.pointer.hover_pos())
-        .map(|pp| {
-            ui.ctx()
-                .layer_id_at(pp)
-                .map(|top| top != editor_layer_id)
-                .unwrap_or(false)
-        })
-        .unwrap_or(false);
+    let pointer_blocked = ui.input(|i| i.pointer.hover_pos()).is_some_and(|pp| {
+        ui.ctx()
+            .layer_id_at(pp)
+            .is_some_and(|top| top != editor_layer_id)
+    });
 
     // Consume any pending scroll-to-line request (set by goto-line, find-next, etc.)
     let pending_scroll_line = state.pending_scroll_line.take();
@@ -359,7 +354,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             }
 
             for line_idx in 0..tab.lines.len() {
-                let line_text = tab.lines.get(line_idx).map(String::as_str).unwrap_or("");
+                let line_text = tab.lines.get(line_idx).map_or("", String::as_str);
                 let is_active = tab.cursors.primary().pos().line as usize == line_idx;
                 let row_rect = ui.available_rect_before_wrap();
                 let row_top = row_rect.top();
@@ -566,7 +561,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             }
 
             for line_idx in visible_range {
-                let line_text = tab.lines.get(line_idx).map(String::as_str).unwrap_or("");
+                let line_text = tab.lines.get(line_idx).map_or("", String::as_str);
                 let is_active = tab.cursors.primary().pos().line as usize == line_idx;
                 let row_rect = ui.available_rect_before_wrap();
                 let row_top = row_rect.top();
@@ -821,8 +816,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                         let line_len = tab
                             .lines
                             .get(line as usize)
-                            .map(|l| l.chars().count() as u32)
-                            .unwrap_or(0);
+                            .map_or(0, |l| l.chars().count() as u32);
                         let anchor_col = col_min.min(line_len);
                         let active_col = col_max.min(line_len);
                         ranges.push(crabide_core::types::Range {
@@ -955,8 +949,7 @@ fn select_line_at(tab: &mut crate::state::EditorTab, pos: Position) {
     let end_col = tab
         .lines
         .get(pos.line as usize)
-        .map(|l| l.chars().count() as u32)
-        .unwrap_or(0);
+        .map_or(0, |l| l.chars().count() as u32);
     use crabide_core::types::Selection;
     tab.cursors.set_single(Position::new(pos.line, end_col));
     tab.cursors.primary_mut().selection = Selection {
@@ -1086,7 +1079,7 @@ fn detect_row_pointer(
     }
 
     let text_left_x = row_left + gutter::GUTTER_WIDTH;
-    let line_char_count = lines.get(line_idx).map(|l| l.chars().count()).unwrap_or(0);
+    let line_char_count = lines.get(line_idx).map_or(0, |l| l.chars().count());
 
     let col = if drag_top {
         0
@@ -1568,7 +1561,7 @@ fn build_line_job(
             }
             let vscope = scope_to_vscode(sp.scope.as_str());
             let ts = theme.token_style(vscope);
-            let color = ts.foreground.map(cfg_to_egui).unwrap_or(default_fg);
+            let color = ts.foreground.map_or(default_fg, cfg_to_egui);
             Some(ColorSeg {
                 start: col_start,
                 end: col_end,
@@ -1941,7 +1934,7 @@ pub fn pointer_to_position(
     let rel_y = (pointer.y - content_top_left.y).max(0.0);
     let rel_x = (pointer.x - content_top_left.x).max(0.0);
     let line = ((rel_y / line_height) as usize).min(max_line);
-    let line_len = lines.get(line).map(|l| l.chars().count()).unwrap_or(0);
+    let line_len = lines.get(line).map_or(0, |l| l.chars().count());
     let col = ((rel_x / char_width).round() as usize).min(line_len);
     Position::new(line as u32, col as u32)
 }
@@ -2410,47 +2403,45 @@ fn show_signature_help_popup(ui: &mut egui::Ui, state: &mut UiState, x: f32, y: 
                                 }
                             };
                             // Show the signature with the active parameter emphasized.
-                            if !param_label.is_empty() {
-                                if let Some(pos) = full_label.find(&param_label) {
-                                    let before = &full_label[..pos];
-                                    let after = &full_label[pos + param_label.len()..];
-                                    ui.horizontal(|ui| {
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(before)
-                                                    .color(pc.fg)
-                                                    .size(state.font_size - 1.0),
-                                            )
-                                            .wrap(),
-                                        );
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(&param_label)
-                                                    .color(pc.keyword)
-                                                    .strong()
-                                                    .size(state.font_size - 1.0),
-                                            )
-                                            .wrap(),
-                                        );
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(after)
-                                                    .color(pc.fg)
-                                                    .size(state.font_size - 1.0),
-                                            )
-                                            .wrap(),
-                                        );
-                                    });
-                                } else {
+                            if param_label.is_empty() {
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(full_label)
+                                            .color(pc.fg)
+                                            .size(state.font_size - 1.0),
+                                    )
+                                    .wrap(),
+                                );
+                            } else if let Some(pos) = full_label.find(&param_label) {
+                                let before = &full_label[..pos];
+                                let after = &full_label[pos + param_label.len()..];
+                                ui.horizontal(|ui| {
                                     ui.add(
                                         egui::Label::new(
-                                            egui::RichText::new(full_label)
+                                            egui::RichText::new(before)
                                                 .color(pc.fg)
                                                 .size(state.font_size - 1.0),
                                         )
                                         .wrap(),
                                     );
-                                }
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(&param_label)
+                                                .color(pc.keyword)
+                                                .strong()
+                                                .size(state.font_size - 1.0),
+                                        )
+                                        .wrap(),
+                                    );
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(after)
+                                                .color(pc.fg)
+                                                .size(state.font_size - 1.0),
+                                        )
+                                        .wrap(),
+                                    );
+                                });
                             } else {
                                 ui.add(
                                     egui::Label::new(

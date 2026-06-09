@@ -487,12 +487,8 @@ impl WhenCondition {
             WhenCondition::And(a, b) => a.evaluate(ctx) && b.evaluate(ctx),
             WhenCondition::Or(a, b) => a.evaluate(ctx) || b.evaluate(ctx),
             WhenCondition::Key(k) => ctx.get_bool(k).unwrap_or(false),
-            WhenCondition::KeyEquals(k, v) => {
-                ctx.get_str(k).map(|s| s == v.as_str()).unwrap_or(false)
-            }
-            WhenCondition::KeyNotEquals(k, v) => {
-                ctx.get_str(k).map(|s| s != v.as_str()).unwrap_or(true)
-            }
+            WhenCondition::KeyEquals(k, v) => ctx.get_str(k).is_some_and(|s| s == v.as_str()),
+            WhenCondition::KeyNotEquals(k, v) => ctx.get_str(k) != Some(v.as_str()),
         }
     }
 
@@ -949,7 +945,7 @@ impl WhenContext {
 
     /// Get a string context key.
     pub fn get_str(&self, key: &str) -> Option<&str> {
-        self.strings.get(key).map(|s| s.as_str())
+        self.strings.get(key).map(std::string::String::as_str)
     }
 
     /// Remove a key.
@@ -1064,8 +1060,7 @@ impl KeybindingEngine {
                 let when_condition = raw
                     .when
                     .as_deref()
-                    .map(WhenCondition::parse)
-                    .unwrap_or(WhenCondition::True);
+                    .map_or(WhenCondition::True, WhenCondition::parse);
                 self.bindings.push(ParsedBinding {
                     chords,
                     action: raw.action,
@@ -1123,8 +1118,7 @@ impl KeybindingEngine {
                 let when_condition = entry
                     .when
                     .as_deref()
-                    .map(WhenCondition::parse)
-                    .unwrap_or(WhenCondition::True);
+                    .map_or(WhenCondition::True, WhenCondition::parse);
                 self.bindings.push(ParsedBinding {
                     chords,
                     action,

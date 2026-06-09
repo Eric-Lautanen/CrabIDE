@@ -90,8 +90,7 @@ pub fn show_launch_bar(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
         let selected_name = dap
             .launch_configs
             .get(dap.selected_config_idx)
-            .map(|c| c.name.as_str())
-            .unwrap_or("(none)");
+            .map_or("(none)", |c| c.name.as_str());
         egui::ComboBox::from_id_salt("dap_launch_picker")
             .width(200.0)
             .selected_text(egui::RichText::new(selected_name).color(fg).size(12.0))

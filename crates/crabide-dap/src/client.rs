@@ -113,7 +113,7 @@ impl DapClient {
                 Ok(Some(body)) => {
                     // Discard capabilities; we don't use them yet but log them.
                     if let Some(caps) = body.get("capabilities") {
-                        log::debug!("DAP: adapter capabilities: {}", caps);
+                        log::debug!("DAP: adapter capabilities: {caps}");
                     }
                     log::info!("DAP: initialize OK");
                     let _ = event_tx.send(EditorEvent::Dap(DapEvent::Initialized));
@@ -175,7 +175,7 @@ impl DapClient {
         let attach_args = AttachRequestArguments {
             stop_on_entry: config.stop_on_entry,
             program: config.program.clone(),
-            process_id: config.port.map(|p| p as u64),
+            process_id: config.port.map(u64::from),
             cwd: config.cwd.as_ref().map(|p| p.display().to_string()),
             env: config.env.clone(),
             extra: config.extra.clone(),
@@ -866,7 +866,10 @@ fn dispatch_event(
 
         "module" => {
             if let Some(Some(body)) = body.as_ref().map(|b| b.get("module")) {
-                let mid = body.get("id").and_then(|v| v.as_u64()).unwrap_or(0);
+                let mid = body
+                    .get("id")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
                 let name = body
                     .get("name")
                     .and_then(|v| v.as_str())
@@ -892,7 +895,7 @@ fn dispatch_event(
                     .get("message")
                     .and_then(|v| v.as_str())
                     .map(str::to_owned);
-                let percentage = body.get("percentage").and_then(|v| v.as_f64());
+                let percentage = body.get("percentage").and_then(serde_json::Value::as_f64);
                 let _ = event_tx.send(EditorEvent::Dap(DapEvent::ProgressStart {
                     progress_id,
                     title,
@@ -913,7 +916,7 @@ fn dispatch_event(
                     .get("message")
                     .and_then(|v| v.as_str())
                     .map(str::to_owned);
-                let percentage = body.get("percentage").and_then(|v| v.as_f64());
+                let percentage = body.get("percentage").and_then(serde_json::Value::as_f64);
                 let _ = event_tx.send(EditorEvent::Dap(DapEvent::ProgressUpdate {
                     progress_id,
                     message,
@@ -944,8 +947,8 @@ fn dispatch_event(
                             .collect()
                     })
                     .unwrap_or_default();
-                let thread_id = body.get("threadId").and_then(|v| v.as_u64());
-                let stack_frame_id = body.get("stackFrameId").and_then(|v| v.as_u64());
+                let thread_id = body.get("threadId").and_then(serde_json::Value::as_u64);
+                let stack_frame_id = body.get("stackFrameId").and_then(serde_json::Value::as_u64);
                 let _ = event_tx.send(EditorEvent::Dap(DapEvent::Invalidated {
                     areas,
                     thread_id,

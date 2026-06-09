@@ -228,12 +228,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<crabide_co
 
     if let Some(loc) = state.peek.selected_location() {
         // Draw the file path at the top of the preview.
-        let file_path = loc
-            .uri
-            .as_url()
-            .to_file_path()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| loc.uri.to_string());
+        let file_path = loc.uri.as_url().to_file_path().map_or_else(
+            |()| loc.uri.to_string(),
+            |p| p.to_string_lossy().to_string(),
+        );
         ui.painter().text(
             egui::pos2(preview_rect.left() + 8.0, preview_rect.top() + 4.0),
             egui::Align2::LEFT_TOP,
@@ -250,7 +248,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<crabide_co
             .map(|t| t.lines.clone())
             .unwrap_or_default();
 
-        if !preview_lines.is_empty() {
+        if preview_lines.is_empty() {
+            ui.painter().text(
+                egui::pos2(preview_rect.center().x, preview_rect.center().y),
+                egui::Align2::CENTER_CENTER,
+                "Open this file to see preview",
+                egui::FontId::proportional(11.0),
+                muted,
+            );
+        } else {
             let start_line = loc.range.start.line as usize;
             let end_line = (loc.range.end.line as usize + 5).min(preview_lines.len());
             let context_start = start_line.saturating_sub(2);
@@ -260,7 +266,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<crabide_co
                 .enumerate()
                 .map(|(i, l)| {
                     let line_no = context_start + i + 1;
-                    format!("{:>4}  {}\n", line_no, l)
+                    format!("{line_no:>4}  {l}\n")
                 })
                 .collect();
 
@@ -278,14 +284,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<crabide_co
                 fg,
             );
             preview_resp.on_hover_text("Enter to navigate, Esc to close");
-        } else {
-            ui.painter().text(
-                egui::pos2(preview_rect.center().x, preview_rect.center().y),
-                egui::Align2::CENTER_CENTER,
-                "Open this file to see preview",
-                egui::FontId::proportional(11.0),
-                muted,
-            );
         }
     }
 }

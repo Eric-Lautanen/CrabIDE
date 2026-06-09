@@ -42,7 +42,7 @@ pub struct SnippetContext<'a> {
     pub line_indent: &'a str,
 }
 
-impl<'a> SnippetContext<'a> {
+impl SnippetContext<'_> {
     /// An empty context with no file, no clipboard, no indent.
     pub fn empty() -> Self {
         Self {
@@ -196,12 +196,11 @@ impl Parser {
             let node = self.parse_braced();
             self.eat('}');
             node
-        } else if self.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        } else if self.peek().is_some_and(|c| c.is_ascii_digit()) {
             Some(Node::Tabstop(self.parse_uint()))
         } else if self
             .peek()
-            .map(|c| c.is_ascii_alphabetic() || c == '_')
-            .unwrap_or(false)
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         {
             let name = self.parse_name();
             Some(Node::Variable {
@@ -214,7 +213,7 @@ impl Parser {
     }
 
     fn parse_braced(&mut self) -> Option<Node> {
-        if self.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        if self.peek().is_some_and(|c| c.is_ascii_digit()) {
             let index = self.parse_uint();
             if self.eat(':') {
                 let body = self.parse_body(Some('}'));
@@ -240,8 +239,7 @@ impl Parser {
             }
         } else if self
             .peek()
-            .map(|c| c.is_ascii_alphabetic() || c == '_')
-            .unwrap_or(false)
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         {
             let name = self.parse_name();
             if self.eat(':') {
@@ -271,7 +269,7 @@ impl Parser {
 
     fn parse_uint(&mut self) -> u32 {
         let mut s = String::new();
-        while self.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+        while self.peek().is_some_and(|c| c.is_ascii_digit()) {
             s.push(
                 self.advance()
                     .expect("peek() returned Some, so advance() must too"),
@@ -284,8 +282,7 @@ impl Parser {
         let mut s = String::new();
         while self
             .peek()
-            .map(|c| c.is_ascii_alphanumeric() || c == '_')
-            .unwrap_or(false)
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
         {
             s.push(
                 self.advance()
@@ -365,7 +362,7 @@ impl Parser {
     }
 
     fn skip_to(&mut self, stop: char) {
-        while self.peek().map(|c| c != stop).unwrap_or(false) {
+        while self.peek().is_some_and(|c| c != stop) {
             if self.peek() == Some('\\') {
                 self.advance();
             }
@@ -375,11 +372,7 @@ impl Parser {
 
     fn parse_flags(&mut self) -> String {
         let mut s = String::new();
-        while self
-            .peek()
-            .map(|c| c.is_ascii_alphabetic())
-            .unwrap_or(false)
-        {
+        while self.peek().is_some_and(|c| c.is_ascii_alphabetic()) {
             s.push(
                 self.advance()
                     .expect("peek() returned Some, so advance() must too"),
@@ -428,8 +421,7 @@ fn epoch_field(divisor: u64, base: u64, wrap: u64) -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs());
     (secs / divisor) % (wrap - base + 1) + base
 }
 
@@ -546,7 +538,7 @@ impl<'a> Expander<'a> {
 
             Node::Choice { index, options } => {
                 let start = self.current_pos();
-                let first = options.first().map(String::as_str).unwrap_or("");
+                let first = options.first().map_or("", String::as_str);
                 self.emit(first);
                 let end = self.current_pos();
                 self.tabstop_data.entry(*index).or_default().push((
@@ -579,8 +571,7 @@ impl<'a> Expander<'a> {
                     .tabstop_data
                     .get(index)
                     .and_then(|entries| entries.first())
-                    .map(|(_, text, _)| text.as_str())
-                    .unwrap_or("");
+                    .map_or("", |(_, text, _)| text.as_str());
                 let transformed = self.apply_transform(input, pattern, replacement, flags);
                 self.emit(&transformed);
                 let end = self.current_pos();
@@ -670,7 +661,7 @@ fn apply_delta_to_range(range: &mut crabide_core::types::Range, offset: Position
     /// We approximate: line * 1000000 + character, which is sufficient for
     /// relative re-ordering within a single file (no file has >1M chars per line).
     fn linear(p: Position) -> i64 {
-        p.line as i64 * 1_000_000 + p.character as i64
+        i64::from(p.line) * 1_000_000 + i64::from(p.character)
     }
 
     let off_lin = linear(offset);
@@ -770,8 +761,7 @@ impl SnippetEngine {
         let can_advance = self
             .active_expansion
             .as_ref()
-            .map(|e| e.current_index + 1 < e.tabstops.len())
-            .unwrap_or(false);
+            .is_some_and(|e| e.current_index + 1 < e.tabstops.len());
 
         if !can_advance {
             self.active_expansion = None;
@@ -788,8 +778,7 @@ impl SnippetEngine {
         let can_go_back = self
             .active_expansion
             .as_ref()
-            .map(|e| e.current_index > 0)
-            .unwrap_or(false);
+            .is_some_and(|e| e.current_index > 0);
 
         if !can_go_back {
             return None;

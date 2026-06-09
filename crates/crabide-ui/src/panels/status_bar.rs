@@ -45,8 +45,7 @@ pub fn show(ui: &mut egui::Ui, state: &UiState) -> Vec<Action> {
                     let branch = state
                         .git_branch
                         .as_deref()
-                        .map(|b| format!("⎇ {}", b))
-                        .unwrap_or_else(|| "⎇".to_owned());
+                        .map_or_else(|| "⎇".to_owned(), |b| format!("⎇ {b}"));
                     (branch, fg_color)
                 } else {
                     ("⎇".to_owned(), fg_color.gamma_multiply(0.45))

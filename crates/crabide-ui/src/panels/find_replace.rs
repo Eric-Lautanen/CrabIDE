@@ -36,7 +36,7 @@ pub fn show(ctx: &egui::Context, state: &mut UiState, actions: &mut Vec<Action>)
     let bg_col = state
         .theme
         .ui_or("editor.background", Color::rgb(0x1e, 0x1e, 0x1e));
-    let is_dark = (bg_col.r as u32 + bg_col.g as u32 + bg_col.b as u32) / 3 < 128;
+    let is_dark = (u32::from(bg_col.r) + u32::from(bg_col.g) + u32::from(bg_col.b)) / 3 < 128;
 
     let widget_bg = cfg_to_egui(state.theme.ui_or(
         "editorWidget.background",

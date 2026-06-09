@@ -107,7 +107,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 // Auto-trigger search after debounce (300 ms of inactivity).
                 const DEBOUNCE_MS: u64 = 300;
                 if let Some(t) = state.workspace_search.last_change {
-                    if t.elapsed().as_millis() >= DEBOUNCE_MS as u128 {
+                    if t.elapsed().as_millis() >= u128::from(DEBOUNCE_MS) {
                         if !state.workspace_search.query.is_empty()
                             && !state.workspace_search.is_searching
                         {
@@ -185,11 +185,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 // File header when path changes.
                 if current_path.as_ref() != Some(&m.path) {
                     current_path = Some(m.path.clone());
-                    let file_name = m
-                        .path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| m.path.to_string_lossy().into_owned());
+                    let file_name = m.path.file_name().map_or_else(
+                        || m.path.to_string_lossy().into_owned(),
+                        |n| n.to_string_lossy().into_owned(),
+                    );
                     egui::Frame::NONE
                         .fill(bar_bg)
                         .inner_margin(egui::Margin::symmetric(8, 3))

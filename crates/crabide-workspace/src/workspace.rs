@@ -124,8 +124,7 @@ impl Workspace {
     pub fn is_dirty(&self, id: BufferId) -> bool {
         self.documents
             .get(&id)
-            .map(|e| e.read().document.is_dirty())
-            .unwrap_or(false)
+            .is_some_and(|e| e.read().document.is_dirty())
     }
 
     /// Returns the URI of an open document.
@@ -146,16 +145,14 @@ impl Workspace {
     pub fn can_undo(&self, id: BufferId) -> bool {
         self.documents
             .get(&id)
-            .map(|e| e.read().history.can_undo())
-            .unwrap_or(false)
+            .is_some_and(|e| e.read().history.can_undo())
     }
 
     /// Returns whether redo is available.
     pub fn can_redo(&self, id: BufferId) -> bool {
         self.documents
             .get(&id)
-            .map(|e| e.read().history.can_redo())
-            .unwrap_or(false)
+            .is_some_and(|e| e.read().history.can_redo())
     }
 
     /// Run a read-only closure over a document.

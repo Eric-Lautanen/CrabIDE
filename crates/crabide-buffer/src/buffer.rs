@@ -224,9 +224,7 @@ impl Document {
 
         if start_char > end_char {
             return Err(anyhow!(
-                "Edit range start ({}) > end ({})",
-                start_char,
-                end_char
+                "Edit range start ({start_char}) > end ({end_char})"
             ));
         }
 
@@ -286,10 +284,7 @@ impl Document {
         // Allow col == line_len (insertion at end of line)
         if col > line_len {
             return Err(anyhow!(
-                "Column {} exceeds line {} length {}",
-                col,
-                line,
-                line_len
+                "Column {col} exceeds line {line} length {line_len}"
             ));
         }
 

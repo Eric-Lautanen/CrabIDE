@@ -346,7 +346,7 @@ mod tests {
         let mut cs = CursorSet::new();
         cs.add(Position::new(2, 0));
         cs.add(Position::new(1, 0));
-        let positions: Vec<Position> = cs.iter().map(|c| c.pos()).collect();
+        let positions: Vec<Position> = cs.iter().map(super::Cursor::pos).collect();
         // Should be sorted
         assert_eq!(
             positions,

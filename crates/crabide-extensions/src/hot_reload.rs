@@ -33,7 +33,7 @@ pub fn start_hot_reload_watcher(dir: &Path) -> Result<Receiver<PathBuf>, String>
                 for evt in events {
                     for path in &evt.paths {
                         if path.extension().and_then(|s| s.to_str()) == Some("wasm") {
-                            let _ = tx.try_send(path.to_path_buf());
+                            let _ = tx.try_send(path.clone());
                         }
                     }
                 }
@@ -49,7 +49,7 @@ pub fn start_hot_reload_watcher(dir: &Path) -> Result<Receiver<PathBuf>, String>
 
     debouncer
         .watch(dir, RecursiveMode::NonRecursive)
-        .map_err(|e| format!("failed to watch {:?}: {e}", dir))?;
+        .map_err(|e| format!("failed to watch {dir:?}: {e}"))?;
 
     // Leak the debouncer so the watcher keeps running for the lifetime of the app.
     // This is intentional — the watcher should run until the process exits.

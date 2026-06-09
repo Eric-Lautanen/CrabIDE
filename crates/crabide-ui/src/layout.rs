@@ -200,15 +200,14 @@ pub struct UiBehavior<'a> {
     pub actions: &'a mut Vec<crabide_config::Action>,
 }
 
-impl<'a> egui_tiles::Behavior<PaneKind> for UiBehavior<'a> {
+impl egui_tiles::Behavior<PaneKind> for UiBehavior<'_> {
     fn tab_title_for_pane(&mut self, pane: &PaneKind) -> egui::WidgetText {
         match pane {
             PaneKind::EditorGroup(idx) => {
                 let group = &self.state.editor_groups[*idx];
                 let label = group
                     .active_tab_ref()
-                    .map(|t| t.title.as_str())
-                    .unwrap_or("Editor");
+                    .map_or("Editor", |t| t.title.as_str());
                 label.into()
             }
             PaneKind::FileExplorer => "Sidebar".into(),

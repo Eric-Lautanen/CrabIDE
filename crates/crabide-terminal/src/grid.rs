@@ -332,7 +332,15 @@ impl Grid {
 
         // Only attempt reflow on the primary screen (not alt screen).
         // Alt screen is used by full-screen apps (vim, htop) that handle their own layout.
-        if !self.alt_active {
+        if self.alt_active {
+            // Alt screen: simple resize without reflow
+            let blank_row = || vec![Cell::blank(); cols as usize];
+            for row in &mut self.screen {
+                row.resize(cols as usize, Cell::blank());
+            }
+            self.screen.resize_with(rows as usize, blank_row);
+            self.wrapped.resize(rows as usize, false);
+        } else {
             // Build logical lines by merging consecutive wrapped rows
             let screen = std::mem::take(&mut self.screen);
             let wrapped = std::mem::take(&mut self.wrapped);
@@ -342,14 +350,14 @@ impl Grid {
             while i < screen.len() {
                 let mut merged = screen[i].clone();
                 // Trim trailing blanks from this row so merging is clean
-                while merged.last().map(|c| c.ch == ' ').unwrap_or(false) {
+                while merged.last().is_some_and(|c| c.ch == ' ') {
                     merged.pop();
                 }
                 // If the NEXT row is a wrapped continuation, merge it
                 while i + 1 < screen.len() && i + 1 < wrapped.len() && wrapped[i + 1] {
                     let next = &screen[i + 1];
                     let mut trimmed = next.clone();
-                    while trimmed.last().map(|c| c.ch == ' ').unwrap_or(false) {
+                    while trimmed.last().is_some_and(|c| c.ch == ' ') {
                         trimmed.pop();
                     }
                     merged.extend(trimmed);
@@ -397,14 +405,6 @@ impl Grid {
 
             self.screen = new_screen;
             self.wrapped = new_wrapped;
-        } else {
-            // Alt screen: simple resize without reflow
-            let blank_row = || vec![Cell::blank(); cols as usize];
-            for row in &mut self.screen {
-                row.resize(cols as usize, Cell::blank());
-            }
-            self.screen.resize_with(rows as usize, blank_row);
-            self.wrapped.resize(rows as usize, false);
         }
 
         // Same simple resize for alt screen (stored separately)
@@ -517,7 +517,7 @@ impl Grid {
         }
 
         // Advance cursor
-        let advance = if width == 0 { 1 } else { width as u16 };
+        let advance = if width == 0 { 1 } else { u16::from(width) };
         self.cursor_col += advance;
 
         // Line wrap
@@ -974,12 +974,16 @@ impl Perform for Grid {
             b"0" | b"2" => {
                 // Set title: OSC 0/2 ; title ST
                 let title_data = params.get(1).copied().unwrap_or(&[]);
-                self.title = std::str::from_utf8(title_data).ok().map(|s| s.to_owned());
+                self.title = std::str::from_utf8(title_data)
+                    .ok()
+                    .map(std::borrow::ToOwned::to_owned);
             }
             b"7" => {
                 // Shell working directory: OSC 7 ; path ST
                 let cwd_data = params.get(1).copied().unwrap_or(&[]);
-                self.cwd = std::str::from_utf8(cwd_data).ok().map(|s| s.to_owned());
+                self.cwd = std::str::from_utf8(cwd_data)
+                    .ok()
+                    .map(std::borrow::ToOwned::to_owned);
             }
             // OSC 8: hyperlinks
             // Format: ESC ] 8 ; params ; url BEL
@@ -989,7 +993,9 @@ impl Perform for Grid {
                 if url.is_empty() {
                     self.cur_hyperlink = None;
                 } else {
-                    self.cur_hyperlink = std::str::from_utf8(url).ok().map(|s| s.to_owned());
+                    self.cur_hyperlink = std::str::from_utf8(url)
+                        .ok()
+                        .map(std::borrow::ToOwned::to_owned);
                 }
             }
             // OSC 133: shell integration
@@ -1155,8 +1161,8 @@ pub enum ScrollDirection {
 fn x10_mouse_encode(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
     let cb = mouse_button_code(button, false);
     let b = (32 + cb) as u8;
-    let x = (32 + col.saturating_add(1).min(223) as u32) as u8;
-    let y = (32 + row.saturating_add(1).min(223) as u32) as u8;
+    let x = (32 + u32::from(col.saturating_add(1).min(223))) as u8;
+    let y = (32 + u32::from(row.saturating_add(1).min(223))) as u8;
     vec![0x1b, b'[', b'M', b, x, y]
 }
 
@@ -1164,8 +1170,8 @@ fn x10_mouse_encode(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
 fn x10_mouse_encode_release(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
     let cb = mouse_button_code(button, true);
     let b = (32 + cb) as u8;
-    let x = (32 + col.saturating_add(1).min(223) as u32) as u8;
-    let y = (32 + row.saturating_add(1).min(223) as u32) as u8;
+    let x = (32 + u32::from(col.saturating_add(1).min(223))) as u8;
+    let y = (32 + u32::from(row.saturating_add(1).min(223))) as u8;
     vec![0x1b, b'[', b'M', b, x, y]
 }
 
@@ -1173,8 +1179,8 @@ fn x10_mouse_encode_release(button: MouseButton, col: u16, row: u16) -> Vec<u8> 
 fn x10_mouse_encode_motion(button: MouseButton, col: u16, row: u16) -> Vec<u8> {
     let cb = mouse_button_code(button, false) + 32;
     let b = (32 + cb) as u8;
-    let x = (32 + col.saturating_add(1).min(223) as u32) as u8;
-    let y = (32 + row.saturating_add(1).min(223) as u32) as u8;
+    let x = (32 + u32::from(col.saturating_add(1).min(223))) as u8;
+    let y = (32 + u32::from(row.saturating_add(1).min(223))) as u8;
     vec![0x1b, b'[', b'M', b, x, y]
 }
 
@@ -3058,8 +3064,8 @@ mod tests {
     fn fuzz_random_bytes_with_resize_no_crash() {
         let mut rng = FuzzRng(12345);
         for _seq in 0..100 {
-            let start_cols = 10 + (rng.next_u8() as u16 % 100);
-            let start_rows = 5 + (rng.next_u8() as u16 % 50);
+            let start_cols = 10 + (u16::from(rng.next_u8()) % 100);
+            let start_rows = 5 + (u16::from(rng.next_u8()) % 50);
             let mut g = Grid::new(start_cols, start_rows);
 
             // Feed some random data
@@ -3068,8 +3074,8 @@ mod tests {
             g.feed(&buf);
 
             // Resize to new random size
-            let new_cols = 5 + (rng.next_u8() as u16 % 150);
-            let new_rows = 3 + (rng.next_u8() as u16 % 60);
+            let new_cols = 5 + (u16::from(rng.next_u8()) % 150);
+            let new_rows = 3 + (u16::from(rng.next_u8()) % 60);
             g.resize(new_cols, new_rows);
 
             // Invariants after resize

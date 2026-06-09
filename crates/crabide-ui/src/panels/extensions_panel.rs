@@ -250,15 +250,14 @@ fn show_extension_card(
 
             // Header: category dot + name + version + toggle.
             ui.horizontal(|ui| {
-                let cat_col = ext
-                    .manifest
-                    .categories
-                    .first()
-                    .map(|cat| {
-                        let (r, g, b) = cat.color();
-                        Color32::from_rgb(r, g, b)
-                    })
-                    .unwrap_or(Color32::from_gray(0x80));
+                let cat_col =
+                    ext.manifest
+                        .categories
+                        .first()
+                        .map_or(Color32::from_gray(0x80), |cat| {
+                            let (r, g, b) = cat.color();
+                            Color32::from_rgb(r, g, b)
+                        });
 
                 let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
                 ui.painter().circle_filled(dot_rect.center(), 5.0, cat_col);

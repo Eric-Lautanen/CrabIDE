@@ -108,10 +108,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> TabBarAction {
         .show(&mut child_ui, |ui| {
             for (idx, tab) in state.tabs().iter().enumerate() {
                 let is_active = state.active_tab() == Some(idx);
-                let is_dragging = drag_state
-                    .as_ref()
-                    .map(|d| d.src_idx == idx)
-                    .unwrap_or(false);
+                let is_dragging = drag_state.as_ref().is_some_and(|d| d.src_idx == idx);
                 let tab_bg = if is_dragging {
                     tab_bg_drag
                 } else if is_active {
@@ -273,7 +270,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> TabBarAction {
                         let mut t = n_tabs;
                         for (i, &off) in tab_offsets.iter().enumerate() {
                             let next_off = tab_offsets.get(i + 1).copied().unwrap_or(total_width);
-                            let mid = (off + next_off) / 2.0;
+                            let mid = f32::midpoint(off, next_off);
                             if rel_x < mid {
                                 t = i;
                                 break;

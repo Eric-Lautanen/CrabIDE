@@ -384,7 +384,7 @@ impl LspTransport {
         let result = if let Some(dur) = timeout {
             tokio::time::timeout(dur, respond_rx)
                 .await
-                .map_err(|_| anyhow!("LSP request {method} timed out after {:?}", dur))?
+                .map_err(|_| anyhow!("LSP request {method} timed out after {dur:?}"))?
                 .map_err(|_| anyhow!("LSP transport closed while awaiting response to {method}"))?
         } else {
             respond_rx
@@ -490,12 +490,11 @@ async fn run_reader(
             // Ignore other headers (Content-Type etc.)
         }
 
-        let length = match content_length {
-            Some(n) => n,
-            None => {
-                log::warn!("LSP reader: received header block with no Content-Length; skipping");
-                continue;
-            }
+        let length = if let Some(n) = content_length {
+            n
+        } else {
+            log::warn!("LSP reader: received header block with no Content-Length; skipping");
+            continue;
         };
 
         // 2. Read exactly `length` bytes
@@ -517,12 +516,11 @@ async fn run_reader(
         // 4. Dispatch
         if msg.is_response() {
             // Resolve the pending request
-            let id = match msg.id.as_ref().and_then(|v| v.as_u64()) {
-                Some(n) => n as u32,
-                None => {
-                    log::warn!("LSP reader: response with non-integer id: {:?}", msg.id);
-                    continue;
-                }
+            let id = if let Some(n) = msg.id.as_ref().and_then(serde_json::Value::as_u64) {
+                n as u32
+            } else {
+                log::warn!("LSP reader: response with non-integer id: {:?}", msg.id);
+                continue;
             };
 
             match pending.remove(&id) {

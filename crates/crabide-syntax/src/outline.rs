@@ -463,13 +463,14 @@ fn extract_go(root: tree_sitter::Node<'_>, source: &[u8]) -> Vec<SymbolOutline> 
                 for spec in child.named_children(&mut c) {
                     if spec.kind() == "type_spec" {
                         if let Some(name) = field_child(spec, "name") {
-                            let kind = field_child(spec, "type")
-                                .map(|t| match t.kind() {
-                                    "struct_type" => SymbolKind::Struct,
-                                    "interface_type" => SymbolKind::Interface,
-                                    _ => SymbolKind::TypeParameter,
-                                })
-                                .unwrap_or(SymbolKind::TypeParameter);
+                            let kind =
+                                field_child(spec, "type").map_or(SymbolKind::TypeParameter, |t| {
+                                    match t.kind() {
+                                        "struct_type" => SymbolKind::Struct,
+                                        "interface_type" => SymbolKind::Interface,
+                                        _ => SymbolKind::TypeParameter,
+                                    }
+                                });
                             symbols.push(SymbolOutline::new(
                                 node_text(name, source),
                                 kind,
@@ -603,7 +604,7 @@ fn c_symbol(node: tree_sitter::Node<'_>, source: &[u8], out: &mut Vec<SymbolOutl
 fn c_function_name(node: tree_sitter::Node<'_>, source: &[u8]) -> Option<String> {
     let declarator = field_child(node, "declarator")?;
     // Walk through pointer/reference declarators to find the function_declarator.
-    fn find_fn_declarator<'a>(n: tree_sitter::Node<'a>) -> Option<tree_sitter::Node<'a>> {
+    fn find_fn_declarator(n: tree_sitter::Node<'_>) -> Option<tree_sitter::Node<'_>> {
         if n.kind() == "function_declarator" {
             return Some(n);
         }
@@ -632,13 +633,13 @@ fn extract_json(root: tree_sitter::Node<'_>, source: &[u8]) -> Vec<SymbolOutline
                     if let Some(key) = field_child(pair, "key") {
                         let raw = node_text(key, source);
                         let name = raw.trim_matches('"').to_owned();
-                        let kind = field_child(pair, "value")
-                            .map(|v| match v.kind() {
-                                "object" => SymbolKind::Object,
-                                "array" => SymbolKind::Array,
-                                _ => SymbolKind::Key,
-                            })
-                            .unwrap_or(SymbolKind::Key);
+                        let kind = field_child(pair, "value").map_or(SymbolKind::Key, |v| match v
+                            .kind()
+                        {
+                            "object" => SymbolKind::Object,
+                            "array" => SymbolKind::Array,
+                            _ => SymbolKind::Key,
+                        });
                         symbols.push(SymbolOutline::new(
                             name,
                             kind,
@@ -696,17 +697,14 @@ fn extract_markdown(root: tree_sitter::Node<'_>, source: &[u8]) -> Vec<SymbolOut
     for child in root.named_children(&mut cursor) {
         if child.kind() == "atx_heading" {
             // First child tells us the level: `atx_h1_marker` … `atx_h6_marker`.
-            let level = child
-                .child(0)
-                .map(|m| match m.kind() {
-                    "atx_h1_marker" => 1u8,
-                    "atx_h2_marker" => 2,
-                    "atx_h3_marker" => 3,
-                    "atx_h4_marker" => 4,
-                    "atx_h5_marker" => 5,
-                    _ => 6,
-                })
-                .unwrap_or(1);
+            let level = child.child(0).map_or(1, |m| match m.kind() {
+                "atx_h1_marker" => 1u8,
+                "atx_h2_marker" => 2,
+                "atx_h3_marker" => 3,
+                "atx_h4_marker" => 4,
+                "atx_h5_marker" => 5,
+                _ => 6,
+            });
 
             // The heading content sits inside `atx_heading_content`.
             let text = child

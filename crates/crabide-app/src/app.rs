@@ -637,22 +637,19 @@ impl crabideApp {
             .ui_state
             .active_tab()
             .and_then(|i| self.ui_state.tabs().get(i))
-            .map(|t| t.language.as_str().to_owned())
-            .unwrap_or_else(|| "text".to_owned());
+            .map_or_else(|| "text".to_owned(), |t| t.language.as_str().to_owned());
 
         let cursor_line: u32 = self
             .ui_state
             .active_tab()
             .and_then(|i| self.ui_state.tabs().get(i))
-            .map(|t| t.cursors.primary().pos().line)
-            .unwrap_or(0);
+            .map_or(0, |t| t.cursors.primary().pos().line);
 
         let cursor_col: u32 = self
             .ui_state
             .active_tab()
             .and_then(|i| self.ui_state.tabs().get(i))
-            .map(|t| t.cursors.primary().pos().character)
-            .unwrap_or(0);
+            .map_or(0, |t| t.cursors.primary().pos().character);
 
         let workspace_roots: Vec<PathBuf> = self.workspace.roots();
 
@@ -695,8 +692,7 @@ impl crabideApp {
                 .installed()
                 .iter()
                 .find(|e| e.manifest.id == id)
-                .map(|e| e.enabled)
-                .unwrap_or(false);
+                .is_some_and(|e| e.enabled);
             let ctx = ExtensionContext {
                 active_text: active_text.as_deref(),
                 active_uri: active_uri.as_deref(),
@@ -1096,7 +1092,12 @@ impl crabideApp {
     }
 
     fn apply_lsp_event(&mut self, event: LspEvent) {
-        use LspEvent::*;
+        use LspEvent::{
+            CodeActionsReady, CodeLensUpdated, CompletionReady, DiagnosticsPublished,
+            FormattingReady, HoverReady, InlayHintsUpdated, LatencyRecord, LocationsReady,
+            LogMessage, RenameReady, SemanticTokensUpdated, ServerCrashed, ServerReady,
+            SignatureHelpReady,
+        };
         match event {
             ServerReady { language } => {
                 log::info!("LSP ready: {language}");
@@ -1268,7 +1269,13 @@ impl crabideApp {
     }
 
     fn apply_git_event(&mut self, event: GitEvent) {
-        use GitEvent::*;
+        use GitEvent::{
+            BlameUpdated, BranchesListed, ConflictResolved, ConflictsDetected, DiffHunksUpdated,
+            DiffStagedUpdated, FetchCompleted, HeadChanged, LogReady, OperationCompleted,
+            OperationFailed, PushCompleted, RemoteAdded, RemoteRemoved, RemotesListed,
+            StashListUpdated, StatusRefreshed, SubmoduleAdded, SubmoduleSynced, SubmoduleUpdated,
+            SubmodulesListed, TagCreated, TagDeleted, TagListed,
+        };
         match event {
             HeadChanged { branch, commit } => {
                 log::debug!(
@@ -1469,7 +1476,9 @@ impl crabideApp {
     }
 
     fn apply_vfs_event(&mut self, event: crabide_core::event::VfsEvent) {
-        use crabide_core::event::VfsEvent::*;
+        use crabide_core::event::VfsEvent::{
+            FileCreated, FileDeleted, FileModified, FileRenamed, WatchError,
+        };
         match event {
             FileModified(p) => {
                 log::trace!("modified: {}", p.display());
@@ -1493,7 +1502,12 @@ impl crabideApp {
     }
 
     fn apply_dap_event(&mut self, event: DapEvent) {
-        use DapEvent::*;
+        use DapEvent::{
+            BreakpointUpdated, Continued, Error, EvaluateReady, ExceptionBreakpointsSet,
+            ExceptionInfoReady, FunctionBreakpointsReady, GotoTargetsReady, Initialized,
+            Invalidated, ModulesReady, Output, ProgressEnd, ProgressStart, ProgressUpdate,
+            SetVariableDone, StackTraceReady, Stopped, Terminated, ThreadsReady, VariablesReady,
+        };
         match event {
             Initialized => {
                 log::info!("DAP: session initialized");
@@ -1615,7 +1629,7 @@ impl crabideApp {
                 named_variables,
                 indexed_variables,
             } => {
-                log::debug!("DAP evaluate #{request_id}: {result} ({:?})", type_name);
+                log::debug!("DAP evaluate #{request_id}: {result} ({type_name:?})");
                 self.ui_state.dap_panel.last_evaluate_result =
                     Some(crabide_core::event::EvaluateResult {
                         expression: String::new(),
@@ -1659,18 +1673,12 @@ impl crabideApp {
                 break_mode,
             } => {
                 log::debug!(
-                    "DAP exception info: {:?} ({:?}) break_mode={:?}",
-                    description,
-                    exception_type,
-                    break_mode
+                    "DAP exception info: {description:?} ({exception_type:?}) break_mode={break_mode:?}"
                 );
                 self.ui_state.dap_panel.last_exception = Some(
-                    format!(
-                        "{:?}: {:?} (mode: {:?})",
-                        exception_type, description, break_mode
-                    )
-                    .trim_matches('"')
-                    .to_owned(),
+                    format!("{exception_type:?}: {description:?} (mode: {break_mode:?})")
+                        .trim_matches('"')
+                        .to_owned(),
                 );
             }
 
@@ -1748,7 +1756,9 @@ impl crabideApp {
     }
 
     fn apply_extension_event(&mut self, event: crabide_core::event::ExtensionEvent) {
-        use crabide_core::event::ExtensionEvent::*;
+        use crabide_core::event::ExtensionEvent::{
+            CommandRegistered, Crashed, DiagnosticsPublished, LoadFailed, Loaded, StatusBarUpdated,
+        };
         match event {
             Loaded(id) => {
                 log::info!("extension loaded: {id}");
@@ -1792,7 +1802,9 @@ impl crabideApp {
     }
 
     fn apply_terminal_event(&mut self, event: TerminalEvent) {
-        use TerminalEvent::*;
+        use TerminalEvent::{
+            CommandFinished, CommandStarted, CwdChanged, Exited, LinkDetected, Output, TitleChanged,
+        };
         match event {
             Output { terminal_id, delta } => {
                 if let Some(inst) = self.ui_state.terminal.by_id_mut(terminal_id) {
@@ -1823,7 +1835,7 @@ impl crabideApp {
     }
 
     fn apply_config_event(&mut self, event: crabide_config::ConfigEvent) {
-        use crabide_config::ConfigEvent::*;
+        use crabide_config::ConfigEvent::{KeybindingsChanged, SettingsChanged, ThemeChanged};
         match event {
             SettingsChanged => {
                 log::debug!("settings reloaded");
@@ -2273,8 +2285,7 @@ impl crabideApp {
                         let col = self.ui_state.tabs_mut()[idx]
                             .lines
                             .get(line)
-                            .map(|_| 0u32)
-                            .unwrap_or(0);
+                            .map_or(0, |_| 0u32);
                         self.ui_state.tabs_mut()[idx]
                             .cursors
                             .set_single(Position::new(line as u32, col));
@@ -3111,7 +3122,7 @@ impl crabideApp {
             .line as usize;
 
         let (insert_pos, new_line_idx) = if below {
-            let line_len = lines.get(line_idx).map(|l| l.chars().count()).unwrap_or(0) as u32;
+            let line_len = lines.get(line_idx).map_or(0, |l| l.chars().count()) as u32;
             (
                 Position::new(line_idx as u32, line_len),
                 line_idx as u32 + 1,
@@ -3375,18 +3386,15 @@ impl crabideApp {
 
         // Find the next occurrence after the last cursor.
         let last_cursor = tab.cursors.all().last().copied();
-        let start_pos = last_cursor
-            .as_ref()
-            .map(|c| {
-                if c.has_selection() {
-                    // search after end of selection
-                    let r = c.range();
-                    Position::new(r.end.line, r.end.character)
-                } else {
-                    c.pos()
-                }
-            })
-            .unwrap_or(Position::new(0, 0));
+        let start_pos = last_cursor.as_ref().map_or(Position::new(0, 0), |c| {
+            if c.has_selection() {
+                // search after end of selection
+                let r = c.range();
+                Position::new(r.end.line, r.end.character)
+            } else {
+                c.pos()
+            }
+        });
 
         let lines = tab.lines.clone();
         let tab_mut = &mut self.ui_state.tabs_mut()[active_idx];
@@ -3522,10 +3530,7 @@ impl crabideApp {
 
         let lines: &Vec<String> = &tab.lines;
         // Check if first selected line already starts with open_str (toggle off).
-        let first_trimmed = lines
-            .get(start_line)
-            .map(|l: &String| l.trim())
-            .unwrap_or("");
+        let first_trimmed = lines.get(start_line).map_or("", |l: &String| l.trim());
         let toggling_off = first_trimmed.starts_with(open_str);
 
         let mut edits: Vec<TextEdit> = Vec::new();
@@ -4096,8 +4101,7 @@ impl eframe::App for crabideApp {
                 .ui_state
                 .active_tab()
                 .and_then(|i| self.ui_state.tabs().get(i))
-                .map(|t| t.cursors.primary().has_selection())
-                .unwrap_or(false);
+                .is_some_and(|t| t.cursors.primary().has_selection());
             let active_lang: Option<String> = self
                 .ui_state
                 .active_tab()
@@ -4148,7 +4152,7 @@ impl eframe::App for crabideApp {
                     let key = b
                         .chords
                         .iter()
-                        .map(|c| c.to_string())
+                        .map(std::string::ToString::to_string)
                         .collect::<Vec<_>>()
                         .join(" ");
                     Some((label.to_string(), key))
@@ -4249,7 +4253,7 @@ impl eframe::App for crabideApp {
                     log::warn!("Failed to persist theme preference: {e}");
                 }
             }
-            self.ui_state.set_status(format!("Theme: {}", theme_id));
+            self.ui_state.set_status(format!("Theme: {theme_id}"));
         }
 
         // ── LSP popup pending actions ─────────────────────────────────────────
@@ -4419,11 +4423,10 @@ fn open_path_as_tab(state: &mut UiState, workspace: &Arc<Workspace>, path: PathB
         .unwrap_or("(unknown)")
         .to_owned();
 
-    let language = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(crabide_core::types::language_from_extension)
-        .unwrap_or(Language::PLAIN_TEXT);
+    let language = path.extension().and_then(|e| e.to_str()).map_or(
+        Language::PLAIN_TEXT,
+        crabide_core::types::language_from_extension,
+    );
 
     let content = match std::fs::read(&path) {
         Ok(bytes) => bytes,
@@ -4486,7 +4489,7 @@ fn read_dir_children(dir: &std::path::Path) -> Vec<crabide_ui::FileNode> {
         return Vec::new();
     };
     let mut nodes: Vec<crabide_ui::FileNode> = entries
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| {
             let path = e.path();
             let name = e.file_name().to_string_lossy().into_owned();
@@ -4549,9 +4552,10 @@ fn dirs_ext() -> std::path::PathBuf {
     let base = if cfg!(target_os = "windows") {
         std::env::var("APPDATA").unwrap_or_else(|_| ".".into())
     } else if cfg!(target_os = "macos") {
-        std::env::var("HOME")
-            .map(|h| format!("{h}/Library/Application Support"))
-            .unwrap_or_else(|_| ".".into())
+        std::env::var("HOME").map_or_else(
+            |_| ".".into(),
+            |h| format!("{h}/Library/Application Support"),
+        )
     } else {
         std::env::var("XDG_CONFIG_HOME")
             .or_else(|_| std::env::var("HOME").map(|h| format!("{h}/.config")))
@@ -4813,10 +4817,7 @@ fn advance_by_text(pos: Position, text: &str) -> Position {
 
 /// Compute the text to insert for an Enter keypress (with auto-indent).
 fn compute_newline_text(lines: &[String], pos: Position) -> String {
-    let line = lines
-        .get(pos.line as usize)
-        .map(String::as_str)
-        .unwrap_or("");
+    let line = lines.get(pos.line as usize).map_or("", String::as_str);
     let indent_end = line
         .find(|c: char| !c.is_whitespace())
         .unwrap_or(line.len());
@@ -4831,7 +4832,7 @@ fn compute_newline_text(lines: &[String], pos: Position) -> String {
     };
 
     let extra = match prev_char {
-        Some('{') | Some('(') | Some('[') | Some(':') => "    ",
+        Some('{' | '(' | '[' | ':') => "    ",
         _ => "",
     };
 
@@ -4887,7 +4888,7 @@ fn delete_range(lines: &[String], pos: Position, kind: &DeleteKind) -> Option<Ra
             }
         }
         DeleteKind::WordLeft => {
-            let line_str = lines.get(line).map(String::as_str).unwrap_or("");
+            let line_str = lines.get(line).map_or("", String::as_str);
             let new_col = word_boundary_left(line_str, col);
             if new_col < col {
                 Some(Range::new(Position::new(pos.line, new_col as u32), pos))
@@ -4899,7 +4900,7 @@ fn delete_range(lines: &[String], pos: Position, kind: &DeleteKind) -> Option<Ra
             }
         }
         DeleteKind::WordRight => {
-            let line_str = lines.get(line).map(String::as_str).unwrap_or("");
+            let line_str = lines.get(line).map_or("", String::as_str);
             let line_len = line_str.chars().count();
             let new_col = word_boundary_right(line_str, col);
             if new_col > col {
@@ -5157,8 +5158,7 @@ fn word_at_cursor(tab: &EditorTab) -> String {
     let start = chars[..col]
         .iter()
         .rposition(|c| !c.is_alphanumeric() && *c != '_')
-        .map(|i| i + 1)
-        .unwrap_or(0);
+        .map_or(0, |i| i + 1);
     let end = col
         + chars[col..]
             .iter()
@@ -5205,7 +5205,7 @@ fn extract_text(lines: &[String], range: Range) -> String {
     let end_line = range.end.line as usize;
 
     if start_line == end_line {
-        let line = lines.get(start_line).map(String::as_str).unwrap_or("");
+        let line = lines.get(start_line).map_or("", String::as_str);
         let chars: Vec<char> = line.chars().collect();
         let s = (range.start.character as usize).min(chars.len());
         let e = (range.end.character as usize).min(chars.len());
@@ -5216,7 +5216,7 @@ fn extract_text(lines: &[String], range: Range) -> String {
             if !result.is_empty() {
                 result.push('\n');
             }
-            let line = lines.get(l).map(String::as_str).unwrap_or("");
+            let line = lines.get(l).map_or("", String::as_str);
             let chars: Vec<char> = line.chars().collect();
             let s = if l == start_line {
                 (range.start.character as usize).min(chars.len())
@@ -5405,8 +5405,7 @@ fn clamp_cursors_to_content(cursors: &mut CursorSet, lines: &[String]) {
         let line = line.min(n_lines - 1);
         let line_len = lines
             .get(line as usize)
-            .map(|l| l.chars().count() as u32)
-            .unwrap_or(0);
+            .map_or(0, |l| l.chars().count() as u32);
         (line, col.min(line_len))
     };
 

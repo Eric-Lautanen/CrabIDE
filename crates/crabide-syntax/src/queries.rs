@@ -385,7 +385,7 @@ pub const TOML_HIGHLIGHTS: &str = r#"
 
 // ── Markdown ──────────────────────────────────────────────────────────────────
 
-pub const MARKDOWN_HIGHLIGHTS: &str = r#"
+pub const MARKDOWN_HIGHLIGHTS: &str = r"
 (atx_heading) @markup.heading
 (setext_heading) @markup.heading
 
@@ -408,7 +408,7 @@ pub const MARKDOWN_HIGHLIGHTS: &str = r#"
 
 (thematic_break) @punctuation.special
 (html_block) @markup.raw.block
-"#;
+";
 
 // ── HTML ───────────────────────────────────────────────────────────────────────
 

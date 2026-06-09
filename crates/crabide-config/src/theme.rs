@@ -42,12 +42,12 @@ impl Color {
         if other.a == 0 {
             return self;
         }
-        let a0 = other.a as u32;
+        let a0 = u32::from(other.a);
         let a1 = 255 - a0;
         Self {
-            r: ((self.r as u32 * a1 + other.r as u32 * a0) / 255) as u8,
-            g: ((self.g as u32 * a1 + other.g as u32 * a0) / 255) as u8,
-            b: ((self.b as u32 * a1 + other.b as u32 * a0) / 255) as u8,
+            r: ((u32::from(self.r) * a1 + u32::from(other.r) * a0) / 255) as u8,
+            g: ((u32::from(self.g) * a1 + u32::from(other.g) * a0) / 255) as u8,
+            b: ((u32::from(self.b) * a1 + u32::from(other.b) * a0) / 255) as u8,
             a: 255,
         }
     }

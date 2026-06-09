@@ -413,131 +413,131 @@ impl PartialSettings {
     fn apply_onto(&self, base: &mut Settings) {
         let e = &self.editor;
         if let Some(v) = e.font_family.clone() {
-            base.editor.font_family = v
+            base.editor.font_family = v;
         }
         if let Some(v) = e.font_size {
-            base.editor.font_size = v
+            base.editor.font_size = v;
         }
         if let Some(v) = e.line_height {
-            base.editor.line_height = v
+            base.editor.line_height = v;
         }
         if let Some(v) = e.tab_size {
-            base.editor.tab_size = v
+            base.editor.tab_size = v;
         }
         if let Some(v) = e.insert_spaces {
-            base.editor.insert_spaces = v
+            base.editor.insert_spaces = v;
         }
         if let Some(v) = e.word_wrap {
-            base.editor.word_wrap = v
+            base.editor.word_wrap = v;
         }
         if let Some(v) = e.line_numbers {
-            base.editor.line_numbers = v
+            base.editor.line_numbers = v;
         }
         if let Some(v) = e.auto_save {
-            base.editor.auto_save = v
+            base.editor.auto_save = v;
         }
         if let Some(v) = e.format_on_save {
-            base.editor.format_on_save = v
+            base.editor.format_on_save = v;
         }
         if let Some(v) = e.trim_trailing_whitespace {
-            base.editor.trim_trailing_whitespace = v
+            base.editor.trim_trailing_whitespace = v;
         }
         if let Some(v) = e.render_whitespace {
-            base.editor.render_whitespace = v
+            base.editor.render_whitespace = v;
         }
         if let Some(v) = e.minimap_enabled {
-            base.editor.minimap_enabled = v
+            base.editor.minimap_enabled = v;
         }
         if let Some(v) = e.bracket_pair_colorization {
-            base.editor.bracket_pair_colorization = v
+            base.editor.bracket_pair_colorization = v;
         }
         if let Some(v) = e.inlay_hints_enabled {
-            base.editor.inlay_hints_enabled = v
+            base.editor.inlay_hints_enabled = v;
         }
         if let Some(v) = e.auto_closing_brackets {
-            base.editor.auto_closing_brackets = v
+            base.editor.auto_closing_brackets = v;
         }
         if let Some(v) = e.scroll_beyond_last_line {
-            base.editor.scroll_beyond_last_line = v
+            base.editor.scroll_beyond_last_line = v;
         }
         if let Some(v) = e.cursor_blinking {
-            base.editor.cursor_blinking = v
+            base.editor.cursor_blinking = v;
         }
         if let Some(v) = e.cursor_style {
-            base.editor.cursor_style = v
+            base.editor.cursor_style = v;
         }
 
         let u = &self.ui;
         if let Some(v) = u.color_theme.clone() {
-            base.ui.color_theme = v
+            base.ui.color_theme = v;
         }
         if let Some(v) = u.icon_theme.clone() {
-            base.ui.icon_theme = v
+            base.ui.icon_theme = v;
         }
         if let Some(v) = u.sidebar_location {
-            base.ui.sidebar_location = v
+            base.ui.sidebar_location = v;
         }
         if let Some(v) = u.activity_bar_visible {
-            base.ui.activity_bar_visible = v
+            base.ui.activity_bar_visible = v;
         }
         if let Some(v) = u.status_bar_visible {
-            base.ui.status_bar_visible = v
+            base.ui.status_bar_visible = v;
         }
         if let Some(v) = u.panel_default_location {
-            base.ui.panel_default_location = v
+            base.ui.panel_default_location = v;
         }
         if let Some(v) = u.zoom_level {
-            base.ui.zoom_level = v
+            base.ui.zoom_level = v;
         }
 
         let t = &self.terminal;
         if let Some(v) = t.shell.clone() {
-            base.terminal.shell = v
+            base.terminal.shell = v;
         }
         if let Some(v) = t.font_family.clone() {
-            base.terminal.font_family = v
+            base.terminal.font_family = v;
         }
         if let Some(v) = t.font_size {
-            base.terminal.font_size = v
+            base.terminal.font_size = v;
         }
         if let Some(v) = t.scrollback_lines {
-            base.terminal.scrollback_lines = v
+            base.terminal.scrollback_lines = v;
         }
         if let Some(v) = t.cursor_blinking {
-            base.terminal.cursor_blinking = v
+            base.terminal.cursor_blinking = v;
         }
 
         let g = &self.git;
         if let Some(v) = g.enabled {
-            base.git.enabled = v
+            base.git.enabled = v;
         }
         if let Some(v) = g.auto_fetch {
-            base.git.auto_fetch = v
+            base.git.auto_fetch = v;
         }
         if let Some(v) = g.auto_fetch_interval_secs {
-            base.git.auto_fetch_interval_secs = v
+            base.git.auto_fetch_interval_secs = v;
         }
         if let Some(v) = g.confirm_sync {
-            base.git.confirm_sync = v
+            base.git.confirm_sync = v;
         }
 
         let l = &self.lsp;
         if let Some(v) = l.enabled {
-            base.lsp.enabled = v
+            base.lsp.enabled = v;
         }
         if let Some(v) = l.inlay_hints {
-            base.lsp.inlay_hints = v
+            base.lsp.inlay_hints = v;
         }
         if let Some(v) = l.format_on_save {
-            base.lsp.format_on_save = v
+            base.lsp.format_on_save = v;
         }
         if let Some(v) = l.completion_trigger_characters.clone() {
-            base.lsp.completion_trigger_characters = v
+            base.lsp.completion_trigger_characters = v;
         }
 
         let ex = &self.extensions;
         if let Some(v) = ex.marketplace_url.clone() {
-            base.extensions.marketplace_url = v
+            base.extensions.marketplace_url = v;
         }
 
         // Per-language overrides: merge language_overrides maps, inserting/overwriting

@@ -144,7 +144,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    for (label, key) in filtered.iter() {
+                    for (label, key) in &filtered {
                         let row_h = 22.0;
                         let row_rect = ui.allocate_exact_size(
                             egui::vec2(ui.available_width(), row_h),

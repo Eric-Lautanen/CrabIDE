@@ -291,8 +291,8 @@ fn breakpoint_verified(state: &UiState, tab: &EditorTab, line: u32) -> bool {
     let path = tab.uri.as_url().to_file_path().ok();
     state.dap_panel.breakpoint_states.iter().any(|bp| {
         bp.verified
-            && bp.line.map(|l| l == line + 1).unwrap_or(false) // DAP uses 1-based lines
-            && bp.source_path.as_ref().map(|p| Some(p) == path.as_ref()).unwrap_or(true)
+            && bp.line.is_some_and(|l| l == line + 1) // DAP uses 1-based lines
+            && bp.source_path.as_ref().is_none_or(|p| Some(p) == path.as_ref())
     })
 }
 
@@ -302,15 +302,12 @@ fn is_paused_at_line(state: &UiState, tab: &EditorTab, line: u32) -> bool {
     if !dap.session_active || !dap.paused {
         return false;
     }
-    dap.call_stack
-        .first()
-        .map(|f| {
-            f.line == line + 1  // DAP 1-based
-            && f.source_path.as_ref().map(|p| {
+    dap.call_stack.first().is_some_and(|f| {
+        f.line == line + 1  // DAP 1-based
+            && f.source_path.as_ref().is_some_and(|p| {
                 tab.uri.as_url().to_file_path().ok().as_ref() == Some(p)
-            }).unwrap_or(false)
-        })
-        .unwrap_or(false)
+            })
+    })
 }
 
 fn c(r: u8, g: u8, b: u8) -> crabide_config::Color {

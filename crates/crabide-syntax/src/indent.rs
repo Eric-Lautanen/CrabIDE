@@ -86,11 +86,11 @@ impl IndentEngine {
 
         let compiled = match tree_sitter::Query::new(&entry.language, query_src) {
             Ok(q) => {
-                log::debug!("Compiled indent query for {}", language);
+                log::debug!("Compiled indent query for {language}");
                 Some(Arc::new(q))
             }
             Err(e) => {
-                log::warn!("Indent query compile error for {}: {:?}", language, e);
+                log::warn!("Indent query compile error for {language}: {e:?}");
                 None
             }
         };
@@ -135,7 +135,7 @@ impl IndentEngine {
 
                 let indent_cap = parse_indent_capture(name);
                 match indent_cap {
-                    Some(IndentCapture::Indent) | Some(IndentCapture::IndentAlways) => {
+                    Some(IndentCapture::Indent | IndentCapture::IndentAlways) => {
                         let start_line = node.start_position().row;
                         if start_line < line_count {
                             // The line *after* this node's start line gets indented.
@@ -145,7 +145,7 @@ impl IndentEngine {
                             }
                         }
                     }
-                    Some(IndentCapture::Outdent) | Some(IndentCapture::OutdentAlways) => {
+                    Some(IndentCapture::Outdent | IndentCapture::OutdentAlways) => {
                         let end_line = node.end_position().row;
                         if end_line < line_count {
                             indent_delta[end_line] -= 1;

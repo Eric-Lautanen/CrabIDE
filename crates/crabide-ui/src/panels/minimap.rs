@@ -69,12 +69,11 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> bool {
             .highlight_spans
             .iter()
             .find(|sp| sp.range.start.line <= line_u32 && sp.range.end.line >= line_u32)
-            .map(|sp| {
+            .map_or(default_fg, |sp| {
                 let vscope = crabide_syntax::highlight::scope_to_vscode(sp.scope.as_str());
                 let ts = state.theme.token_style(vscope);
-                ts.foreground.map(cfg_to_egui).unwrap_or(default_fg)
-            })
-            .unwrap_or(default_fg);
+                ts.foreground.map_or(default_fg, cfg_to_egui)
+            });
 
         // Scale line width to minimap.
         let char_count = line_text.chars().count() as f32;

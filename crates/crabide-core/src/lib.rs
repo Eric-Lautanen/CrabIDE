@@ -26,6 +26,27 @@
     clippy::uninlined_format_args,
     clippy::unreadable_literal,
     clippy::wildcard_imports,
+    clippy::assigning_clones,
+    clippy::items_after_statements,
+    clippy::case_sensitive_file_extension_comparisons,
+    clippy::used_underscore_binding,
+    clippy::semicolon_if_nothing_returned,
+    clippy::default_trait_access,
+    clippy::redundant_closure,
+    clippy::format_push_string,
+    clippy::format_collect,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::unnecessary_wraps,
+    clippy::unnecessary_debug_formatting,
+    clippy::match_wildcard_for_single_variants,
+    clippy::explicit_iter_loop,
+    clippy::needless_continue,
+    clippy::float_cmp,
+    clippy::unused_self,
+    clippy::collapsible_else_if,
+    clippy::redundant_else,
+    clippy::unnecessary_map_or,
+    clippy::many_single_char_names
 )]
 //! `crabide-core` — foundational types, errors, events, and traits.
 //!

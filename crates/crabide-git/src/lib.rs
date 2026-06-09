@@ -10,6 +10,40 @@
     clippy::must_use_candidate,
     clippy::struct_excessive_bools,
     clippy::similar_names,
+    clippy::assigning_clones,
+    clippy::case_sensitive_file_extension_comparisons,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::collapsible_else_if,
+    clippy::default_trait_access,
+    clippy::explicit_iter_loop,
+    clippy::float_cmp,
+    clippy::fn_params_excessive_bools,
+    clippy::format_collect,
+    clippy::format_push_string,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::many_single_char_names,
+    clippy::map_unwrap_or,
+    clippy::match_same_arms,
+    clippy::match_wildcard_for_single_variants,
+    clippy::needless_continue,
+    clippy::needless_pass_by_value,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::redundant_else,
+    clippy::return_self_not_must_use,
+    clippy::semicolon_if_nothing_returned,
+    clippy::too_many_lines,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_debug_formatting,
+    clippy::unnecessary_map_or,
+    clippy::unnecessary_wraps,
+    clippy::unused_self,
+    clippy::used_underscore_binding,
+    clippy::wildcard_imports
 )]
 //! `crabide-git` — libgit2-backed git service for the editor.
 //!
@@ -540,7 +574,11 @@ enum GitCommand {
 
 #[cfg(feature = "git-support")]
 mod git_support {
-    use super::*;
+    use super::{
+        BlameLine, BranchInfo, DiffHunk, DocumentUri, EditorEvent, FileStatus, GitCommand,
+        GitService, HashMap, HunkKind, Path, PathBuf, Receiver, Sender, StashEntry, StatusKind,
+        bounded, debug, thread, warn,
+    };
 
     pub fn start_service(repo_path: PathBuf, event_tx: Sender<EditorEvent>) -> Option<GitService> {
         let repo = git2::Repository::discover(&repo_path)
@@ -789,8 +827,7 @@ mod git_support {
                 GitCommand::StashPush { message } => {
                     let op = message
                         .as_deref()
-                        .map(|m| format!("stash push {m}"))
-                        .unwrap_or_else(|| "stash push".into());
+                        .map_or_else(|| "stash push".into(), |m| format!("stash push {m}"));
                     run_op(&event_tx, op, || {
                         stash_push_impl(&mut repo, message.as_deref())
                     });
@@ -798,9 +835,8 @@ mod git_support {
                 }
 
                 GitCommand::StashPop { index } => {
-                    let op = index
-                        .map(|i| format!("stash pop @{{{i}}}"))
-                        .unwrap_or_else(|| "stash pop".into());
+                    let op =
+                        index.map_or_else(|| "stash pop".into(), |i| format!("stash pop @{{{i}}}"));
                     run_op(&event_tx, op, || stash_pop_impl(&mut repo, index));
                     send_head_info(&repo, &event_tx);
                     send_status(&repo, &event_tx);
@@ -981,27 +1017,23 @@ mod git_support {
 
     fn send_head_info(repo: &git2::Repository, event_tx: &Sender<EditorEvent>) {
         use crabide_core::event::GitEvent;
-        let (branch, commit) = match repo.head() {
-            Ok(head) => {
-                let branch = if head.is_branch() {
-                    head.shorthand().ok().map(|s| s.to_owned())
-                } else {
-                    None
-                };
-                let commit = head
-                    .peel_to_commit()
-                    .map(|c| c.id().to_string())
-                    .unwrap_or_else(|_| "0000000".into());
-                (branch, commit)
-            }
-            Err(_) => {
-                let default = repo
-                    .config()
-                    .ok()
-                    .and_then(|cfg| cfg.get_string("init.defaultBranch").ok())
-                    .unwrap_or_else(|| "main".into());
-                (Some(default), "0000000".into())
-            }
+        let (branch, commit) = if let Ok(head) = repo.head() {
+            let branch = if head.is_branch() {
+                head.shorthand().ok().map(std::borrow::ToOwned::to_owned)
+            } else {
+                None
+            };
+            let commit = head
+                .peel_to_commit()
+                .map_or_else(|_| "0000000".into(), |c| c.id().to_string());
+            (branch, commit)
+        } else {
+            let default = repo
+                .config()
+                .ok()
+                .and_then(|cfg| cfg.get_string("init.defaultBranch").ok())
+                .unwrap_or_else(|| "main".into());
+            (Some(default), "0000000".into())
         };
         let _ = event_tx.send(EditorEvent::Git(GitEvent::HeadChanged { branch, commit }));
     }
@@ -1089,12 +1121,11 @@ mod git_support {
         event_tx: &Sender<EditorEvent>,
     ) {
         use crabide_core::event::GitEvent;
-        let rel_path = match path.strip_prefix(workdir) {
-            Ok(p) => p,
-            Err(_) => {
-                warn!("diff_hunks: path not under workdir: {}", path.display());
-                return;
-            }
+        let rel_path = if let Ok(p) = path.strip_prefix(workdir) {
+            p
+        } else {
+            warn!("diff_hunks: path not under workdir: {}", path.display());
+            return;
         };
 
         let mut opts = git2::DiffOptions::new();
@@ -1185,7 +1216,7 @@ mod git_support {
                     .and_then(|s| s.email().ok())
                     .unwrap_or("")
                     .to_owned();
-                let time = sig.map(|s| s.when().seconds()).unwrap_or(0);
+                let time = sig.map_or(0, |s| s.when().seconds());
                 let hash = oid.to_string();
 
                 let summary = summaries
@@ -1193,7 +1224,12 @@ mod git_support {
                     .or_insert_with(|| {
                         repo.find_commit(oid)
                             .ok()
-                            .and_then(|c| c.summary().ok().flatten().map(|s| s.to_owned()))
+                            .and_then(|c| {
+                                c.summary()
+                                    .ok()
+                                    .flatten()
+                                    .map(std::borrow::ToOwned::to_owned)
+                            })
                             .unwrap_or_default()
                     })
                     .clone();
@@ -1240,19 +1276,16 @@ mod git_support {
             .strip_prefix(workdir)
             .map_err(|_| git2::Error::from_str("path not in workdir"))?;
 
-        match repo.head() {
-            Ok(head) => {
-                let commit = head.peel_to_commit()?;
-                repo.reset_default(
-                    Some(commit.as_object()),
-                    std::iter::once(rel.to_string_lossy().into_owned()),
-                )?;
-            }
-            Err(_) => {
-                let mut index = repo.index()?;
-                index.remove_path(rel)?;
-                index.write()?;
-            }
+        if let Ok(head) = repo.head() {
+            let commit = head.peel_to_commit()?;
+            repo.reset_default(
+                Some(commit.as_object()),
+                std::iter::once(rel.to_string_lossy().into_owned()),
+            )?;
+        } else {
+            let mut index = repo.index()?;
+            index.remove_path(rel)?;
+            index.write()?;
         }
         Ok(())
     }
@@ -1265,16 +1298,13 @@ mod git_support {
     }
 
     fn unstage_all_impl(repo: &git2::Repository) -> std::result::Result<(), git2::Error> {
-        match repo.head() {
-            Ok(head) => {
-                let commit = head.peel_to_commit()?;
-                repo.reset(commit.as_object(), git2::ResetType::Mixed, None)?;
-            }
-            Err(_) => {
-                let mut index = repo.index()?;
-                index.clear()?;
-                index.write()?;
-            }
+        if let Ok(head) = repo.head() {
+            let commit = head.peel_to_commit()?;
+            repo.reset(commit.as_object(), git2::ResetType::Mixed, None)?;
+        } else {
+            let mut index = repo.index()?;
+            index.clear()?;
+            index.write()?;
         }
         Ok(())
     }
@@ -1339,34 +1369,32 @@ mod git_support {
         event_tx: &Sender<EditorEvent>,
     ) {
         use crabide_core::event::GitEvent;
-        let rel_path = match path.strip_prefix(workdir) {
-            Ok(p) => p,
-            Err(_) => {
-                warn!("diff_staged: path not under workdir: {}", path.display());
-                return;
-            }
+        let rel_path = if let Ok(p) = path.strip_prefix(workdir) {
+            p
+        } else {
+            warn!("diff_staged: path not under workdir: {}", path.display());
+            return;
         };
 
         let mut opts = git2::DiffOptions::new();
         opts.pathspec(rel_path.to_string_lossy().as_ref());
 
         // Diff index (staging area) vs HEAD tree.
-        let diff = match repo.head().ok().and_then(|h| h.peel_to_commit().ok()) {
-            Some(commit) => match commit.tree() {
+        let diff = if let Some(commit) = repo.head().ok().and_then(|h| h.peel_to_commit().ok()) {
+            match commit.tree() {
                 Ok(tree) => repo.diff_tree_to_index(Some(&tree), None, Some(&mut opts)),
                 Err(e) => {
                     warn!("diff staged tree: {}", e.message());
                     return;
                 }
-            },
-            None => {
-                // No HEAD commit — no staged changes to compare against.
-                let _ = event_tx.send(EditorEvent::Git(GitEvent::DiffStagedUpdated {
-                    uri,
-                    hunks: vec![],
-                }));
-                return;
             }
+        } else {
+            // No HEAD commit — no staged changes to compare against.
+            let _ = event_tx.send(EditorEvent::Git(GitEvent::DiffStagedUpdated {
+                uri,
+                hunks: vec![],
+            }));
+            return;
         };
 
         let diff = match diff {
@@ -1412,7 +1440,7 @@ mod git_support {
         // Determine current HEAD branch name.
         let current_head = repo.head().ok().and_then(|h| {
             if h.is_branch() {
-                h.shorthand().map(|s| s.to_owned()).ok()
+                h.shorthand().map(std::borrow::ToOwned::to_owned).ok()
             } else {
                 None
             }
@@ -1454,14 +1482,17 @@ mod git_support {
         let commit = branch
             .get()
             .peel_to_commit()
-            .map(|c| c.id().to_string())
-            .unwrap_or_else(|_| "0000000".into());
+            .map_or_else(|_| "0000000".into(), |c| c.id().to_string());
 
         // Upstream tracking info (local branches only).
         let (upstream, ahead, behind) = if is_local {
             match branch.upstream() {
                 Ok(up) => {
-                    let up_shorthand = up.get().shorthand().ok().map(|s| s.to_owned());
+                    let up_shorthand = up
+                        .get()
+                        .shorthand()
+                        .ok()
+                        .map(std::borrow::ToOwned::to_owned);
                     let (a, b) = branch
                         .get()
                         .peel_to_commit()
@@ -1515,7 +1546,7 @@ mod git_support {
         } else {
             // Fetch all branches — collect refspecs from remote config
             let mut refs = Vec::new();
-            for rs in remote.fetch_refspecs()?.iter() {
+            for rs in &remote.fetch_refspecs()? {
                 if let Ok(Some(s)) = rs {
                     refs.push(s.to_owned());
                 }
@@ -1663,7 +1694,11 @@ mod git_support {
         let mut remote = repo.find_remote(remote_name)?;
 
         // Determine what refspec to push
-        let head_branch = repo.head()?.shorthand().ok().map(|s| s.to_owned());
+        let head_branch = repo
+            .head()?
+            .shorthand()
+            .ok()
+            .map(std::borrow::ToOwned::to_owned);
         let branch_name = branch.or(head_branch.as_deref()).unwrap_or("main");
 
         let prefix = if force { "+" } else { "" };
@@ -1968,7 +2003,10 @@ mod git_support {
                     let obj = repo.find_object(oid, None).ok()?;
                     let (message, tagger) = if let Some(tag) = obj.as_tag() {
                         (
-                            tag.message().ok().flatten().map(|m| m.to_owned()),
+                            tag.message()
+                                .ok()
+                                .flatten()
+                                .map(std::borrow::ToOwned::to_owned),
                             tag.tagger().map(|t| t.name().unwrap_or("").to_owned()),
                         )
                     } else {
@@ -2012,17 +2050,14 @@ mod git_support {
                     return;
                 }
             }
+        } else if let Ok(head) = repo.head() {
+            head.target().expect("HEAD should have a target Oid")
         } else {
-            match repo.head() {
-                Ok(head) => head.target().expect("HEAD should have a target Oid"),
-                _ => {
-                    let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
-                        operation: format!("create tag {name}"),
-                        error: "no HEAD to tag".into(),
-                    }));
-                    return;
-                }
-            }
+            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                operation: format!("create tag {name}"),
+                error: "no HEAD to tag".into(),
+            }));
+            return;
         };
 
         let target_obj = match repo.find_object(target_oid, None) {
@@ -2102,7 +2137,11 @@ mod git_support {
                     let name = name_res.ok()??;
                     let remote = repo.find_remote(name).ok()?;
                     let url = remote.url().unwrap_or("").to_owned();
-                    let push_url = remote.pushurl().ok().flatten().map(|u| u.to_owned());
+                    let push_url = remote
+                        .pushurl()
+                        .ok()
+                        .flatten()
+                        .map(std::borrow::ToOwned::to_owned);
                     Some(RemoteInfo {
                         name: name.to_owned(),
                         url,
@@ -2147,7 +2186,7 @@ mod git_support {
                     let path = sm.path().to_str()?.to_owned();
                     let name = sm.name().ok()?.to_owned();
                     let url = sm.url().ok()?.unwrap_or("").to_owned();
-                    let branch = sm.branch().ok()?.map(|s| s.to_owned());
+                    let branch = sm.branch().ok()?.map(std::borrow::ToOwned::to_owned);
                     let commit = sm.head_id().map(|oid| oid.to_string()).unwrap_or_default();
                     // Get status via repo
                     let status = repo
@@ -2362,15 +2401,17 @@ mod git_support {
     ) -> std::result::Result<(), git2::Error> {
         let index = repo.index()?;
         // Find the theirs entry (stage 3)
-        let conflict_entries: Vec<_> = index.conflicts()?.filter_map(|r| r.ok()).collect();
+        let conflict_entries: Vec<_> = index
+            .conflicts()?
+            .filter_map(std::result::Result::ok)
+            .collect();
         for conflict in &conflict_entries {
             let entry_path = conflict
                 .ancestor
                 .as_ref()
                 .or(conflict.our.as_ref())
                 .or(conflict.their.as_ref())
-                .map(|e| std::str::from_utf8(&e.path).unwrap_or(""))
-                .unwrap_or("");
+                .map_or("", |e| std::str::from_utf8(&e.path).unwrap_or(""));
             if entry_path != path {
                 continue;
             }

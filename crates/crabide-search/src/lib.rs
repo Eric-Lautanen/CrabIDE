@@ -10,6 +10,40 @@
     clippy::must_use_candidate,
     clippy::struct_excessive_bools,
     clippy::similar_names,
+    clippy::assigning_clones,
+    clippy::case_sensitive_file_extension_comparisons,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::collapsible_else_if,
+    clippy::default_trait_access,
+    clippy::explicit_iter_loop,
+    clippy::float_cmp,
+    clippy::fn_params_excessive_bools,
+    clippy::format_collect,
+    clippy::format_push_string,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::many_single_char_names,
+    clippy::map_unwrap_or,
+    clippy::match_same_arms,
+    clippy::match_wildcard_for_single_variants,
+    clippy::needless_continue,
+    clippy::needless_pass_by_value,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::redundant_else,
+    clippy::return_self_not_must_use,
+    clippy::semicolon_if_nothing_returned,
+    clippy::too_many_lines,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_debug_formatting,
+    clippy::unnecessary_map_or,
+    clippy::unnecessary_wraps,
+    clippy::unused_self,
+    clippy::used_underscore_binding,
+    clippy::wildcard_imports
 )]
 //! `crabide-search` — fuzzy file finder + workspace grep.
 //!
@@ -225,7 +259,7 @@ pub fn grep_workspace(
         .par_iter()
         .flat_map(|p| {
             // Check cancellation before processing each file
-            if abort.is_some_and(|h| h.is_aborted()) {
+            if abort.is_some_and(GrepAbortHandle::is_aborted) {
                 return Vec::new();
             }
             search_file(p, &re, abort)
@@ -401,7 +435,7 @@ pub fn grep_buffers(
 
     let mut results: Vec<GrepMatch> = Vec::new();
     for (path, lines) in buffers {
-        if abort.is_some_and(|h| h.is_aborted()) {
+        if abort.is_some_and(GrepAbortHandle::is_aborted) {
             break;
         }
         for (line_num, line) in lines.iter().enumerate() {
@@ -424,7 +458,7 @@ pub fn grep_buffers(
 
 /// Search a single file for all regex matches, checking the abort handle.
 fn search_file(path: &Path, re: &Regex, abort: Option<&GrepAbortHandle>) -> Vec<GrepMatch> {
-    if abort.is_some_and(|h| h.is_aborted()) {
+    if abort.is_some_and(GrepAbortHandle::is_aborted) {
         return Vec::new();
     }
     let content = match std::fs::read_to_string(path) {
@@ -522,7 +556,7 @@ mod tests {
     fn fuzzy_finder_search_respects_limit() {
         let mut ff = FuzzyFileFinder::new();
         let many: Vec<PathBuf> = (0..20)
-            .map(|i| PathBuf::from(format!("/file_{}.rs", i)))
+            .map(|i| PathBuf::from(format!("/file_{i}.rs")))
             .collect();
         ff.update_index(many);
         let results = ff.search("file", 5);

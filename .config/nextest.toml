@@ -1,16 +1,14 @@
 [profile.default]
-# Show 2 slowest tests per crate.
-slow-timeout = { period = "60s", termination = "120s" }
-status-level = "pass,fail,skip"
+# Show slowest tests at end.
+slow-timeout = { period = "60s" }
 failure-output = "immediate-final"
-test-threads = "num-cpu"
+test-threads = "num-cpus"
 
 # Retry flaky tests once.
 retries = { backoff = "fixed", count = 1, delay = "1s" }
 
 [profile.ci]
-# CI profile: fail-fast on first failure, junit output.
-display-output = "all"
+# CI profile: junit output.
 failure-output = "immediate"
-test-threads = "num-cpu"
+test-threads = "num-cpus"
 junit = { path = "target/nextest/junit.xml" }

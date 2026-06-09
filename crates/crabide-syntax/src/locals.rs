@@ -87,11 +87,11 @@ impl LocalsEngine {
 
         let compiled = match tree_sitter::Query::new(&entry.language, query_src) {
             Ok(q) => {
-                log::debug!("Compiled locals query for {}", language);
+                log::debug!("Compiled locals query for {language}");
                 Some(Arc::new(q))
             }
             Err(e) => {
-                log::warn!("Locals query compile error for {}: {:?}", language, e);
+                log::warn!("Locals query compile error for {language}: {e:?}");
                 None
             }
         };

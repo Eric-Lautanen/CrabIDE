@@ -327,7 +327,7 @@ mod tests {
         // eviction logic exists: push many entries and check bounds.
         let mut h = EditHistory::new(rope("start"));
         for i in 0..10 {
-            h.push(rope(&format!("entry{}", i)), "push", vec![]);
+            h.push(rope(&format!("entry{i}")), "push", vec![]);
         }
         // Should have 11 entries (initial + 10 pushes)
         assert_eq!(h.history_len(), 11);

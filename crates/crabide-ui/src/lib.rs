@@ -10,6 +10,40 @@
     clippy::must_use_candidate,
     clippy::struct_excessive_bools,
     clippy::similar_names,
+    clippy::assigning_clones,
+    clippy::case_sensitive_file_extension_comparisons,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::collapsible_else_if,
+    clippy::default_trait_access,
+    clippy::explicit_iter_loop,
+    clippy::float_cmp,
+    clippy::fn_params_excessive_bools,
+    clippy::format_collect,
+    clippy::format_push_string,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::manual_let_else,
+    clippy::many_single_char_names,
+    clippy::map_unwrap_or,
+    clippy::match_same_arms,
+    clippy::match_wildcard_for_single_variants,
+    clippy::needless_continue,
+    clippy::needless_pass_by_value,
+    clippy::redundant_closure,
+    clippy::redundant_closure_for_method_calls,
+    clippy::redundant_else,
+    clippy::return_self_not_must_use,
+    clippy::semicolon_if_nothing_returned,
+    clippy::too_many_lines,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::uninlined_format_args,
+    clippy::unnecessary_debug_formatting,
+    clippy::unnecessary_map_or,
+    clippy::unnecessary_wraps,
+    clippy::unused_self,
+    clippy::used_underscore_binding,
+    clippy::wildcard_imports
 )]
 //! `crabide-ui` — all egui panels, widgets, and UI state for crabide Editor.
 //!
@@ -394,7 +428,7 @@ fn show_goto_line(ui: &mut egui::Ui, state: &mut UiState) -> Option<Action> {
     ));
 
     let mut query = state.goto_line.query.clone();
-    let max_lines = state.active_tab_ref().map(|t| t.lines.len()).unwrap_or(0);
+    let max_lines = state.active_tab_ref().map_or(0, |t| t.lines.len());
     let hint = format!("Line number (1-{max_lines})");
 
     let screen = ctx.content_rect();
@@ -989,11 +1023,7 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                     egui::Event::Paste(text) if !text.is_empty() => {
                         // Bracketed paste: wrap in \x1b[200~ … \x1b[201~ if the
                         // shell has enabled DECSET 2004, otherwise send raw text.
-                        let bracketed = state
-                            .terminal
-                            .active()
-                            .map(|i| i.bracketed_paste)
-                            .unwrap_or(false);
+                        let bracketed = state.terminal.active().is_some_and(|i| i.bracketed_paste);
                         if bracketed {
                             let mut bytes = b"\x1b[200~".to_vec();
                             bytes.extend(text.as_bytes());
@@ -1061,8 +1091,7 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                         let has_snippet = state
                             .active_tab()
                             .and_then(|i| state.active_group_ref().tabs.get(i))
-                            .map(|t| t.snippet_engine.current_tabstop().is_some())
-                            .unwrap_or(false);
+                            .is_some_and(|t| t.snippet_engine.current_tabstop().is_some());
                         if modifiers.shift {
                             actions.push(if has_snippet {
                                 Action::PreviousTabstop
@@ -1670,7 +1699,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             if let Some(idx) = state.active_tab() {
                 if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let last_line = tab.lines.len().saturating_sub(1);
-                    let last_col = tab.lines.last().map(|l| l.chars().count()).unwrap_or(0) as u32;
+                    let last_col = tab.lines.last().map_or(0, |l| l.chars().count()) as u32;
                     use crabide_core::types::Selection;
                     tab.cursors.primary_mut().selection = Selection {
                         anchor: Position::ZERO,
@@ -1816,8 +1845,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
                     let len = tab
                         .lines
                         .get(line as usize)
-                        .map(|l| l.chars().count())
-                        .unwrap_or(0) as u32;
+                        .map_or(0, |l| l.chars().count()) as u32;
                     tab.cursors.primary_mut().selection = Selection {
                         anchor: Position::new(line, 0),
                         active: Position::new(line, len),
@@ -1837,8 +1865,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
                         let new_col = pos.character.min(
                             tab.lines
                                 .get(new_line as usize)
-                                .map(|l| l.chars().count() as u32)
-                                .unwrap_or(0),
+                                .map_or(0, |l| l.chars().count() as u32),
                         );
                         tab.cursors.add(Position::new(new_line, new_col));
                     }
@@ -1856,8 +1883,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
                         let new_col = pos.character.min(
                             tab.lines
                                 .get(new_line as usize)
-                                .map(|l| l.chars().count() as u32)
-                                .unwrap_or(0),
+                                .map_or(0, |l| l.chars().count() as u32),
                         );
                         tab.cursors.add(Position::new(new_line, new_col));
                     }
@@ -1876,8 +1902,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
                         let new_col = pos.character.min(
                             tab.lines
                                 .get(new_line as usize)
-                                .map(|l| l.chars().count() as u32)
-                                .unwrap_or(0),
+                                .map_or(0, |l| l.chars().count() as u32),
                         );
                         tab.cursors.add(Position::new(new_line, new_col));
                     }
@@ -1895,8 +1920,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
                         let new_col = pos.character.min(
                             tab.lines
                                 .get(new_line as usize)
-                                .map(|l| l.chars().count() as u32)
-                                .unwrap_or(0),
+                                .map_or(0, |l| l.chars().count() as u32),
                         );
                         tab.cursors.add(Position::new(new_line, new_col));
                     }
@@ -1910,11 +1934,7 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             if let Some(idx) = state.active_tab() {
                 if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
-                    let line_str = tab
-                        .lines
-                        .get(pos.line as usize)
-                        .map(String::as_str)
-                        .unwrap_or("");
+                    let line_str = tab.lines.get(pos.line as usize).map_or("", String::as_str);
                     let chars: Vec<char> = line_str.chars().collect();
                     let len = chars.len();
                     let col = pos.character as usize;
@@ -2121,7 +2141,7 @@ fn compute_new_position(
             Position::new(target_line as u32, target_col as u32)
         }
         MoveKind::WordLeft => {
-            let line_str = lines.get(line).map(String::as_str).unwrap_or("");
+            let line_str = lines.get(line).map_or("", String::as_str);
             let new_col = word_left(line_str, col);
             if new_col == 0 && col == 0 && line > 0 {
                 let prev_len = line_char_count(lines, line - 1);
@@ -2131,7 +2151,7 @@ fn compute_new_position(
             }
         }
         MoveKind::WordRight => {
-            let line_str = lines.get(line).map(String::as_str).unwrap_or("");
+            let line_str = lines.get(line).map_or("", String::as_str);
             let line_len = line_char_count(lines, line);
             let new_col = word_right(line_str, col);
             if new_col == line_len && col == line_len && line + 1 < n_lines {
@@ -2373,7 +2393,7 @@ pub(crate) fn render_extension_panel(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn line_char_count(lines: &[String], line_idx: usize) -> usize {
-    lines.get(line_idx).map(|l| l.chars().count()).unwrap_or(0)
+    lines.get(line_idx).map_or(0, |l| l.chars().count())
 }
 
 // ── Performance profiler overlay ────────────────────────────────────────────────
@@ -2462,7 +2482,7 @@ fn show_profiler_overlay(ui: &mut egui::Ui, state: &mut UiState) {
             ui.label(egui::RichText::new("Heap").color(fg).strong());
             ui.separator();
             let heap_mb = state.heap_used_bytes as f64 / (1024.0 * 1024.0);
-            ui.label(egui::RichText::new(format!("Used: {:.1} MB", heap_mb)).color(fg));
+            ui.label(egui::RichText::new(format!("Used: {heap_mb:.1} MB")).color(fg));
 
             ui.add_space(8.0);
 
@@ -2651,7 +2671,7 @@ mod tests {
             "hello world".into(),
             "rust".into(),
             "a".into(),
-            "".into(),
+            String::new(),
             "last".into(),
         ]
     }

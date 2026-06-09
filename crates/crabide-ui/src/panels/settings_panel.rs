@@ -180,7 +180,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
                                                     f.group == field.group && f.key == field.key
                                                 })
                                             {
-                                                f.value = format!("{:.1}", val);
+                                                f.value = format!("{val:.1}");
                                                 changed = true;
                                             }
                                         }
@@ -228,11 +228,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
                                                 }
                                             },
                                         );
-                                        if options
-                                            .get(selected)
-                                            .map(|o| o != &current)
-                                            .unwrap_or(false)
-                                        {
+                                        if options.get(selected).is_some_and(|o| o != &current) {
                                             if let Some(f) =
                                                 state.settings_panel.fields.iter_mut().find(|f| {
                                                     f.group == field.group && f.key == field.key

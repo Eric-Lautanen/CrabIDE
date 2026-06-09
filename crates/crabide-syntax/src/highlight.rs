@@ -118,11 +118,11 @@ impl HighlightEngine {
         let result = tree_sitter::Query::new(&entry.language, query_src);
         let compiled = match result {
             Ok(q) => {
-                log::debug!("Compiled highlight query for {}", language);
+                log::debug!("Compiled highlight query for {language}");
                 Some(Arc::new(q))
             }
             Err(e) => {
-                log::warn!("Highlight query compile error for {}: {:?}", language, e);
+                log::warn!("Highlight query compile error for {language}: {e:?}");
                 None
             }
         };
@@ -335,11 +335,11 @@ impl HighlightEngine {
         let result = tree_sitter::Query::new(&entry.language, query_src);
         let compiled = match result {
             Ok(q) => {
-                log::debug!("Compiled injection query for {}", language);
+                log::debug!("Compiled injection query for {language}");
                 Some(Arc::new(q))
             }
             Err(e) => {
-                log::warn!("Injection query compile error for {}: {:?}", language, e);
+                log::warn!("Injection query compile error for {language}: {e:?}");
                 None
             }
         };

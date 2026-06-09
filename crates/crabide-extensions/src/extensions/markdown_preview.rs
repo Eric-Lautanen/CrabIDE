@@ -55,19 +55,7 @@ impl MarkdownPreviewExtension {
 
         for raw_line in text.lines() {
             // ── Fenced code blocks ─────────────────────────────────────────
-            if !in_fence {
-                if raw_line.starts_with("```") || raw_line.starts_with("~~~") {
-                    in_fence = true;
-                    fence_ch = raw_line.chars().next().unwrap_or('`');
-                    let lang = raw_line.trim_start_matches(['`', '~']).trim();
-                    if lang.is_empty() {
-                        out.push_str("┌ code ──────────────────\n");
-                    } else {
-                        out.push_str(&format!("┌ {lang} ─────────────────\n"));
-                    }
-                    continue;
-                }
-            } else {
+            if in_fence {
                 let end_marker: String = std::iter::repeat_n(fence_ch, 3).collect();
                 if raw_line.starts_with(&end_marker) {
                     in_fence = false;
@@ -77,6 +65,16 @@ impl MarkdownPreviewExtension {
                 out.push_str("│ ");
                 out.push_str(raw_line);
                 out.push('\n');
+                continue;
+            } else if raw_line.starts_with("```") || raw_line.starts_with("~~~") {
+                in_fence = true;
+                fence_ch = raw_line.chars().next().unwrap_or('`');
+                let lang = raw_line.trim_start_matches(['`', '~']).trim();
+                if lang.is_empty() {
+                    out.push_str("┌ code ──────────────────\n");
+                } else {
+                    out.push_str(&format!("┌ {lang} ─────────────────\n"));
+                }
                 continue;
             }
 
@@ -134,7 +132,7 @@ impl MarkdownPreviewExtension {
             if let Some(dot) = first_dot {
                 let prefix = &line[..dot];
                 if prefix.chars().all(|c| c.is_ascii_digit()) {
-                    out.push_str(&format!("  {}. ", prefix));
+                    out.push_str(&format!("  {prefix}. "));
                     out.push_str(&strip_inline(&line[dot + 2..]));
                     out.push('\n');
                     continue;

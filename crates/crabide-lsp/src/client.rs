@@ -113,9 +113,8 @@ impl LspClient {
     pub async fn initialize(&self, config: &LspServerConfig) -> Result<()> {
         let root_uri = config.root_uri.as_ref().map(to_lsp_uri);
 
-        let workspace_folders: Value = root_uri
-            .as_ref()
-            .map(|u: &lsp_types::Uri| {
+        let workspace_folders: Value =
+            root_uri.as_ref().map_or(Value::Null, |u: &lsp_types::Uri| {
                 // Extract last path segment from the URI string as a workspace name.
                 let name = u
                     .as_str()
@@ -124,8 +123,7 @@ impl LspClient {
                     .unwrap_or("workspace")
                     .to_owned();
                 json!([{ "uri": u.as_str(), "name": name }])
-            })
-            .unwrap_or(Value::Null);
+            });
 
         let params = json!({
             "processId": std::process::id(),
@@ -202,9 +200,11 @@ impl LspClient {
             .get("textDocumentSync")
             .and_then(|s| {
                 // Can be a number directly or an object with a "change" field.
-                s.as_u64()
-                    .map(|n| n as u8)
-                    .or_else(|| s.get("change").and_then(|c| c.as_u64()).map(|n| n as u8))
+                s.as_u64().map(|n| n as u8).or_else(|| {
+                    s.get("change")
+                        .and_then(serde_json::Value::as_u64)
+                        .map(|n| n as u8)
+                })
             })
             .unwrap_or(SYNC_FULL);
         self.inner.sync_kind.store(sync_kind, Ordering::Release);

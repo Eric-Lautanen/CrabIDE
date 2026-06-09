@@ -44,15 +44,14 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
     let mut actions = Vec::new();
 
     // Determine active color scheme (first instance or default).
-    let active_scheme = state
-        .terminal
-        .active()
-        .map(|i| &i.color_scheme)
-        .unwrap_or_else(|| {
+    let active_scheme = state.terminal.active().map_or_else(
+        || {
             // Use a static default for the empty state.
             static DEFAULT_SCHEME: TerminalColorScheme = TerminalColorScheme::dark_const();
             &DEFAULT_SCHEME
-        });
+        },
+        |i| &i.color_scheme,
+    );
     let default_bg = Color32::from_rgb(
         active_scheme.background.0,
         active_scheme.background.1,
@@ -585,7 +584,7 @@ fn xterm_256_rgb(idx: u8, scheme: &TerminalColorScheme) -> (u8, u8, u8) {
         return scheme.ansi[idx as usize];
     }
     if idx >= 232 {
-        let v = (8 + (idx - 232) as u32 * 10).min(255) as u8;
+        let v = (8 + u32::from(idx - 232) * 10).min(255) as u8;
         return (v, v, v);
     }
     let n = idx - 16;

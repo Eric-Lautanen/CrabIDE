@@ -136,7 +136,12 @@ impl RegistryClient {
             .map_err(|e| format!("Failed to read response body: {e}"))?;
 
         // Verify SHA-256 checksum if provided.
-        if !ext.sha256_hex.is_empty() {
+        if ext.sha256_hex.is_empty() {
+            log::warn!(
+                "No SHA-256 checksum available for '{}' — skipping verification",
+                ext.id
+            );
+        } else {
             let actual_hex = hex_encode(sha2::Sha256::digest(&bytes));
             if !constant_time_eq(&actual_hex, &ext.sha256_hex) {
                 return Err(format!(
@@ -145,11 +150,6 @@ impl RegistryClient {
                 ));
             }
             log::info!("Checksum verified for '{}' ({})", ext.id, ext.sha256_hex);
-        } else {
-            log::warn!(
-                "No SHA-256 checksum available for '{}' — skipping verification",
-                ext.id
-            );
         }
 
         Ok(DownloadResult {
@@ -170,8 +170,8 @@ impl RegistryClient {
                 category: "Languages".into(),
                 downloads: 48_200_000,
                 rating: 5.0,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "prettier".into(),
@@ -182,8 +182,8 @@ impl RegistryClient {
                 category: "Formatters".into(),
                 downloads: 34_900_000,
                 rating: 4.8,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "eslint".into(),
@@ -194,8 +194,8 @@ impl RegistryClient {
                 category: "Linters".into(),
                 downloads: 29_100_000,
                 rating: 4.7,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "catppuccin".into(),
@@ -206,8 +206,8 @@ impl RegistryClient {
                 category: "Themes".into(),
                 downloads: 11_300_000,
                 rating: 4.9,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "git-graph".into(),
@@ -218,8 +218,8 @@ impl RegistryClient {
                 category: "Git".into(),
                 downloads: 8_400_000,
                 rating: 4.8,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "gitlens".into(),
@@ -230,8 +230,8 @@ impl RegistryClient {
                 category: "Git".into(),
                 downloads: 42_700_000,
                 rating: 4.6,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "go".into(),
@@ -242,8 +242,8 @@ impl RegistryClient {
                 category: "Languages".into(),
                 downloads: 18_900_000,
                 rating: 4.8,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "python".into(),
@@ -255,8 +255,8 @@ impl RegistryClient {
                 category: "Languages".into(),
                 downloads: 122_500_000,
                 rating: 4.5,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "dracula".into(),
@@ -267,8 +267,8 @@ impl RegistryClient {
                 category: "Themes".into(),
                 downloads: 14_700_000,
                 rating: 4.9,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
             RegistryExtension {
                 id: "spell-right".into(),
@@ -279,8 +279,8 @@ impl RegistryClient {
                 category: "Productivity".into(),
                 downloads: 2_100_000,
                 rating: 4.3,
-                download_url: "".into(),
-                sha256_hex: "".into(),
+                download_url: String::new(),
+                sha256_hex: String::new(),
             },
         ]
     }
@@ -383,13 +383,13 @@ mod tests {
         let ext = RegistryExtension {
             id: "test".into(),
             name: "Test".into(),
-            description: "".into(),
+            description: String::new(),
             version: "1.0.0".into(),
-            author: "".into(),
+            author: String::new(),
             category: "Other".into(),
             downloads: 0,
             rating: 0.0,
-            download_url: "".into(),
+            download_url: String::new(),
             sha256_hex: "abcdef1234567890".into(),
         };
         assert_eq!(ext.sha256_hex, "abcdef1234567890");

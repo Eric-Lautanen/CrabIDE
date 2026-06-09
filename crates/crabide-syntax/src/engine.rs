@@ -143,12 +143,11 @@ impl SyntaxEngine {
     /// If no grammar is registered for `language`, this is a no-op (the
     /// document will return empty results for highlights/folds/outline).
     pub fn parse_document(&self, id: BufferId, language: &Language, source: &str, version: u32) {
-        let entry = match self.registry.get(language) {
-            Some(e) => e,
-            None => {
-                log::debug!("No grammar registered for {language}; skipping parse of {id}");
-                return;
-            }
+        let entry = if let Some(e) = self.registry.get(language) {
+            e
+        } else {
+            log::debug!("No grammar registered for {language}; skipping parse of {id}");
+            return;
         };
 
         let mut parser = match make_parser(&entry) {
@@ -258,12 +257,11 @@ impl SyntaxEngine {
         source: &str,
         version: u32,
     ) {
-        let entry = match self.registry.get(language) {
-            Some(e) => e,
-            None => {
-                log::debug!("No grammar registered for {language}; skipping async parse of {id}");
-                return;
-            }
+        let entry = if let Some(e) = self.registry.get(language) {
+            e
+        } else {
+            log::debug!("No grammar registered for {language}; skipping async parse of {id}");
+            return;
         };
 
         let source_bytes: Arc<[u8]> = Arc::from(source.as_bytes());
@@ -654,9 +652,10 @@ fn main() {
                 if !result.is_empty() {
                     return result;
                 }
-                if start.elapsed() > std::time::Duration::from_secs(5) {
-                    panic!("async parse did not complete within timeout");
-                }
+                assert!(
+                    start.elapsed() <= std::time::Duration::from_secs(5),
+                    "async parse did not complete within timeout"
+                );
                 std::thread::sleep(std::time::Duration::from_millis(10));
             }
         })

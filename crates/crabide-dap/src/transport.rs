@@ -104,7 +104,7 @@ impl DapTransport {
         let result = if let Some(dur) = timeout {
             tokio::time::timeout(dur, rx)
                 .await
-                .map_err(|_| anyhow!("DAP request {command} timed out after {:?}", dur))?
+                .map_err(|_| anyhow!("DAP request {command} timed out after {dur:?}"))?
                 .map_err(|_| anyhow!("DAP transport closed while awaiting response to {command}"))?
         } else {
             rx.await
@@ -190,12 +190,11 @@ async fn run_reader(
             }
         }
 
-        let length = match content_length {
-            Some(n) => n,
-            None => {
-                log::warn!("DAP reader: no Content-Length in header block");
-                continue;
-            }
+        let length = if let Some(n) = content_length {
+            n
+        } else {
+            log::warn!("DAP reader: no Content-Length in header block");
+            continue;
         };
 
         // ── 2. Read body ──────────────────────────────────────────────────────
@@ -216,12 +215,11 @@ async fn run_reader(
 
         // ── 4. Dispatch ───────────────────────────────────────────────────────
         if msg.is_response() {
-            let req_seq = match msg.request_seq {
-                Some(s) => s,
-                None => {
-                    log::warn!("DAP reader: response missing request_seq");
-                    continue;
-                }
+            let req_seq = if let Some(s) = msg.request_seq {
+                s
+            } else {
+                log::warn!("DAP reader: response missing request_seq");
+                continue;
             };
             match pending.remove(&req_seq) {
                 Some((_, req)) => {

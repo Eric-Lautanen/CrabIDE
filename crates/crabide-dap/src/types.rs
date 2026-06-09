@@ -775,7 +775,7 @@ fn parse_one_config(v: &serde_json::Value) -> Option<LaunchConfig> {
         .unwrap_or_default();
     let stop_on_entry = obj
         .get("stopOnEntry")
-        .and_then(|s| s.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
     let adapter_command = obj
         .get("type")
@@ -811,7 +811,10 @@ fn parse_one_config(v: &serde_json::Value) -> Option<LaunchConfig> {
         adapter_command,
         adapter_args: Vec::new(),
         adapter_type: obj.get("type").and_then(|v| v.as_str()).map(String::from),
-        port: obj.get("port").and_then(|v| v.as_u64()).map(|p| p as u16),
+        port: obj
+            .get("port")
+            .and_then(serde_json::Value::as_u64)
+            .map(|p| p as u16),
         extra,
     })
 }

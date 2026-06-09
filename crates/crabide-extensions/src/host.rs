@@ -698,7 +698,7 @@ impl ExtensionHost {
                 ExtensionSource::Local(path) => {
                     if path.exists() {
                         if let Err(e) = std::fs::remove_file(&path) {
-                            log::warn!("Could not delete extension file {:?}: {e}", path);
+                            log::warn!("Could not delete extension file {path:?}: {e}");
                         }
                     }
                 }
@@ -709,8 +709,7 @@ impl ExtensionHost {
                         if path.exists() {
                             if let Err(e) = std::fs::remove_file(&path) {
                                 log::warn!(
-                                    "Could not delete registry extension file {:?}: {e}",
-                                    path
+                                    "Could not delete registry extension file {path:?}: {e}"
                                 );
                             }
                         }
@@ -849,7 +848,7 @@ impl ExtensionHost {
         let dest = dir.join(&file_name);
 
         // 3. Write to disk (atomic: write to temp, rename).
-        let tmp = dir.join(format!(".{}.tmp", file_name));
+        let tmp = dir.join(format!(".{file_name}.tmp"));
         std::fs::write(&tmp, &result.bytes)
             .map_err(|e| format!("Failed to write extension file: {e}"))?;
         std::fs::rename(&tmp, &dest)
@@ -1084,7 +1083,7 @@ impl ExtensionHost {
 
         if !dir.exists() {
             if let Err(e) = std::fs::create_dir_all(&dir) {
-                log::warn!("Failed to create extensions dir {:?}: {e}", dir);
+                log::warn!("Failed to create extensions dir {dir:?}: {e}");
             }
             return Vec::new();
         }
@@ -1093,7 +1092,7 @@ impl ExtensionHost {
         let entries = match std::fs::read_dir(&dir) {
             Ok(e) => e,
             Err(e) => {
-                log::warn!("Cannot read extensions dir {:?}: {e}", dir);
+                log::warn!("Cannot read extensions dir {dir:?}: {e}");
                 return Vec::new();
             }
         };
@@ -1329,35 +1328,32 @@ impl ExtensionHost {
         if let Some(inst) = self.instances[idx].as_mut() {
             inst.deactivate();
         }
-        match source {
-            ExtensionSource::Local(path) => {
-                #[cfg(feature = "wasm-extensions")]
-                {
-                    match crate::wasm_ext::WasmExtension::load(&path) {
-                        Ok(mut new_inst) => {
-                            new_inst.activate(ctx);
-                            self.instances[idx] = Some(new_inst);
-                            log::info!("Reloaded extension: {id}");
-                        }
-                        Err(e) => {
-                            log::error!("Reload failed for {id}: {e}");
-                            self.instances[idx] = None;
-                        }
+        if let ExtensionSource::Local(path) = source {
+            #[cfg(feature = "wasm-extensions")]
+            {
+                match crate::wasm_ext::WasmExtension::load(&path) {
+                    Ok(mut new_inst) => {
+                        new_inst.activate(ctx);
+                        self.instances[idx] = Some(new_inst);
+                        log::info!("Reloaded extension: {id}");
+                    }
+                    Err(e) => {
+                        log::error!("Reload failed for {id}: {e}");
+                        self.instances[idx] = None;
                     }
                 }
-                #[cfg(not(feature = "wasm-extensions"))]
-                {
-                    log::warn!(
-                        "Cannot reload WASM extension '{id}': wasm-extensions feature not enabled"
-                    );
-                    let _ = path;
-                    let _ = ctx;
-                }
             }
-            _ => {
-                log::debug!("reload_extension: {id} is not a local WASM extension, skipping");
+            #[cfg(not(feature = "wasm-extensions"))]
+            {
+                log::warn!(
+                    "Cannot reload WASM extension '{id}': wasm-extensions feature not enabled"
+                );
+                let _ = path;
                 let _ = ctx;
             }
+        } else {
+            log::debug!("reload_extension: {id} is not a local WASM extension, skipping");
+            let _ = ctx;
         }
     }
 }
