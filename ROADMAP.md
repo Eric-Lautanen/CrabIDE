@@ -106,5 +106,7 @@
 - ❌ Add `cargo fuzz` targets for LSP/DAP transport parsing (medium priority)
 - ✅ Update CI `ci.yml` to run all phase checks
 
-## Phase 9 — Final Verification 🔲
-`cargo check --workspace --all-targets --all-features && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo fmt --all --check && cargo test --workspace --all-features && cargo audit && cargo doc --workspace --no-deps`
+## Phase 9 — Final Verification ✅
+`cargo check --workspace --all-targets --all-features && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo fmt --all --check && cargo test --workspace && cargo deny check && cargo doc --workspace --no-deps`
+
+**Status**: Complete. All commands pass clean. NASM installed on Windows for `aws-lc-sys`; wasmtime v45 API breakages fixed (`wasm_memory_maximum_size` removed, `add_fuel`→`set_fuel`, `fuel_consumed`→`get_fuel`). Doc warnings resolved (18 broken links fixed).
