@@ -5,18 +5,18 @@
 //! ranges, and symbol outline.
 //!
 //! The engine implements [`DocumentObserver`] so it registers with the
-//! [`Workspace`](crabide_workspace::Workspace) observer list and automatically
-//! receives `on_document_changed` / `on_document_opened` / `on_document_closed`
-//! callbacks. The observer stores pending re-parses in a side map; the UI drains
-//! them each frame via [`SyntaxEngine::drain_pending_reparses`] and applies the
-//! resulting highlight spans.
+//! `Workspace` observer list and automatically receives `on_document_changed` /
+//! `on_document_opened` / `on_document_closed` callbacks. The observer stores
+//! pending re-parses in a side map; the UI drains them each frame via
+//! [`SyntaxEngine::drain_pending_reparses`] and applies the resulting highlight
+//! spans.
 //!
 //! # Threading
 //! - Parse calls can be dispatched to the Rayon thread pool via
-//!   [`parse_document_async`]; the UI collects results each frame via
-//!   [`poll_async_results`].
-//! - Synchronous [`parse_document`] is still available for small files or
-//!   latency-critical paths.
+//!   [`SyntaxEngine::parse_document_async`]; the UI collects results each frame
+//!   via [`SyntaxEngine::poll_async_results`].
+//! - Synchronous [`SyntaxEngine::parse_document`] is still available for small
+//!   files or latency-critical paths.
 //! - The `DashMap` is lock-free for concurrent reads from multiple threads.
 
 use std::sync::Arc;
@@ -77,7 +77,7 @@ pub struct ParseResult {
 /// Central syntax analysis service.
 ///
 /// Implements [`DocumentObserver`] so it can be registered with the
-/// [`Workspace`](crabide_workspace::Workspace) observer list and automatically
+/// `Workspace` observer list and automatically
 /// re-parse documents on every change. The observer stores the latest source
 /// text in a pending-source map; the UI layer calls [`drain_pending_reparses`]
 /// each frame to actually execute the parses and update highlight spans.

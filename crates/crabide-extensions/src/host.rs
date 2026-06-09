@@ -491,7 +491,7 @@ pub trait NativeExtension: Send + Sync {
     /// Return context-menu item contributions.
     ///
     /// Items are shown in the matching surface's right-click menu and
-    /// trigger [`execute_command`] when chosen.
+    /// trigger [`ExtensionHost::execute_command`] when chosen.
     fn context_menus(&self) -> Vec<ContextMenuContribution> {
         vec![]
     }

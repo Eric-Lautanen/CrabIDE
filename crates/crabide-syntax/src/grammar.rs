@@ -2,7 +2,7 @@
 //!
 //! Grammars can be registered in two ways:
 //! 1. **Static**: the app crate links in grammar crates at compile time and
-//!    calls [`grammar_registry().register(...)`].
+//!    calls [`GrammarRegistry::register`].
 //! 2. **Dynamic**: compiled `.so` / `.dll` files are loaded at runtime via
 //!    [`GrammarRegistry::load_from_disk`]. The library must export a C function
 //!    with the signature `const TSLanguage *tree_sitter_<name>(void)` (ABI 14).

@@ -1,7 +1,7 @@
 //! Extensions Manager panel — installed extensions, marketplace search, and
 //! extension output views (todo items, markdown preview, status-bar slots).
 //!
-//! Layout (inside the sidebar below the [Files][Extensions] tab strip):
+//! Layout (inside the sidebar below the `Files` `Extensions` tab strip):
 //!
 //! ```text
 //! ┌─────────────────────────────────────────┐

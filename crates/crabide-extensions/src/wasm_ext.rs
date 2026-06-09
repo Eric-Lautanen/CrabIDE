@@ -21,7 +21,7 @@ use std::time::Duration;
 // wasmtime 34: all component types live in wasmtime::component::*
 // Store is re-exported directly from wasmtime.
 use wasmtime::component::{Component, HasSelf, Linker};
-use wasmtime::{Config, Engine, Store};
+use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 
 use crate::host::{
     CommandResult, CompletionItem, CompletionKind, ExtensionCapabilities, ExtensionCategory,
@@ -44,12 +44,6 @@ const FUEL_PER_CALL: u64 = 100_000;
 /// If an extension consumes more than this many fuel units in a single call,
 /// a warning is logged so the user can investigate.
 const FUEL_WARN_THRESHOLD: u64 = 80_000;
-
-/// Maximum execution wall-clock time per WASM call.
-///
-/// Extensions that take longer than this are interrupted by the epoch-based
-/// deadline mechanism.
-const CALL_TIMEOUT: Duration = Duration::from_millis(500);
 
 // ── WIT bindings ──────────────────────────────────────────────────────────────
 //
@@ -82,10 +76,12 @@ fn engine() -> &'static Engine {
         cfg.wasm_component_model(true);
 
         // Memory cap — 64 MB per instance prevents runaway allocation.
-        cfg.wasm_memory_maximum_size(MAX_MEMORY_BYTES as u64);
+        // Note: in wasmtime 45+, memory limits are applied via Store::limiter
+        // with StoreLimits, not via Config. The per-store limiter is configured
+        // in WasmExtension::load.
 
         // Fuel metering — each WASM instruction costs at least 1 fuel unit.
-        // The Store must call `add_fuel` before each guest call.
+        // The Store must call `set_fuel` before each guest call.
         cfg.consume_fuel(true);
 
         // Epoch-based interruption — lets us enforce a wall-clock timeout
@@ -118,6 +114,10 @@ fn engine() -> &'static Engine {
 
 /// Per-instance mutable state accessible to all host function implementations.
 pub struct HostState {
+    // ── Resource limits ─────────────────────────────────────────────────────────
+    /// Memory cap (64 MB) applied via Store::limiter.
+    pub limits: StoreLimits,
+
     // ── Context snapshot (overwritten before each WASM call) ──────────────────
     pub ctx_text: Option<String>,
     pub ctx_uri: Option<String>,
@@ -146,7 +146,11 @@ pub struct HostState {
 
 impl HostState {
     fn new(ext_id: String, caps: ExtensionCapabilities) -> Self {
+        let limits = StoreLimitsBuilder::new()
+            .memory_size(MAX_MEMORY_BYTES)
+            .build();
         Self {
+            limits,
             ctx_text: None,
             ctx_uri: None,
             ctx_language: String::new(),
@@ -696,6 +700,7 @@ impl WasmExtension {
 
         let state = HostState::new(stem.clone(), ExtensionCapabilities::default());
         let mut store = Store::new(eng, state);
+        store.limiter(|s| &mut s.limits);
 
         let bindings = CrabideExtension::instantiate(&mut store, &component, &linker)
             .map_err(|e| format!("instantiate {}: {e}", path.display()))?;
@@ -766,9 +771,9 @@ impl WasmExtension {
     /// invocation.  Failure to call this means the extension can execute
     /// without fuel limits or timeout.
     fn apply_limits(&mut self) {
-        if let Err(e) = self.store.add_fuel(FUEL_PER_CALL) {
+        if let Err(e) = self.store.set_fuel(FUEL_PER_CALL) {
             log::warn!(
-                "[wasm:{}] add_fuel({FUEL_PER_CALL}) failed: {e}",
+                "[wasm:{}] set_fuel({FUEL_PER_CALL}) failed: {e}",
                 self.manifest.id
             );
         }
@@ -778,7 +783,7 @@ impl WasmExtension {
     /// Log a warning if the last WASM call consumed more fuel than the
     /// high-water-mark threshold.  Call this after every guest invocation.
     fn check_fuel(&self) {
-        if let Ok(consumed) = self.store.fuel_consumed() {
+        if let Ok(consumed) = self.store.get_fuel() {
             if consumed > FUEL_WARN_THRESHOLD {
                 log::warn!(
                     "[wasm:{}] consumed {consumed} fuel units (threshold {FUEL_WARN_THRESHOLD})",

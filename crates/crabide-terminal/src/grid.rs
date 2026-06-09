@@ -16,7 +16,7 @@
 //! - Cell attributes: bold, italic, underline, blink, reverse, strikeout, dim
 //! - Cursor movement: all CUP, CUF, CUB, CUU, CUD, HVP variants
 //! - Erase commands: EL, ED, ECH
-//! - Scrollback buffer (configurable depth, implemented as VecDeque<Row>)
+//! - Scrollback buffer (configurable depth, implemented as `VecDeque<Row>`)
 //! - Alternate screen buffer (for vim, htop, etc.)
 //! - OSC 0/1/2: window title
 //! - OSC 7: working directory (shell integration)

@@ -93,7 +93,7 @@ pub struct FuzzyMatch {
 
 /// Fast fuzzy file-path finder backed by nucleo.
 ///
-/// Build the index once with [`update_index`], then call [`search`] on every
+/// Build the index once with [`FuzzyFileFinder::update_index`], then call [`FuzzyFileFinder::search`] on every
 /// query keystroke. The nucleo `Matcher` is cached across calls for efficiency.
 pub struct FuzzyFileFinder {
     index: Vec<PathBuf>,

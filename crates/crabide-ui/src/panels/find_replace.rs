@@ -7,10 +7,10 @@
 //! Two-row layout (VS Code-inspired):
 //!
 //!  ╭────────────────────────────────────────────────╮
-//!  │  [ Find input .............. ]  [.*] [Aa] [W]  │
+//!  │  [ Find input .............. ]  [.*] `Aa` `W`  │
 //!  │  [⬆ Prev] [⬇ Next]  3 of 10            [ ✕ ] │
 //!  ├────────────────────────────────────────────────┤  (optional)
-//!  │  [ Replace input ........... ]  [One] [All]    │
+//!  │  [ Replace input ........... ]  \[One\] \[All\]    │
 //!  ╰────────────────────────────────────────────────╯
 //!
 //! Enter / Shift+Enter navigate matches.  The Enter key is *consumed* via

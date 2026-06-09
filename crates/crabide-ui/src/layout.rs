@@ -1,7 +1,7 @@
 //! Panel layout using `egui_tiles`.
 //!
 //! The editor shell is divided into named panes — sidebar and editor area.
-//! The sidebar renders a compact tab strip at the top ([Files] [Extensions]) and
+//! The sidebar renders a compact tab strip at the top (`Files` `Extensions`) and
 //! routes to the appropriate sub-panel.  The dockable tree is stored in `UiState`
 //! and mutated via drag-and-drop or programmatic splits.
 

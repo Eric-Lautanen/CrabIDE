@@ -1256,7 +1256,7 @@ impl KeybindingEngine {
         }
     }
 
-    /// Alias for [`bind`] used by extension keybinding registration.
+    /// Alias for [`KeybindingEngine::bind`] used by extension keybinding registration.
     pub fn bind_ext(&mut self, key: &str, action: Action) {
         self.bind(key, action);
     }
