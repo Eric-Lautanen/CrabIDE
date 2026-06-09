@@ -12,6 +12,12 @@
 
 ## Session summary
 
+**Phase 12: crash reporter ✅**
+- Panic hook writes crash details (timestamp, panic message, backtrace) to `~/.crabide/crash.log`
+- Installed early in main() before any services start
+- Falls back to stderr if crash.log is unwritable
+- No new dependencies added
+
 **Phase 4 UI: settings panel ✅**
 - Settings editor overlay with grouped settings fields, editable controls (Ctrl+,)
 - New `Action::ToggleSettingsPanel` action variant with keybinding `Ctrl+,`

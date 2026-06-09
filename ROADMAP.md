@@ -340,7 +340,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [ ] Theme picker UI
 - [ ] Welcome / splash screen (interactive)
 - [ ] Update checker (ureq → GitHub releases)
-- [ ] Crash reporter (panic hook → file)
+- [x] **Crash reporter** (panic hook → file `~/.crabide/crash.log`)
 - [ ] Windows installer (NSIS or WiX)
 - [ ] macOS `.app` bundle + code signing + notarization
 - [ ] Linux `.AppImage` + `.deb` / `.rpm`

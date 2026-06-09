@@ -123,6 +123,41 @@ fn main() -> Result<()> {
         std::env::consts::OS
     );
 
+    // ── Crash reporter (panic hook → file) ──────────────────────────────────────
+    // Write panic messages to a crash log in the user config directory so users
+    // (and bug reporters) can inspect the details after a crash.
+    let panic_log_path =
+        crabide_config::SettingsLoader::user_config_dir().map(|d| d.join("crash.log"));
+    if let Some(ref path) = panic_log_path {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let log_path = path.clone();
+        std::panic::set_hook(Box::new(move |info| {
+            let msg = format!(
+                "crabide panic at {}: {info}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0)
+            );
+            // Write to crash log (best-effort).
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+            {
+                use std::io::Write;
+                let _ = writeln!(f, "{msg}");
+                // Include a backtrace if RUST_BACKTRACE is set.
+                let bt = std::backtrace::Backtrace::capture();
+                let _ = writeln!(f, "{bt}");
+            }
+            // Also emit to stderr so console users still see the crash.
+            eprintln!("{msg}");
+        }));
+    }
+
     // Ctrl+C signal handler for graceful shutdown.
     // Sets a flag that the app checks each frame; eframe will close the window
     // on the next update cycle.
