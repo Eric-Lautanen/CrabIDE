@@ -944,6 +944,42 @@ impl crabideApp {
                         panel.open = false;
                     }
                 }
+
+                ExtensionOutput::SetCursorPosition { line, character } => {
+                    // TODO: wire to active document cursor set
+                    log::debug!("Extension set cursor position: {line}:{character}");
+                }
+
+                ExtensionOutput::ApplyEdits { uri, edits } => {
+                    // TODO: wire to document text apply
+                    log::debug!("Extension apply {} edits to {uri}", edits.len());
+                }
+
+                ExtensionOutput::InsertAtCursor { text } => {
+                    // TODO: wire to active document insert
+                    log::debug!("Extension insert at cursor: {} chars", text.len());
+                }
+
+                ExtensionOutput::StatusBarVisible {
+                    extension_id,
+                    visible,
+                } => {
+                    if let Some(_item) = self
+                        .ui_state
+                        .extensions_panel
+                        .status_bar_items
+                        .get_mut(&extension_id)
+                    {
+                        // We don't have a visibility field on StatusBarItem yet, but we do
+                        // remove the item from the map to hide it.
+                        if !visible {
+                            self.ui_state
+                                .extensions_panel
+                                .status_bar_items
+                                .shift_remove(&extension_id);
+                        }
+                    }
+                }
             }
         }
     }

@@ -293,24 +293,24 @@ All DAP types defined, Content-Length transport complete, DapClient with launch/
 
 ## Phase 9 — Extensions ◐
 
-### crabide-extensions — PARTIAL 🔶 (~60%)
+### crabide-extensions — PARTIAL 🔶 (~85%)
 NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, hot-reload, WASM extension loader with full WIT binding.
 
 **WASM extension host (wasm_ext.rs):**
 - [x] WASM component loading, compilation, instantiation (wasmtime `CrabideExtension::load`)
 - [x] Host implementations for: diagnostics, status bar, terminal I/O, gutter markers, panel show/hide
 - [x] WIT bindgen integration with full crabide-extension.wit world
-- [ ] Implement `editor::Host::get_document_slice()` — enable cross-document access for WASM extensions
-- [ ] Implement `editor::Host::apply_edits()` — enable WASM extensions to modify documents
-- [ ] Implement `editor::Host::insert_at_cursor()` 
-- [ ] Implement `editor::Host::get_cursor_position()` / `set_cursor_position()`
-- [ ] Implement `editor::Host::get_selection_text()`
-- [ ] Implement `workspace::Host::get_workspace_roots()`
-- [ ] Implement `workspace::Host::find_files()`
-- [ ] Implement `commands::Host::execute_command()` / `show_quick_pick()` / `show_input_box()`
-- [ ] Implement `status_bar::Host::set_visible()`
-- [ ] Implement `terminal::Host::list_terminals()`
-- [ ] Implement `panels::Host::is_panel_visible()`
+- [x] Implement `editor::Host::get_document_slice()` — enable cross-document access for WASM extensions
+- [x] Implement `editor::Host::apply_edits()` — enable WASM extensions to modify documents
+- [x] Implement `editor::Host::insert_at_cursor()` 
+- [x] Implement `editor::Host::get_cursor_position()` / `set_cursor_position()`
+- [x] Implement `editor::Host::get_selection_text()`
+- [x] Implement `workspace::Host::get_workspace_roots()`
+- [x] Implement `workspace::Host::find_files()`
+- [x] Implement `commands::Host::execute_command()` / `show_quick_pick()` / `show_input_box()`
+- [x] Implement `status_bar::Host::set_visible()`
+- [x] Implement `terminal::Host::list_terminals()`
+- [x] Implement `panels::Host::is_panel_visible()`
 
 **Registry & lifecycle:**
 - [ ] Implement registry download (actual ureq HTTP download with checksum verification)

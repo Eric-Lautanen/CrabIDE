@@ -6,15 +6,22 @@
 
 ## Session summary
 
-**Git conflict resolution added ✅**
-- Added `ConflictInfo` core type with path, ancestor_oid, ours_oid, theirs_oid fields
-- Added `GitEvent` variants: `ConflictsDetected`, `ConflictResolved`
-- Added `GitCommand` variants: `ListConflicts`, `ResolveOurs`, `ResolveTheirs`, `MarkResolved`
-- Added `GitService` methods: `list_conflicts()`, `resolve_ours()`, `resolve_theirs()`, `mark_resolved()`
-- Implemented git2 conflict resolution: list conflicts from index, resolve using ours/theirs blob checkout, mark resolved by removing conflict entries and staging
-- Added `conflicts` field to `GitPanelState`
-- Wired new events in app.rs handler
-- All workspace tests pass, zero warnings (clippy + check)
+**WASM extension host stubs implemented ✅**
+- Expanded `HostState` with context fields: `ctx_full_text`, `ctx_workspace_roots`, `ctx_cursor_line`, `ctx_cursor_col`, `ctx_selection`, `ctx_terminals`, `ctx_visible_panels`
+- Updated `WasmExtension::set_ctx()` to populate all new fields from `ExtensionContext`
+- Implemented all previously-stubbed WIT host functions in `wasm_ext.rs`:
+  - `editor::Host`: `get_document_slice()` (extract from active doc text or read from disk), `apply_edits()` (queues `ExtensionOutput::ApplyEdits`), `insert_at_cursor()` (queues `ExtensionOutput::InsertAtCursor`), `get_cursor_position()` (returns context cursor), `set_cursor_position()` (queues `ExtensionOutput::SetCursorPosition`), `get_selection_text()` (extracts from text + selection range)
+  - `workspace::Host`: `get_workspace_roots()` (returns cached workspace roots), `find_files()` (simple recursive glob walk of workspace roots)
+  - `commands::Host`: `execute_command()` (logs and returns error -- needs app wiring), `show_quick_pick()` and `show_input_box()` (queue notification since synchronous return impossible)
+  - `status_bar::Host`: `set_visible()` (queues `ExtensionOutput::StatusBarVisible`)
+  - `terminal::Host`: `list_terminals()` (returns cached terminal IDs)
+  - `panels::Host`: `is_panel_visible()` (checks cached visible panel set)
+- Added new types: `TextEdit` struct, `ExtensionOutput::SetCursorPosition`, `ExtensionOutput::ApplyEdits`, `ExtensionOutput::InsertAtCursor`, `ExtensionOutput::StatusBarVisible`
+- Added stub handling in `app.rs::apply_extension_outputs()` for new variants (log TODO)
+- Added `simple_glob_match()` helper (`*` and `?` wildcards) for `find_files()`
+- Fixed `async: false` removal from bindgen! macro (incompatible with wit-bindgen 0.57)
+- Fixed missing `current_theme_id` field in two `empty_ctx` constructors in `host.rs`
+- All workspace tests pass, zero warnings (clippy + check), pre-existing `resize_stable` warning only
 
 ## Mandatory Policy (read every session)
 
@@ -30,18 +37,16 @@
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all ~990+ workspace tests pass
+- **TESTS** — all ~930+ workspace tests pass
 
 ## Remaining roadmap items — pick next available
 
-### Phase 6 (Git):
-- [x] tag management, remote management
-- [x] submodule support
-- [x] conflict resolution
-
-### Phase 9 (Extensions):
-- [ ] WASM editor/workspace/commands host implementations
-- [ ] Registry download with checksum verification
+### Phase 9 (Extensions) — WASM stubs done, registry download next:
+- [x] WASM editor/workspace/commands host implementations
+- [ ] Registry download with checksum verification (install_registry, download + verify + install flow)
+- [ ] Capability enforcement (check ExtensionCapabilities before granting resource access)
+- [ ] WASM engine resource limits (memory cap, fuel metering, execution timeout)
+- [ ] Marketplace URL configuration
 
 ### Phase 4 (UI):
 - [ ] Minimap, split editor, context menu, drag-and-drop tabs, scrollbar annotations, peek view, output panel, settings UI, keybindings editor, theme picker, welcome screen, multi-cursor Alt+Click, column select mode

@@ -299,6 +299,13 @@ pub enum StatusBarAlignment {
     Right,
 }
 
+/// A text replacement operation (mirrors WIT text-edit and LSP TextEdit).
+#[derive(Debug, Clone)]
+pub struct TextEdit {
+    pub range: (u32, u32, u32, u32), // start_line, start_col, end_line, end_col
+    pub new_text: String,
+}
+
 /// Output produced by an extension during `poll()`.
 pub enum ExtensionOutput {
     /// Update the extension's status-bar slot.
@@ -360,6 +367,14 @@ pub enum ExtensionOutput {
     ShowPanel { panel_id: String },
     /// Hide a registered extension panel by id.
     HidePanel { panel_id: String },
+    /// Request that the cursor be moved to the given position in the active document.
+    SetCursorPosition { line: u32, character: u32 },
+    /// Request that text edits be applied to a document.
+    ApplyEdits { uri: String, edits: Vec<TextEdit> },
+    /// Request that text be inserted at the current cursor position.
+    InsertAtCursor { text: String },
+    /// Set status bar slot visibility.
+    StatusBarVisible { extension_id: String, visible: bool },
 }
 
 // ── Capabilities ──────────────────────────────────────────────────────────────
@@ -734,7 +749,6 @@ impl ExtensionHost {
             ext_name,
             stored_path.display()
         );
-
         #[cfg(feature = "wasm-extensions")]
         let instance: Option<Box<dyn NativeExtension>> = {
             let empty_ctx = ExtensionContext {
@@ -746,6 +760,7 @@ impl ExtensionHost {
                 cursor_line: 0,
                 cursor_col: 0,
                 selection: None,
+                current_theme_id: "crabide-dark",
             };
             match crate::wasm_ext::WasmExtension::load(&stored_path) {
                 Ok(mut ext) => {
@@ -758,6 +773,7 @@ impl ExtensionHost {
                 }
             }
         };
+
         #[cfg(not(feature = "wasm-extensions"))]
         let instance: Option<Box<dyn NativeExtension>> = None;
 

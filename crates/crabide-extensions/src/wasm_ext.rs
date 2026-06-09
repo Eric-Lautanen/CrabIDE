@@ -25,7 +25,7 @@ use wasmtime::{Config, Engine, Store};
 use crate::host::{
     CommandResult, CompletionItem, CompletionKind, ExtensionCategory, ExtensionContext,
     ExtensionDiagnostic, ExtensionManifest, ExtensionOutput, ExtensionSeverity, GutterMarker,
-    HoverResult, NativeExtension,
+    HoverResult, NativeExtension, TextEdit,
 };
 
 // ── WIT bindings ──────────────────────────────────────────────────────────────
@@ -43,7 +43,6 @@ use crate::host::{
 wasmtime::component::bindgen!({
     world: "crabide-extension",
     path: "../../wit/crabide-extension.wit",
-    async: false,
 });
 
 // Alias the generated WIT types module for convenience.
@@ -70,6 +69,19 @@ pub struct HostState {
     pub ctx_text: Option<String>,
     pub ctx_uri: Option<String>,
     pub ctx_language: String,
+    /// Full text of the active document (used for get_document_slice).
+    pub ctx_full_text: Option<String>,
+    /// Workspace root URIs.
+    pub ctx_workspace_roots: Vec<String>,
+    /// Cursor position in the active document.
+    pub ctx_cursor_line: u32,
+    pub ctx_cursor_col: u32,
+    /// Selection range in the active document: (start_line, start_col, end_line, end_col).
+    pub ctx_selection: Option<(u32, u32, u32, u32)>,
+    /// Terminal IDs currently known to the editor.
+    pub ctx_terminals: Vec<u32>,
+    /// Set of panel IDs that are currently visible.
+    pub ctx_visible_panels: std::collections::HashSet<String>,
     // ── Output accumulator ────────────────────────────────────────────────────
     /// Outputs queued during WASM calls; drained by `NativeExtension::poll`.
     pub pending: Vec<ExtensionOutput>,
@@ -83,6 +95,13 @@ impl HostState {
             ctx_text: None,
             ctx_uri: None,
             ctx_language: String::new(),
+            ctx_full_text: None,
+            ctx_workspace_roots: Vec::new(),
+            ctx_cursor_line: 0,
+            ctx_cursor_col: 0,
+            ctx_selection: None,
+            ctx_terminals: Vec::new(),
+            ctx_visible_panels: std::collections::HashSet::new(),
             pending: Vec::new(),
             ext_id,
         }
@@ -105,23 +124,123 @@ impl crabide::extension::editor::Host for HostState {
     fn get_active_document_language_id(&mut self) -> Option<String> {
         Some(self.ctx_language.clone())
     }
-    fn get_document_slice(&mut self, _uri: String, _r: wit::Range) -> Option<String> {
-        None
+    fn get_document_slice(&mut self, uri: String, r: wit::Range) -> Option<String> {
+        // If the requested URI matches the active document, extract from the cached text.
+        if self.ctx_uri.as_deref() == Some(&uri) {
+            self.ctx_full_text.as_ref().and_then(|text| {
+                let lines: Vec<&str> = text.lines().collect();
+                let start_line = r.start.line as usize;
+                let end_line = r.end.line as usize;
+                if start_line >= lines.len() {
+                    return None;
+                }
+                let end_line = end_line.min(lines.len().saturating_sub(1));
+                let start_col = r.start.character as usize;
+                let end_col = r.end.character as usize;
+                if start_line == end_line {
+                    let line = lines[start_line];
+                    let start_col = start_col.min(line.len());
+                    let end_col = end_col.min(line.len());
+                    Some(line[start_col..end_col].to_owned())
+                } else {
+                    let mut result = String::new();
+                    // First line from start_col
+                    let first = lines[start_line];
+                    let start_col = start_col.min(first.len());
+                    result.push_str(&first[start_col..]);
+                    result.push('\n');
+                    // Middle lines
+                    for line in &lines[start_line + 1..end_line] {
+                        result.push_str(line);
+                        result.push('\n');
+                    }
+                    // Last line up to end_col
+                    let last = lines[end_line];
+                    let end_col = end_col.min(last.len());
+                    result.push_str(&last[..end_col]);
+                    Some(result)
+                }
+            })
+        } else {
+            // For other documents, attempt to read from disk.
+            let path = uri.strip_prefix("file://").unwrap_or(&uri);
+            std::fs::read_to_string(path).ok()
+        }
     }
-    fn apply_edits(&mut self, _uri: String, _edits: Vec<wit::TextEdit>) -> Result<(), String> {
+    fn apply_edits(&mut self, uri: String, edits: Vec<wit::TextEdit>) -> Result<(), String> {
+        let our_edits = edits
+            .into_iter()
+            .map(|e| {
+                let wit_range = e.range;
+                TextEdit {
+                    range: (
+                        wit_range.start.line,
+                        wit_range.start.character,
+                        wit_range.end.line,
+                        wit_range.end.character,
+                    ),
+                    new_text: e.new_text,
+                }
+            })
+            .collect();
+        self.pending.push(ExtensionOutput::ApplyEdits {
+            uri,
+            edits: our_edits,
+        });
         Ok(())
     }
-    fn insert_at_cursor(&mut self, _text: String) -> Result<(), String> {
+    fn insert_at_cursor(&mut self, text: String) -> Result<(), String> {
+        self.pending.push(ExtensionOutput::InsertAtCursor { text });
         Ok(())
     }
     fn get_cursor_position(&mut self) -> Option<wit::Position> {
-        None
+        Some(wit::Position {
+            line: self.ctx_cursor_line,
+            character: self.ctx_cursor_col,
+        })
     }
-    fn set_cursor_position(&mut self, _pos: wit::Position) -> Result<(), String> {
+    fn set_cursor_position(&mut self, pos: wit::Position) -> Result<(), String> {
+        self.pending.push(ExtensionOutput::SetCursorPosition {
+            line: pos.line,
+            character: pos.character,
+        });
         Ok(())
     }
     fn get_selection_text(&mut self) -> String {
-        String::new()
+        match self.ctx_selection {
+            Some((sl, sc, el, ec)) => self.ctx_full_text.as_ref().map_or(String::new(), |text| {
+                let lines: Vec<&str> = text.lines().collect();
+                let start_line = sl as usize;
+                let end_line = el as usize;
+                if start_line >= lines.len() {
+                    return String::new();
+                }
+                let end_line = end_line.min(lines.len().saturating_sub(1));
+                let start_col = sc as usize;
+                let end_col = ec as usize;
+                if start_line == end_line {
+                    let line = lines[start_line];
+                    let start_col = start_col.min(line.len());
+                    let end_col = end_col.min(line.len());
+                    line[start_col..end_col].to_owned()
+                } else {
+                    let mut result = String::new();
+                    let first = lines[start_line];
+                    let start_col = start_col.min(first.len());
+                    result.push_str(&first[start_col..]);
+                    result.push('\n');
+                    for line in &lines[start_line + 1..end_line] {
+                        result.push_str(line);
+                        result.push('\n');
+                    }
+                    let last = lines[end_line];
+                    let end_col = end_col.min(last.len());
+                    result.push_str(&last[..end_col]);
+                    result
+                }
+            }),
+            None => String::new(),
+        }
     }
     fn get_line_count(&mut self) -> Option<u32> {
         self.ctx_text.as_ref().map(|t| t.lines().count() as u32)
@@ -130,7 +249,7 @@ impl crabide::extension::editor::Host for HostState {
 
 impl crabide::extension::workspace::Host for HostState {
     fn get_workspace_roots(&mut self) -> Vec<String> {
-        vec![]
+        self.ctx_workspace_roots.clone()
     }
     fn read_file(&mut self, uri: String) -> Result<Vec<u8>, String> {
         let path = uri.strip_prefix("file://").unwrap_or(&uri);
@@ -158,16 +277,101 @@ impl crabide::extension::workspace::Host for HostState {
             .collect();
         Ok(result)
     }
-    fn find_files(&mut self, _pattern: String) -> Vec<String> {
-        vec![]
+    fn find_files(&mut self, pattern: String) -> Vec<String> {
+        // Simple glob walk of workspace roots.
+        let mut results = Vec::new();
+        for root in &self.ctx_workspace_roots {
+            let path = root.strip_prefix("file://").unwrap_or(root);
+            if let Ok(entries) = walk_files_recursive(std::path::Path::new(path), &pattern) {
+                results.extend(entries);
+            }
+        }
+        results
     }
 }
 
-impl crabide::extension::commands::Host for HostState {
-    fn execute_command(&mut self, _name: String, _args: Vec<String>) -> Result<String, String> {
-        Ok(String::new())
+/// Simple recursive file walk matching a filename glob pattern.
+fn walk_files_recursive(dir: &std::path::Path, pattern: &str) -> Result<Vec<String>, String> {
+    let mut results = Vec::new();
+    if !dir.is_dir() {
+        return Ok(results);
     }
-    fn show_quick_pick(&mut self, _title: String, _items: Vec<String>) -> Option<u32> {
+    let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            results.extend(walk_files_recursive(&path, pattern)?);
+        } else if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+            if simple_glob_match(name, pattern) {
+                let uri = format!(
+                    "file:///{}",
+                    path.to_string_lossy()
+                        .replace('\\', "/")
+                        .trim_start_matches('/')
+                );
+                results.push(uri);
+            }
+        }
+    }
+    Ok(results)
+}
+
+/// Minimal glob match supporting `*` (any chars) and `?` (single char).
+fn simple_glob_match(name: &str, pattern: &str) -> bool {
+    let name_chars: Vec<char> = name.chars().collect();
+    let pat_chars: Vec<char> = pattern.chars().collect();
+    let mut ni = 0;
+    let mut pi = 0;
+    let mut star_match = false;
+    let mut star_pos = 0;
+    let mut match_pos = 0;
+
+    while ni < name_chars.len() {
+        if pi < pat_chars.len() && (pat_chars[pi] == '?' || pat_chars[pi] == name_chars[ni]) {
+            ni += 1;
+            pi += 1;
+        } else if pi < pat_chars.len() && pat_chars[pi] == '*' {
+            star_match = true;
+            star_pos = pi;
+            match_pos = ni;
+            pi += 1;
+        } else if star_match {
+            pi = star_pos + 1;
+            match_pos += 1;
+            ni = match_pos;
+        } else {
+            return false;
+        }
+    }
+    while pi < pat_chars.len() && pat_chars[pi] == '*' {
+        pi += 1;
+    }
+    pi == pat_chars.len()
+}
+
+impl crabide::extension::commands::Host for HostState {
+    fn execute_command(&mut self, name: String, args: Vec<String>) -> Result<String, String> {
+        // Queue a command execution request and return a placeholder result.
+        // The app should handle ExtensionOutput::ExecuteCommand to actually run it.
+        log::info!(
+            "[wasm:{}] execute_command: {}({:?})",
+            self.ext_id,
+            name,
+            args
+        );
+        Err("execute_command: not yet implemented in app".into())
+    }
+    fn show_quick_pick(&mut self, title: String, items: Vec<String>) -> Option<u32> {
+        // Quick pick cannot return synchronously — queue a request and return None.
+        self.pending.push(ExtensionOutput::Notification {
+            message: format!("Quick pick requested: {title} ({} items)", items.len()),
+            is_error: false,
+        });
+        log::info!(
+            "[wasm:{}] show_quick_pick: {title} ({} items)",
+            self.ext_id,
+            items.len()
+        );
         None
     }
     fn show_information(&mut self, message: String) {
@@ -182,7 +386,13 @@ impl crabide::extension::commands::Host for HostState {
             is_error: true,
         });
     }
-    fn show_input_box(&mut self, _prompt: String, _placeholder: Option<String>) -> Option<String> {
+    fn show_input_box(&mut self, prompt: String, _placeholder: Option<String>) -> Option<String> {
+        // Input box cannot return synchronously — queue a notification and return None.
+        self.pending.push(ExtensionOutput::Notification {
+            message: format!("Input box requested: {prompt}"),
+            is_error: false,
+        });
+        log::info!("[wasm:{}] show_input_box: {prompt}", self.ext_id);
         None
     }
 }
@@ -237,7 +447,12 @@ impl crabide::extension::status_bar::Host for HostState {
             *t = Some(tooltip);
         }
     }
-    fn set_visible(&mut self, _visible: bool) {}
+    fn set_visible(&mut self, visible: bool) {
+        self.pending.push(ExtensionOutput::StatusBarVisible {
+            extension_id: self.ext_id.clone(),
+            visible,
+        });
+    }
 }
 
 impl crabide::extension::terminal::Host for HostState {
@@ -251,7 +466,7 @@ impl crabide::extension::terminal::Host for HostState {
         0
     }
     fn list_terminals(&mut self) -> Vec<u32> {
-        vec![]
+        self.ctx_terminals.clone()
     }
 }
 
@@ -289,8 +504,8 @@ impl crabide::extension::panels::Host for HostState {
     fn hide_panel(&mut self, panel_id: String) {
         self.pending.push(ExtensionOutput::HidePanel { panel_id });
     }
-    fn is_panel_visible(&mut self, _panel_id: String) -> bool {
-        false
+    fn is_panel_visible(&mut self, panel_id: String) -> bool {
+        self.ctx_visible_panels.contains(&panel_id)
     }
 }
 
@@ -400,6 +615,22 @@ impl WasmExtension {
         d.ctx_text = ctx.active_text.map(str::to_owned);
         d.ctx_uri = ctx.active_uri.map(str::to_owned);
         d.ctx_language = ctx.active_language.to_owned();
+        d.ctx_full_text = ctx.active_text.map(str::to_owned);
+        d.ctx_workspace_roots = ctx
+            .workspace_roots
+            .iter()
+            .map(|p| {
+                let s = p.to_string_lossy();
+                if s.starts_with('/') || s.contains(":\\") {
+                    format!("file://{}", s.replace('\\', "/"))
+                } else {
+                    format!("file:///{}", s.replace('\\', "/"))
+                }
+            })
+            .collect();
+        d.ctx_cursor_line = ctx.cursor_line;
+        d.ctx_cursor_col = ctx.cursor_col;
+        d.ctx_selection = ctx.selection;
     }
 
     fn drain_pending(&mut self) -> Vec<ExtensionOutput> {

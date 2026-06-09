@@ -32,6 +32,6 @@ pub use host::{
     ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
     ExtensionSource, GutterMarker, HoverResult, InstalledExtension, NativeExtension,
     NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RowItem,
-    SidebarPaneRegistration, StatusBarAlignment,
+    SidebarPaneRegistration, StatusBarAlignment, TextEdit,
 };
 pub use registry::{RegistryClient, RegistryExtension};
