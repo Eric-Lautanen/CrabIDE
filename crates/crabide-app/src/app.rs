@@ -637,28 +637,8 @@ impl crabideApp {
             .ui_state
             .active_tab()
             .and_then(|i| self.ui_state.tabs().get(i))
-            .map(|t| {
-                let uri = t.uri.to_string();
-                if uri.ends_with(".rs") {
-                    "rust"
-                } else if uri.ends_with(".py") {
-                    "python"
-                } else if uri.ends_with(".js") {
-                    "javascript"
-                } else if uri.ends_with(".ts") {
-                    "typescript"
-                } else if uri.ends_with(".md") || uri.ends_with(".markdown") {
-                    "markdown"
-                } else if uri.ends_with(".go") {
-                    "go"
-                } else if uri.ends_with(".c") || uri.ends_with(".h") {
-                    "c"
-                } else {
-                    "text"
-                }
-            })
-            .unwrap_or("text")
-            .to_owned();
+            .map(|t| t.language.as_str().to_owned())
+            .unwrap_or_else(|| "text".to_owned());
 
         let cursor_line: u32 = self
             .ui_state
