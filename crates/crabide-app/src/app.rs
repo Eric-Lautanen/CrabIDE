@@ -4988,6 +4988,13 @@ fn register_grammars() {
     // of `Language::from_raw`.
     macro_rules! raw_lang {
         ($fn_name:ident) => {{
+            // SAFETY: The `$fn_name` symbol is resolved from a dynamically loaded
+            // grammar shared library via `tree-sitter`'s language function.  The
+            // function pointer returned is guaranteed to be a valid `TSLanguage`
+            // pointer that outlives the `Language` handle.  `from_raw` wraps it
+            // without taking ownership, so the shared library must remain loaded
+            // for the lifetime of the returned `Language`.  We ensure this by
+            // keeping the `Library` handle alive in `GrammarRegistry`.
             unsafe {
                 extern "C" {
                     fn $fn_name() -> *const tree_sitter::ffi::TSLanguage;

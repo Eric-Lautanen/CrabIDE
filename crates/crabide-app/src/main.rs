@@ -1,3 +1,4 @@
+#![deny(unsafe_op_in_unsafe_fn)]
 //! crabide Editor — entry point.
 //!
 //! # Architecture overview
@@ -46,22 +47,40 @@ use std::sync::atomic::{AtomicU64, Ordering};
 struct CountingAlloc;
 
 unsafe impl std::alloc::GlobalAlloc for CountingAlloc {
+    // SAFETY: `mimalloc::MiMalloc` is a correct `GlobalAlloc` implementation;
+    // it returns a valid, properly aligned pointer for the given layout.
+    // `ALLOCATED.fetch_add` is safe because we only read `layout.size()` which
+    // is the same value the caller passed to `alloc`.  The caller must guarantee
+    // that `layout` is non-zero sized (mimalloc handles zero-size layouts).
     unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-        let ptr = mimalloc::MiMalloc.alloc(layout);
+        // SAFETY: Calling `alloc` on a `GlobalAlloc` impl is itself an unsafe
+        // operation; we uphold the contract because `mimalloc::MiMalloc` is a
+        // well-tested allocator and `layout` is guaranteed valid by the caller.
+        let ptr = unsafe { mimalloc::MiMalloc.alloc(layout) };
         if !ptr.is_null() {
             ALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
         }
         ptr
     }
 
+    // SAFETY: The caller guarantees that `ptr` was returned by a previous call
+    // to `alloc` or `realloc` with the same `layout`.  `fetch_sub` is safe
+    // because the allocation size is fixed by `layout`.
     unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
         ALLOCATED.fetch_sub(layout.size() as u64, Ordering::Relaxed);
-        mimalloc::MiMalloc.dealloc(ptr, layout);
+        // SAFETY: Same contract as `alloc` — the pointer/layout pair must match
+        // a previous allocation from `mimalloc::MiMalloc`.
+        unsafe { mimalloc::MiMalloc.dealloc(ptr, layout); }
     }
 
+    // SAFETY: The caller guarantees that `ptr` was returned by a previous
+    // allocation with size `layout.size()`.  `new_size` must be greater than
+    // zero.  The returned pointer must outlive the lifetime of the allocation.
     unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
         let old_size = layout.size();
-        let new_ptr = mimalloc::MiMalloc.realloc(ptr, layout, new_size);
+        // SAFETY: `mimalloc::MiMalloc.realloc` is a correct `GlobalAlloc`
+        // implementation; we pass the same pointer/layout originally allocated.
+        let new_ptr = unsafe { mimalloc::MiMalloc.realloc(ptr, layout, new_size) };
         if !new_ptr.is_null() {
             if new_size > old_size {
                 ALLOCATED.fetch_add((new_size - old_size) as u64, Ordering::Relaxed);

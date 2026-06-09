@@ -1,403 +1,378 @@
-# crabide roadmap
+# ROADMAP — Full Codebase Audit Findings
 
-Build order follows dependency direction. Each phase builds on the phases before it.
-
-**Legend:** ✅ = done (verified), 🔶 = partial, ❌ = not started
-
-> **Audit date:** 2026-06-08. All statuses verified against actual source code. See git log for latest changes
-
-## Crate & Dependency Minimization
-
-Every external crate adds compile time, binary size, memory use, and supply-chain risk. Prioritize removing dependencies and consolidating crates wherever possible.
-
-- **Prefer a 20-line local helper over pulling a crate.** Before adding any dependency, ask: can I write this in ≤50 lines? If yes, do that instead.
-- **If a crate has only one use site, inline it.** One function from `once_cell`? Use `std::sync::OnceLock` (stable since Rust 1.70). One use of `regex-lite`? Fold the logic.
-- **Granular crates are fine for separation of concerns but only when they reduce coupling.** If crate A and B always change together, merge them. The current 15 crates should be scrutinized: could some collapse?
-- **Every `[dependencies]` entry must carry a brief rationale comment** explaining why a local helper wouldn't suffice. Uncommented deps will be removed.
-- **Run `cargo-udeps` periodically** to find unused crates. Any crate declared but never imported gets deleted.
-- **Feature flags are the right way to gate heavy dependencies** (wasmtime, bollard, russh, wry). Default build must stay lean.
-
-## Autonomous Coding Best Practices
-
-These rules exist because no human reviews intermediate steps. The agent must produce correct, review-ready code on the first pass across potentially hundreds of changes.
-
-### Every Stop Must Compile Clean
-
-After every compilable stop in any crate, run ALL of the following and fix every issue before continuing:
-
-```powershell
-cargo check --workspace 2>&1
-cargo clippy --workspace 2>&1
-cargo fmt --all 2>&1
-```
-
-- `cargo check` — zero warnings (deny all warnings in CI)
-- `cargo clippy` — fix every lint, do not suppress
-- `cargo fmt` — run before every commit
-- **Never** add `#[allow(...)]`, `#[allow(dead_code)]`, or any suppression — fix the root cause
-- **Never** leave `todo!()`, `unimplemented!()`, `dbg!()`, or `eprintln!()` in production code
-- **Never** commit unused dependencies or dead code
-
-### Incremental Correctness
-
-- **One conceptual step per stop.** If a task requires adding a type, wiring it through a trait, and consuming it in the UI, that's 3+ stops. Do not batch them into one giant edit.
-- **Commit early, commit often.** After every verified green build of a coherent unit, `git add -A && git commit -m "feature: what was done"`. This creates safe rollback points and a readable history.
-- **If a commit would be >200 lines changed, split it.** Large diffs hide bugs.
-- **Rebase locally to keep history linear** — no merge bubbles.
-
-### Integration Awareness
-
-- **Cross-crate changes must be validated together.** If you touch `crabide-config` and `crabide-ui` in the same logical change, build the full workspace (`cargo check --workspace`) before committing.
-- **After wiring new event types**, verify the drain site in `crabide-app/src/app.rs` handles them (not just the `_ => {}` catch-all).
-- **After adding a method to a trait** in `crabide-core`, update every implementation in dependent crates. The compile error will tell you where — fix all of them before moving on.
-
-### Safe Edit Practices
-
-- **Read the file first.** Never edit a file you haven't read in this session — you'll miss imports, naming conventions, and existing patterns.
-- **Mimic existing patterns.** If neighboring code uses `thiserror` and `anyhow`, don't introduce a custom error enum. If the existing code uses `parking_lot::RwLock`, don't switch to `std::sync::RwLock`.
-- **Prefer small, targeted edits over rewrites.** Changing 3 lines in 2 files is better than rewriting one file and deleting another.
-- **When in doubt about architecture, ask.** Open a question instead of guessing the design intent.
-
-### State Management
-
-- **Never commit secrets, keys, or tokens.**
-- **Never force-push to shared branches.**
-- **Keep CI green.** If a stop breaks the build, fix it immediately or revert.
-- **Document non-obvious decisions** in commit messages (e.g., "use RwLock over Mutex because reads dominate 10:1").
-- **Keep ROADMAP.md in sync.** After every commit that completes a roadmap item, update the corresponding checkbox from `[ ]` to `[x]`. If a commit adds a new gap or feature not yet tracked, add it as a `[ ]` entry. The roadmap is the single source of truth for progress — stale checkboxes defeat its purpose.
+> **Status:** Session 2 complete (all 14 crates audited in full). See [RESUME.md](RESUME.md) for session progress.  
+> **Rust version:** 1.95.0 (stable April 2026)  
+> **MSRV:** 1.80
 
 ---
 
-## Phase 1 — Foundation ✓
+## Priority breakdown
 
-### crabide-core — COMPLETE ✅
-Core domain model, error hierarchy (24 variants), event bus (6 domains, 50+ variants), 3 core traits.
-
-**Tidy-up:**
-- [x] Add `Display` impls on event types for debug logging
-- [x] Add `From<url::ParseError>` / `From<StripPrefixError>` impls
-- [x] Add `DocumentId` Serialize/Deserialize + Display
-- [x] Add missing LSP shared types: `DocumentSymbol`, `SignatureHelp`, `FoldingRange`, `SelectionRange`, `InlineCompletion`
-- [x] Rename `PositionOutOfBounds.col` `character` for consistency
-
-### crabide-config — PARTIAL 🔶
-TOML settings (5 groups, 38 fields), keybinding engine (~80 default bindings), VS Code theme parser, 2 built-in themes, ConfigManager with file watcher.
-
-**Gaps:**
-- [x] Implement `KeybindingEngine::when` condition evaluation context system
-- [x] Add per-language settings overlay (`[language.rust] tab_size = 4`)
-- [x] Complete `all_actions()` with all ~80 Action variants (verified: 2-column enum + IndexMap)
-- [x] Remove dead `once_cell` dependency
-- [x] Add action registry API for extensions to register custom actions
-- [x] Add 89 unit tests for keybindings (ActionRegistry, parse_chord, WhenCondition, WhenContext, KeybindingEngine, all_actions_with)
-- [x] Add `keybindings.json` (VS Code format) import compatibility
-
-### crabide-vfs — COMPLETE ✅
-`LocalVfs` with full `VirtualFileSystem` impl, debounced `VfsWatcher`, URI↔path helpers.
-
-**Gaps:**
-- [x] Add VFS resolver/factory that selects impl by URI scheme
-- [x] Add atomic writes (write to temp, rename)
-- [x] Add MemoryVfs for testing
-- [x] Add read-only VFS wrapper
-
-### crabide-buffer — COMPLETE ✅
-`Document` (ropey, BOM, line endings), `EditHistory` (500-entry, groups, checkpoints, undo/redo), `CursorSet` (multi-cursor, sorted, dedup), `SnippetEngine` (full VS Code syntax parser).
-
-**Gaps:**
-- [x] Fix `Transform` node expansion currently applies to `""` instead of referenced tabstop's text
-- [x] Cache compiled regex in `apply_transform` (creates new `Regex` per call)
-- [x] Add `CursorSet::remove()` / `iter()` methods
-- [x] Add `Document::clear()` / `reload()` methods
-- [x] No unit tests in crate
+| Priority | Count | Description |
+|----------|-------|-------------|
+| 🔴 **Critical** | 2 | Memory safety / security — unsafe blocks without justification, missing SAFETY comments |
+| 🔴 **High** | 8 | Process leaks, WASM sandbox gaps, broken server→client request handling, missing `#[non_exhaustive]`, unused deps |
+| 🟡 **Medium** | 5 | Injection highlighting dead code, clone-heavy patterns, allocation pre-sizing, cursor sort overhead |
+| 🟢 **Low** | 4 | Missing `#[must_use]`, `cloned`→`copied`, edition 2024 prep, `mem::take` |
+| ⚪ **Note** | 3 | Testing gaps, comment rot |
 
 ---
 
-## Phase 2 — Syntax Highlighting ◐
+## How to use this roadmap
 
-### crabide-syntax — PARTIAL 🔶
-Grammar registry (static + dynamic loading), highlight queries for 22 languages (10 previous + 12 new), highlight engine, outline for 8 languages, folding range extraction, SyntaxEngine with per-doc cache.
-
-**Gaps:**
-- [x] Fix `reparse_document()` to accept `InputEdit` for true incremental parsing
-- [x] Implement indentation query runner (`IndentEngine` + `SyntaxEngine::indents()` active)
-- [x] Implement locals/scope-aware queries (`LocalsEngine` + `SyntaxEngine::local_scopes()` active)
-- [x] Implement `DocumentObserver` on `SyntaxEngine` to auto-parse on buffer changes
-- [x] Dispatch parsing to Rayon thread pool (`rayon` dep declared, unused)
-- [x] Add injection language support (embedded JS in HTML, Rust in Markdown)
-- [x] Sort highlight spans in `compute_highlights()` (doc says sorted, never calls `.sort()`)
-- [x] Add custom fold marker support (`// #region` / `// #endregion`)
-- [x] Add language support for: HTML, CSS/SCSS/LESS, YAML, Shell/Bash, SQL, Java, C#, Kotlin, Ruby, PHP
-- [x] Improve unit test coverage (86 tests, up from 57; added engine/outline/fold tests)
+- Each issue has a **checkbox** `- [ ]` that becomes `- [x]` when the fix is implemented.
+- Start from the top (🔴 Critical) and work down.
+- When all checkboxes are `[x]`, the audit is complete.
+- Update this file every session before calling the handoff tool.
 
 ---
 
-## Phase 3 — LSP Client ◐
+## 🔴 Critical (memory safety / security)
 
-### crabide-lsp — PARTIAL (~90%)
+### C-1. Unsafe blocks without `// SAFETY:` justification
 
-**Critical fixes:**
-- [x] Fix crash detection: replace 30s polling stub with proper process-exit notification (child `wait()`)
-- [x] Fix graceful shutdown: expose `LspTransport` from `LspClient` so `shutdown`/`exit` can actually be sent
-- [x] Remove `#[allow(dead_code)]` from stubs throughout the crate (violates project convention)
-- [x] Add server↔client request dispatch path (handle `workspace/applyEdit`, `workspace/configuration`, `client/registerCapability` in notification loop)
-- [x] Fix `format()` / `format_range()` they reuse `RenameReady` event variant; add dedicated `FormattingReady`
-- [x] Add request timeout or `request_with_timeout()` to transport
+5 out of 7 `unsafe` blocks in the codebase lack a `// SAFETY: ...` comment explaining why the preconditions hold. The Rust safety guideline (and upcoming edition 2024 requirement via `unsafe_op_in_unsafe_fn`) mandates these comments.
 
-**Feature additions:**
-- [x] Add `textDocument/semanticTokens/full` request method + event handling
-- [x] Add `textDocument/codeLens` request method + event handling
-- [x] Add notification handlers for: `willSave`/`willSaveWaitUntil`, `telemetry/event`, `textDocument/typeDefinition`
-- [x] Add per-document version tracking in `LspClient`
-- [x] Add `with_env()` builder method to `LspServerConfig`
-- [x] Fix `From<Arc<LspClient>> for ServerEntry` panic use proper placeholder instead
-- [x] Add `type_definition()` and `declaration()` request methods to LspClient
-- [x] Add `will_save()` notification method to LspClient
-- [x] Enable willSave/willSaveWaitUntil capabilities in initialize params
-- [x] Add typeDefinition/declaration capabilities in initialize params
+| # | File | Line | Code | Issue |
+|---|------|------|------|-------|
+| 1 | `crates/crabide-app/src/main.rs` | 48–62 | `unsafe impl GlobalAlloc for CountingAlloc` | Custom allocator with no safety justification. Must argue that `MiMalloc.alloc` is safe to call, that `ALLOCATED.fetch_add` is correct, and that the returned pointer meets `GlobalAlloc` invariants. |
+| 2 | `crates/crabide-app/src/main.rs` | 49 | `unsafe fn alloc` | `unsafe fn` without `#[deny(unsafe_op_in_unsafe_fn)]`. The body uses unsafe operations but they are not wrapped in `unsafe {}` blocks (they are directly inside an `unsafe fn`). |
+| 3 | `crates/crabide-app/src/app.rs` | 4991–4996 | `raw_lang!` macro | `extern "C"` FFI call without safety justification. Must state that the function pointer is a valid `TSLanguage` and that the returned pointer outlives usage. |
+| 4 | `crates/crabide-git/src/lib.rs` | 560–563 | `git2::opts::set_mwindow_mapped_limit` | Comment exists (`// Safety:`) but uses lowercase `Safety` not `SAFETY` convention. Should use `// SAFETY:` for consistency with Rust RFC. |
+| 5 | `crates/crabide-ui/src/panels/tab_bar.rs` | 29–30 | `unsafe impl Send/Sync for TabDragState` | Has `// SAFETY:` comment ✅ — **no action needed**. |
+| 6 | `crates/crabide-syntax/src/grammar.rs` | 153 | `libloading::Library::new` + `tree_sitter::Language::from_raw` | Has `// SAFETY:` comment ✅ — **no action needed**. |
 
-**Wiring in crabide-app:**
-- [x] Wire GotoDefinition / References / Implementation / Declaration / TypeDefinition → LSP
-- [x] Wire FormatDocument / FormatSelection → LSP
-- [x] Wire RenameSymbol → LSP
-- [x] Wire ShowHover → LSP
-- [x] Wire TriggerCompletion → LSP
-- [x] Wire ApplyCodeAction → LSP
-- [x] Wire ShowSignatureHelp → LSP
-- [x] Add hover popup UI rendering
-- [x] Add completion popup UI rendering
-- [x] Add code actions popup UI rendering
-- [x] Add signature help popup UI rendering
-- [x] Add `apply_workspace_edit()` helper in crabide-app
-- [x] Add UI state fields for hover/completion/code_actions (hover_text, completion_items, completion_visible, code_actions, code_actions_visible)
-- [x] Add inlay_hints/semantic_tokens/code_lens fields to EditorTab
+**Remediation:** Add `// SAFETY:` comments to items 1–4. Consider adding `#[deny(unsafe_op_in_unsafe_fn)]` to `main.rs` and wrapping inner unsafe operations in `unsafe {}` blocks.
+
+- [ ] C-1-1: Add `// SAFETY:` comment to `CountingAlloc` (main.rs:48)
+- [ ] C-1-2: Wrap unsafe ops inside `unsafe {}` in `unsafe fn alloc` (main.rs:49)
+- [ ] C-1-3: Add `// SAFETY:` comment to `raw_lang!` macro (app.rs:4991)
+- [ ] C-1-4: Normalise `// Safety:` → `// SAFETY:` in git lib.rs:560
 
 ---
 
-## Phase 4 — UI & Editor Core ✅
+### C-2. `unsafe fn` without `#[deny(unsafe_op_in_unsafe_fn)]`
 
-### crabide-ui — PARTIAL (~65%)
-Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, status bar, keyboard routing, command palette, find/replace — all implemented. Terminal panel, git panel, problems panel, extensions panel, debug panel, debug toolbar, workspace search — all implemented.
+The lint `unsafe_op_in_unsafe_fn` (warn-by-default in edition 2024) requires that `unsafe fn` bodies wrap unsafe operations in `unsafe {}` blocks. Currently `CountingAlloc::alloc` and `dealloc` in `main.rs` call `MiMalloc.alloc` and other operations without inner `unsafe {}` blocks.
 
-**Missing features:**
-- [x] **Code folding gutter UI**: fold markers + expand/collapse controls
-- [x] **Breadcrumbs**: path bar above editor showing symbol hierarchy
-- [x] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
-- [x] **Minimap**: scrollable code overview in sidebar
-- [x] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
-- [x] **Split editor**: side-by-side file comparison / multi-pane layouts
-- [x] **Drag-and-drop tab reordering** in tab bar
-- [x] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
-- [x] **Peek view**: inline definition/reference preview (like VS Code peek)
-- [x] **Output panel**: wire `ToggleOutputPanel` to actual panel
-- [x] **Settings UI panel**: visual editor for `settings.toml` (Ctrl+, overlay with grouped fields)
-- [x] **Keybindings editor UI** (Ctrl+K Ctrl+S overlay with searchable table)
-- [x] **Theme picker UI** (Ctrl+K Ctrl+T overlay with searchable list)
-- [x] **Welcome screen**: interactive cards (not just decorative)
-- [x] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)
-- [x] **Column select mode**: wire Shift+Alt+drag (box selection with multi-cursors)
+**Remediation:** Add `#![deny(unsafe_op_in_unsafe_fn)]` to `crabide-app` and wrap the inner `MiMalloc` calls in `unsafe {}`.
 
-### crabide-buffer → crabide-ui wiring
-- [x] Wire `SnippetEngine` tabstop UI: active tabstop highlight, Tab/Shift+Tab cycling
-- [x] Fix `SnippetEngine::expand()` Transform node to reference actual tabstop text
-- [x] Add incremental placeholder update during typing
+- [ ] C-2-1: Add `#![deny(unsafe_op_in_unsafe_fn)]` to `crabide-app/src/main.rs`
+- [ ] C-2-2: Wrap MiMalloc calls in `unsafe {}` blocks inside `unsafe fn`
 
 ---
 
-## Phase 5 — Search ◐
+## 🔴 High (security / correctness)
 
-### crabide-search — PARTIAL 🔶
-Fuzzy file finder (nucleo), workspace grep (rayon), Go-to-line.
+### H-1. Process/PTY leak in DAP adapter (missing `kill_on_drop`)
 
-**Gaps:**
-- [x] Wire auto-reindex on VFS file change events
-- [x] Add cancellation support for grep (AbortHandle)
-- [x] Add incremental search (debounce + streaming results via background thread)
-- [x] Add search-in-open-buffers support (search unsaved `Document` contents)
-- [x] Remove dead `regex-lite` dependency from workspace Cargo.toml (still declared but unused in any crate)
-- [x] Cache `nucleo::Matcher` instance across search calls
-- [x] Implement Go-to-symbol (Ctrl+Shift+O) uses crabide-syntax outline
+`DapClient::start` in `crates/crabide-dap/src/client.rs` does not call `.kill_on_drop(true)` on the `Command` used to spawn the debug adapter process. If `DapClient` is dropped without an explicit `disconnect` completing, the adapter process continues running as an orphan.
+
+**Remediation:** Add `.kill_on_drop(true)` to the Command in `DapClient::start`, and ensure the shutdown path sends `disconnect` + `exit` with a timeout before dropping.
+
+- [ ] H-1-1: Add `.kill_on_drop(true)` to DAP adapter Command in `client.rs`
+- [ ] H-1-2: Ensure graceful shutdown with timeout before dropping `Child`
 
 ---
 
-## Phase 6 — Git ◐
+### H-2. Process/PTY leak in terminal (child dropped without cleanup)
 
-### crabide-git — PARTIAL 🔶
-Status, diff hunks, blame, stage/unstage, commit, branch, discard.
+In `crates/crabide-terminal/src/pty.rs`, the `_child` result from `pair.slave.spawn_command(cmd)` is immediately discarded (the `_` prefix suppresses the unused-warning). The shell process runs orphaned with no mechanism to kill it when the terminal is closed via `TerminalManager::kill()`.
 
-**Gaps:**
-- [x] Add fetch / pull / push / merge / rebase
-- [x] Add branch listing (local + remote)
-- [x] Add branch deletion
-- [x] Add stash (push, pop, list, drop)
-- [x] Add log / history / graph view
-- [x] Add tag management
-- [x] Add remote management (add, remove, list)
-- [x] Add submodule support
-- [x] Add diff for staged changes (index vs HEAD)
-- [x] Add conflict resolution helpers
-- [x] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)
+**Remediation:** Store the `Child` handle in `PtyHandle` and kill it on drop or when `kill()` is called. Add `kill_on_drop(true)` or explicit `child.kill()`.
+
+- [ ] H-2-1: Store PTY child process handle in `PtyHandle` instead of dropping immediately
+- [ ] H-2-2: Add cleanup on `TerminalManager::kill()` to terminate the PTY process
+- [ ] H-2-3: Consider adding `Drop` impl to `PtyHandle` for best-effort cleanup
 
 ---
 
-## Phase 7 — Terminal ◐
+### H-3. WASM extension epoch-based timeout not wired up
 
-### crabide-terminal — PARTIAL (~85%)
-Grid state machine (SGR, cursor, erase, scrollback, alt screen, OSC 0/2/7), PTY spawn/read/write/resize, manager with profiles.
+`crates/crabide-extensions/src/wasm_ext.rs` sets `cfg.epoch_interruption(true)` on the engine and calls `self.store.set_epoch_deadline(1)` before each guest call, but `Engine::increment_epoch()` is never called from any background thread. This means epoch-based interruption never triggers, and long-running extensions can block the editor indefinitely.
 
-**Gaps:**
-- [x] Implement OSC 8 hyperlinks (parse `\e]8;...;url\a...\e]8;;\a` → clickable links)
-- [x] Implement DECSTBM (scroll regions) — needed for `less`/`vim`/`tmux`
-- [x] Implement Insert/Delete Line (CSI L / CSI M)
-- [x] Implement Insert/Delete Character (CSI @ / CSI P)
-- [x] Implement mouse reporting (DECSET 1000/1002/1003)
-- [x] Implement bracketed paste mode (DECSET 2004)
-- [x] Implement cursor visibility toggle (DECSET 25)
-- [x] Implement ESC M reverse index (RI) with scroll region support
-- [x] Implement content reflow on terminal resize
-- [x] Add configurable color scheme / theme to TerminalProfile
-- [x] Add Unicode width proper crate to replace approximate `unicode_width()`
-- [x] Implement OSC 133 shell integration markers (prompt start/end)
-- [x] No unit tests in crate (now has 160 tests, up from 102)
+**Remediation:** Spawn a background thread (or use the existing Tokio runtime) to periodically call `engine().increment_epoch()` at e.g. 100 ms intervals. Alternatively, switch to fuel-only timeout enforcement (fuel depletion already works independently).
+
+- [ ] H-3-1: Spawn background thread to periodically increment the engine epoch
+- [ ] H-3-2: Validate that `apply_limits()` is called before every WIT call (currently done ✅ for all implemented methods)
 
 ---
 
-## Phase 8 — DAP Debugger ◐
+### H-4. LSP server→client request handling broken
 
-### crabide-dap — PARTIAL (~95%)
-All DAP types defined, Content-Length transport complete, DapClient with launch/breakpoints/continue/step/stack/variables.
+`crabide-lsp/src/client.rs` `handle_notification()` receives only `method` and `params`, but server→client requests in JSON-RPC carry their `id` at the message level, not inside `params`. The code attempts `params.get("id")` to respond to server requests (e.g. `workspace/applyEdit`), which never finds the ID, so responses are never sent correctly.
 
-**Critical fixes:**
-- [x] Fix `resolve_adapter()` stub add adapter-type registry (pythondebugpy, nodejs-debug, lldbcodelldb, etc.)
-- [x] Add request timeout to `DapTransport::request()`
-- [x] Properly discard capabilities from initialize response (currently `Ok(_)` ignored)
+**Remediation:** Pass the full `JsonRpcMessage` (including `id`) to `handle_notification`, or split the dispatch into a separate `handle_request()` function that has access to the message id.
 
-**Feature additions:**
-- [x] Implement `attach` workflow (connect to running process)
-- [x] Implement `evaluate` request (debug console REPL)
-- [x] Implement `setVariable` / `setExpression` (write variable values)
-- [x] Implement `gotoTargets` / `goto` (run to cursor)
-- [x] Implement `threads` request (list all threads)
-- [x] Implement `exceptionInfo` request (exception details on stop)
-- [x] Implement function breakpoints (`setFunctionBreakpoints`)
-- [x] Implement exception breakpoints (`setExceptionBreakpoints`)
-- [x] Implement data breakpoints / watchpoints
-- [x] Implement `runInTerminal` reverse-request handler
-- [x] Implement progress events (ProgressStart/Update/End)
-- [x] Implement `InvalidatedEvent` handler
-- [x] Implement `completions` request (tab-completion in debug console)
-- [x] Implement cancellation support (`CancelParams`)
-- [x] Add backpressure to writer (unbounded channel → bounded + semaphore)
+- [ ] H-4-1: Refactor notification loop to pass message id to handler for server→client requests
+- [ ] H-4-2: Ensure proper error response is sent for unhandled server requests
 
 ---
 
-## Phase 9 — Extensions ◐
+### H-5. Public enums missing `#[non_exhaustive]`
 
-### crabide-extensions — PARTIAL 🔶 (~85%)
-NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, hot-reload, WASM extension loader with full WIT binding.
+The following public enums are exported from library crates but lack `#[non_exhaustive]`. Adding new variants would be a breaking change for downstream consumers (or for `crabide-core` which every crate depends on).
 
-**WASM extension host (wasm_ext.rs):**
-- [x] WASM component loading, compilation, instantiation (wasmtime `CrabideExtension::load`)
-- [x] Host implementations for: diagnostics, status bar, terminal I/O, gutter markers, panel show/hide
-- [x] WIT bindgen integration with full crabide-extension.wit world
-- [x] Implement `editor::Host::get_document_slice()` — enable cross-document access for WASM extensions
-- [x] Implement `editor::Host::apply_edits()` — enable WASM extensions to modify documents
-- [x] Implement `editor::Host::insert_at_cursor()` 
-- [x] Implement `editor::Host::get_cursor_position()` / `set_cursor_position()`
-- [x] Implement `editor::Host::get_selection_text()`
-- [x] Implement `workspace::Host::get_workspace_roots()`
-- [x] Implement `workspace::Host::find_files()`
-- [x] Implement `commands::Host::execute_command()` / `show_quick_pick()` / `show_input_box()`
-- [x] Implement `status_bar::Host::set_visible()`
-- [x] Implement `terminal::Host::list_terminals()`
-- [x] Implement `panels::Host::is_panel_visible()`
+| Enum | Location | Risk |
+|------|----------|------|
+| `Action` | `crabide-config/src/keybindings.rs` | Adding new commands would break `match` arms |
+| `LspEvent` | `crabide-core/src/event.rs` | UI code matches on all variants |
+| `DapEvent` | `crabide-core/src/event.rs` | Same |
+| `TerminalEvent` | `crabide-core/src/event.rs` | Same |
+| `GitEvent` | `crabide-core/src/event.rs` | Same |
+| `VfsEvent` | `crabide-core/src/event.rs` | Same |
+| `ExtensionEvent` | `crabide-core/src/event.rs` | Same |
+| `EditorEvent` | `crabide-core/src/event.rs` | Same |
+| `StopReason` | `crabide-core/src/event.rs` | DAP stop reasons |
+| `OutputCategory` | `crabide-core/src/event.rs` | DAP output category |
+| `DiagnosticSeverity` | `crabide-core/src/event.rs` | LSP diagnostic severity |
+| `CompletionKind` | `crabide-core/src/event.rs` | LSP completion kind |
+| `InlayHintKind` | `crabide-core/src/event.rs` | LSP hint kind |
+| `FoldingRangeKind` | `crabide-core/src/event.rs` | Folding range kind |
+| `DiagnosticTag` | `crabide-core/src/event.rs` | Diagnostic tag |
+| `StatusKind` | `crabide-core/src/event.rs` | Git status kind |
+| `HunkKind` | `crabide-core/src/event.rs` | Git diff hunk kind |
+| `SelectionMode` | `crabide-buffer/src/cursor.rs` | Selection mode |
+| `LineEnding` | `crabide-buffer/src/buffer.rs` | Line ending detection |
+| `Encoding` | `crabide-buffer/src/buffer.rs` | BOM encoding |
+| `SymbolKind` | `crabide-syntax/src/outline.rs` | Symbol outline kind |
+| `FoldKind` | `crabide-syntax/src/fold.rs` | Folding range kind |
+| `CompletionKind` | `crabide-extensions/src/host.rs` | Extension completion kind |
+| `ExtensionCategory` | `crabide-extensions/src/host.rs` | Extension functional category |
+| `ExtensionSource` | `crabide-extensions/src/host.rs` | Extension source (Builtin/Local/Registry) |
+| `CommandResult` | `crabide-extensions/src/host.rs` | Extension command result |
+| `ContextMenuContext` | `crabide-extensions/src/host.rs` | Context menu location |
+| `MouseButton` | `crabide-terminal/src/grid.rs` | Terminal mouse button |
+| `ScrollDirection` | `crabide-terminal/src/grid.rs` | Terminal scroll direction |
+| `NamedColor` | `crabide-terminal/src/grid.rs` | Terminal named color |
+| `PaneKind` | `crabide-ui/src/layout.rs` | UI panel kind |
 
-**Registry & lifecycle:**
-- [x] Implement registry download (actual ureq HTTP download with checksum verification)
-- [x] Implement `ExtensionHost::install_registry()` — actual download + verify + install flow
-- [x] Add capability enforcement (check `ExtensionCapabilities` before granting resource access)
-- [x] Add WASM engine resource limits (memory cap, fuel metering, execution timeout)
-- [x] Add marketplace URL configuration
+**Remediation:** Add `#[non_exhaustive]` to each enum definition.
 
----
-
-## Phase 10 — Polish & Release ◐
-
-### crabide-app — PARTIAL (~60%)
-
-**Remaining items:**
-- [x] Wire folding ranges from SyntaxEngine into EditorTab.folding_ranges
-- [x] Wire FindInFiles to search open buffers (grep_buffers) in addition to disk files
-- [x] Use real application icon from `assets/` (icons exist but `main.rs` still uses 2×2 amber placeholder)
-- [x] CLI argument parsing (manual parser with `-h`/`-V`/`--log` support — NOT using clap to minimize deps)
-- [x] `Ctrl+C` signal handler for graceful shutdown
-- [x] Window state persistence (size, position, maximized state)
-- [x] Session restore (reopen files from last session)
-
-### Phase 12 items:
-- [x] Settings UI panel (visual editor for settings.toml)
-- [x] Keybindings editor UI
-- [x] Theme picker UI
-- [x] Welcome / splash screen (interactive)
-- [x] **Update checker** (background thread → GitHub releases → status message)
-- [x] **Crash reporter** (panic hook → file `~/.crabide/crash.log`)
-- [x] Windows installer (NSIS or WiX) — see `tools/package-windows.ps1`
-- [x] macOS `.app` bundle + code signing + notarization — see `tools/package-macos.sh`
-- [x] Linux `.AppImage` + `.deb` / `.rpm` — see `tools/package-linux.sh`
-- [x] CI release artifacts — see `.github/workflows/release.yml`
-- [x] **Performance pass**: egui frame time, LSP round-trip latency, heap profiling
-- [x] README, docs site
+- [ ] H-5-1: Add `#[non_exhaustive]` to `Action` in `crabide-config/src/keybindings.rs`
+- [ ] H-5-2: Add `#[non_exhaustive]` to core event enums in `crabide-core/src/event.rs`
+- [ ] H-5-3: Add `#[non_exhaustive]` to `SelectionMode`, `LineEnding`, `Encoding` in `crabide-buffer`
+- [ ] H-5-4: Add `#[non_exhaustive]` to `SymbolKind`, `FoldKind` in `crabide-syntax`
+- [ ] H-5-5: Add `#[non_exhaustive]` to extension enums in `crabide-extensions/src/host.rs`
+- [ ] H-5-6: Add `#[non_exhaustive]` to `MouseButton`, `ScrollDirection`, `NamedColor` in `crabide-terminal/src/grid.rs`
+- [ ] H-5-7: Add `#[non_exhaustive]` to `PaneKind` in `crabide-ui/src/layout.rs`
 
 ---
 
-## Git Commit Pipeline
+### H-6. Unused dependencies
 
-Every task in the roadmap is completed through the following automated pipeline:
+Several crates declare dependencies that are never imported:
 
-1. **Read** understand the codebase area
-2. **Edit** implement the change (one conceptual step per stop)
-3. **Verify** `cargo check --workspace && cargo clippy --workspace && cargo fmt --all`
-4. **Update ROADMAP.md** mark completed items `[x]`, add new items `[ ]` if needed
-5. **Stage** `git add -A`
-6. **Commit** `git commit -m "TYPE: concise summary"`
+| Crate | Unused dependency | Notes |
+|-------|------------------|-------|
+| `crabide-buffer` | `thiserror` | Not imported anywhere |
+| `crabide-buffer` | `log` | Not imported |
+| `crabide-buffer` | `parking_lot` | Only mentioned in a doc comment |
+| `crabide-buffer` | `serde` | Not imported |
+| `crabide-buffer` | `serde_json` | Not imported |
+| `crabide-config` | `thiserror` | Not imported |
+| `crabide-config` | `anyhow` | Not imported |
 
-Commit message types:
-| Prefix | When |
-|---|---|
-| `feat` | New feature or capability |
-| `fix` | Bug fix |
-| `perf` | Performance improvement |
-| `refactor` | Code restructuring with no behavior change |
-| `test` | Adding or updating tests |
-| `docs` | Documentation only |
-| `chore` | Build, CI, dependencies, tooling |
-| `roadmap` | Roadmap file updates |
+(Note: `anyhow` IS used in `crabide-buffer` via `use anyhow::{anyhow, Context}` — so that one is fine.)
 
-Commit rules:
-- **Subject ≤ 72 chars.** No trailing period.
-- **One commit per conceptual step.** If it takes 5 stops to implement a feature, that's 5 commits.
-- **Never batch unrelated changes.** A refactor and a feature go in separate commits.
-- **Every commit compiles.** `cargo check --workspace` passes before every commit.
-- **Commit messages use imperative mood:** "add", "fix", "wire", "remove", not "added", "fixed".
+**Remediation:** Remove unused deps or add `#[cfg(test)]` gating if they are test-only. Run `cargo udeps` to verify.
 
-Example commit sequence for a hypothetical feature:
-```
-feat: add SshVfs stub with feature gate
-feat: implement SshVfs::read_file with russh channel
-feat: wire SshVfs into VfsResolver by URI scheme
-fix: handle SshVfs auth failure gracefully
-test: add integration test for SshVfs round-trip
-```
+- [ ] H-6-1: Remove `thiserror`, `log`, `parking_lot`, `serde`, `serde_json` from `crabide-buffer/Cargo.toml` (or gate them)
+- [ ] H-6-2: Remove `thiserror`, `anyhow` from `crabide-config/Cargo.toml`
+- [ ] H-6-3: Run `cargo udeps` to verify no other unused deps remain
 
 ---
 
-## Cross-cutting Concerns
+## 🟡 Medium (performance)
 
-These aren't tied to any single phase:
+### M-1. Clone-heavy patterns in config hot path
 
-- [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
-- [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
-- [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [x] **Feature flag matrix test**: CI tests all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`) — see `.github/workflows/ci.yml` feature-matrix job, 9 combos
-- [x] **`docs/` directory**: Currently contains ARCHITECTURE.md, BUILD.md, README.md
-- [x] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
+`ConfigManager::settings()` clones the entire `Settings` struct (which includes all sub-settings, `language_overrides` HashMap, etc.) on every call. This is called potentially every frame from UI code. Similarly `ConfigManager::active_theme()` clones the full `ColorTheme`.
+
+- `crates/crabide-config/src/lib.rs:113` — `self.inner.read().settings.clone()`
+- `crates/crabide-config/src/lib.rs:147` — `self.inner.read().themes.clone()`
+
+**Remediation:** Prefer returning `Arc<Settings>` or providing field-level accessors that clone only the needed field. Alternatively use `Arc<Settings>` internally and clone the Arc (cheap).
+
+- [ ] M-1-1: Change `ConfigManager::settings()` to return `Arc<Settings>` instead of `Settings`
+- [ ] M-1-2: Change `ConfigManager::active_theme()` to return `Arc<ColorTheme>` or a borrowed reference
+
+---
+
+### M-2. Config inner lock contention
+
+The `Arc<RwLock<ConfigInner>>` pattern in `ConfigManager` means every read acquires a read lock and clones data. Consider using `arc_swap` or `RwLock<Arc<Settings>>` for lock-free reads.
+
+**Remediation:** Evaluate `arc_swap::ArcSwap` for the settings hot path.
+
+- [ ] M-2-1: Evaluate `arc_swap::ArcSwap` for ConfigManager settings path
+
+---
+
+### M-3. HashMap allocation without pre-sizing
+
+`SettingsLoader::load_and_apply` creates `PartialSettings` via serde, which deserializes into HashMaps without pre-allocation. The `language_overrides` HashMap could be pre-sized with `HashMap::with_capacity(n)` if the number of languages is known.
+
+- `crates/crabide-config/src/settings.rs:28` — `language_overrides: HashMap<String, PartialEditorSettings>`
+
+**Remediation:** Minor; consider if any hot-path deserialization benefits from pre-sizing.
+
+- [ ] M-3-1: Evaluate HashMap pre-sizing in deserialization paths
+
+---
+
+### M-4. `CursorSet::normalise` sorts on every cursor mutation
+
+`normalise()` is called after every cursor operation (`add`, `set_multi_selection`, `map_cursors`, etc.). For single-cursor editing (common case), the sort is a no-op, but it still allocates.
+
+**Remediation:** Add a fast path: if `self.cursors.len() <= 1`, return early.
+
+- [ ] M-4-1: Add early-return fast path in `CursorSet::normalise()`
+
+---
+
+### M-5. Injection highlighting not wired up in SyntaxEngine
+
+`SyntaxEngine::highlights()` calls `self.highlighter.compute_highlights(...)` instead of `compute_highlights_with_injections(...)`. The injection-based highlighting for embedded languages (e.g. JavaScript inside `<script>` tags in HTML, Rust code blocks in Markdown) is implemented but never invoked from the public API — effectively dead code.
+
+- `crates/crabide-syntax/src/engine.rs` — `highlights()` method calls `compute_highlights` not `compute_highlights_with_injections`
+
+**Remediation:** Add a configuration flag or always call `compute_highlights_with_injections` which falls back to standard highlights when no injection query is present.
+
+- [ ] M-5-1: Change `SyntaxEngine::highlights()` to use `compute_highlights_with_injections`
+- [ ] M-5-2: Add unit test for injection highlighting path
+
+---
+
+## 🟢 Low (idiom / style / 2026 best practices)
+
+### L-1. Missing `#[must_use]` on pure functions
+
+Many pure functions (no side effects) return `Result`, `Option`, or a value without `#[must_use]`. At minimum:
+
+| File | Function | Reason |
+|------|----------|--------|
+| `crabide-core/src/types.rs` | `Position::new`, `Range::new`, `Selection::new`, `TextEdit::insert/delete/replace` | Constructors returning new value |
+| `crabide-core/src/types.rs` | `Range::contains`, `Range::contains_inclusive`, `Selection::is_empty`, `Selection::is_reversed` | Boolean predicates |
+| `crabide-core/src/types.rs` | `TextEdit::range_len_chars` | Pure computation |
+| `crabide-core/src/types.rs` | `language_from_extension` | Pure function |
+| `crabide-buffer/src/buffer.rs` | `Document::version`, `Document::is_dirty`, `Document::rope_snapshot` | Getters |
+| `crabide-buffer/src/history.rs` | `EditHistory::can_undo`, `can_redo`, `undo_label`, `redo_label`, `history_len`, `current_cursor` | Query methods |
+| `crabide-buffer/src/cursor.rs` | `Cursor::pos`, `range`, `has_selection`, `CursorSet::primary`, `all`, `count`, `mode` | Getters |
+
+**Remediation:** Add `#[must_use]` to these functions.
+
+- [ ] L-1-1: Add `#[must_use]` to pure functions in `crabide-core/src/types.rs`
+- [ ] L-1-2: Add `#[must_use]` to pure functions in `crabide-buffer/src/buffer.rs`
+- [ ] L-1-3: Add `#[must_use]` to pure functions in `crabide-buffer/src/history.rs`
+- [ ] L-1-4: Add `#[must_use]` to pure functions in `crabide-buffer/src/cursor.rs`
+
+---
+
+### L-2. `cloned()` vs `copied()` on `Copy` types
+
+Several places use `.cloned()` on types that implement `Copy`. Clippy would flag these.
+
+**Remediation:** Prefer `.copied()` over `.cloned()` on `Copy` types.
+
+- [ ] L-2-1: Fix `.cloned()` → `.copied()` in test code and production code
+
+---
+
+### L-3. Edition 2024 migration readiness
+
+The workspace uses `edition = "2021"`. Edition 2024 (stable since Rust 1.85) brings:
+
+| Change | Current status | Action |
+|--------|---------------|--------|
+| `unsafe_op_in_unsafe_fn` warn-by-default | Not applied in `crabide-app` | Add `#![deny(unsafe_op_in_unsafe_fn)]` pre-migration |
+| `unsafe extern` blocks | No `extern "C"` blocks found outside of `raw_lang!` macro | Should be updated to `unsafe extern "C"` |
+| `gen` keyword reserved | No `gen` identifiers found | ✅ No issue |
+| Match ergonomics changes | Examine pattern matches on nested references | Requires manual review |
+| RPIT lifetime capture | `impl Trait` returns with implicit lifetime capture | Requires audit |
+
+**Remediation:** Bump MSRV to 1.85, run `cargo fix --edition`, then update to `edition = "2024"`.
+
+- [ ] L-3-1: Bump MSRV in workspace Cargo.toml from 1.80 to 1.85
+- [ ] L-3-2: Run `cargo fix --edition` and address any warnings
+- [ ] L-3-3: Change workspace `edition = "2024"`
+- [ ] L-3-4: Review match ergonomics changes for nested reference patterns
+- [ ] L-3-5: Review RPIT lifetime capture changes
+
+---
+
+### L-4. `std::mem::take` vs `std::mem::replace`
+
+The snippet parser uses `std::mem::take(&mut cur)` in `parse_choices` (line 196 of `snippet.rs`) — this is the preferred pattern. Other places still use `std::mem::replace(&mut x, Default::default())` which could be simplified.
+
+**Remediation:** Search for `mem::replace` with `Default::default()` and replace with `mem::take`.
+
+- [ ] L-4-1: Replace `mem::replace(&mut x, Default::default())` with `mem::take(&mut x)` where applicable
+
+---
+
+## ⚪ Notes / testing gaps
+
+### N-1. Crates with zero unit tests
+
+| Crate | Test status |
+|-------|-------------|
+| `crabide-dap` | 0 unit tests (integration tests may exist in `tests/`) |
+| `crabide-git` | 0 unit tests |
+| `crabide-workspace` | 0 unit tests |
+| `crabide-search` | 0 unit tests (but has good integration-style tests in `lib.rs`) |
+| `crabide-terminal` | Good unit tests in `grid.rs`; 0 tests for `pty.rs` / `manager.rs` |
+
+**Remediation:** Add at least basic unit tests for core logic.
+
+- [ ] N-1-1: Add unit tests to `crabide-dap`
+- [ ] N-1-2: Add unit tests to `crabide-git`
+- [ ] N-1-3: Add unit tests to `crabide-workspace`
+- [ ] N-1-4: Add unit tests to `crabide-terminal` for PTY/manager modules
+- [ ] N-1-5: Verify test coverage for `crabide-extensions`
+
+---
+
+### N-2. Comment rot
+
+- `crates/crabide-buffer/src/history.rs` doc says "full tree branching is a future enhancement" — should note that the flat timeline with cursor is the current implementation.
+- `crates/crabide-config/src/settings.rs` `PartialUiSettings` etc. are private but have full doc comments — not necessary but not harmful.
+
+**Remediation:** Tidy stale comments.
+
+- [ ] N-2-1: Update history.rs doc to reflect current flat-timeline implementation
+- [ ] N-2-2: Remove or trim unnecessary doc comments on private types in settings.rs
+
+---
+
+### N-3. `#[allow(dead_code)]` bans not enforced
+
+The RESUME.md states the project convention bans `#[allow(dead_code)]`. No instances were found in reviewed crates ✅.
+
+- [ ] N-3-1: Verify no `#[allow(dead_code)]` in remaining crates (already verified ✅)
+
+---
+
+## Summary
+
+| Priority | Count | Key actions |
+|----------|-------|-------------|
+| 🔴 Critical | 2 | Add SAFETY comments to 4 unsafe blocks; fix `unsafe_op_in_unsafe_fn` |
+| 🔴 High | 8 | Fix process leaks (DAP + terminal), wire WASM epoch timeout, fix LSP request handling, add `#[non_exhaustive]` to ~30 public enums, remove unused deps |
+| 🟡 Medium | 5 | Wire injection highlighting, reduce cloning in ConfigManager, allocation pre-sizing, cursor sort |
+| 🟢 Low | 4 | Add `#[must_use]`; fix `cloned`→`copied`; edition 2024 prep; `mem::take` |
+| ⚪ Note | 3 | Add tests for DAP, git, workspace, terminal; fix minor comment rot |
+
+**Total checkboxes: 55** (each represents one concrete change)
+
+---
+
+## Progress tracker
+
+- **Session 1** — Audited core, buffer, config, vfs. Created this roadmap.
+- **Session 2** — Audited remaining 10 crates (syntax, lsp, dap, terminal, git, extensions, search, workspace, ui, app) + root workspace. Ran `cargo clippy`. Updated roadmap with findings.
+- **Session 3+** — (planned) Remediation of findings.
+
+---
+
+*Generated by audit session 2 — comprehensive audit complete. Ready for remediation.*

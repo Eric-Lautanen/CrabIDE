@@ -556,7 +556,7 @@ mod git_support {
         // Default mwindow_mapped_limit on 64-bit is 8 GB (!), which causes libgit2
         // to keep large portions of pack files memory-mapped at idle.  Cap it to
         // 32 MB so the editor's idle RSS stays reasonable.
-        // Safety: these are process-wide libgit2 settings with no data races.
+        // SAFETY: these are process-wide libgit2 settings with no data races.
         unsafe {
             let _ = git2::opts::set_mwindow_mapped_limit(32 * 1024 * 1024);
             let _ = git2::opts::set_mwindow_size(1024 * 1024);

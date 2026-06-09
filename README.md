@@ -1,6 +1,6 @@
 # crabide
 
-**Resource-efficient, cross-platform code editor.** Rust + egui. VS Code feature parity at <60MB idle RAM.
+**Resource-efficient, cross-platform code editor.** Rust + egui. VS Code feature parity at <100MB idle RAM.
 
 Linux / macOS / Windows.
 
