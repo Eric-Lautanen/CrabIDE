@@ -1,5 +1,9 @@
 # Resume — crabide project
 
+> **MANDATORY:** Every session MUST update RESUME.md, update ROADMAP.md checkboxes,
+> and call `handoff` with reason `"continuing to next roadmap item"` before ending.
+> Never stop voluntarily — always hand off to continue until ROADMAP.md is 100% complete.
+
 ## Session summary
 
 **Git submodule support added ✅**
@@ -12,19 +16,16 @@
 - Wired all new events in app.rs event handler
 - All workspace tests pass, zero warnings (clippy + check)
 
-> **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
+## Mandatory Policy (read every session)
 
-## Handoff Policy
-
-**This project MUST continue to be handed off across sessions until the entire ROADMAP.md is complete.** Each session should:
-
-1. Read this RESUME.md to determine what was done and what's next
-2. Pick the next unfinished roadmap item(s) and implement them
-3. Follow the Autonomous Coding Best Practices in ROADMAP.md (cargo check, clippy, fmt, test after every edit; commit early and often)
-4. Update ROADMAP.md checkboxes as items are completed
-5. Update this RESUME.md with progress before calling `handoff`
-6. Call `handoff` with reason "continuing to next roadmap item" when nearing context limit or when the current item is done and more remain
-7. **Never stop voluntarily** — keep working through roadmap items until context forces a handoff
+1. **Update RESUME.md** — overwrite this section with what was done. Never leave stale info.
+2. **Update ROADMAP.md** — mark completed items `[x]`, add new gaps as `[ ]`.
+3. **Commit** `git add -A && git commit -m "TYPE: message"` after every green build.
+4. **Push** periodically.
+5. **Handoff** — call `handoff` with `reason: "continuing to next roadmap item"` when:
+   - Current roadmap item is done and more remain, OR
+   - Context is nearing the token limit
+6. **Never stop** — always hand off to continue. The project MUST be completed end-to-end.
 
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
@@ -33,20 +34,17 @@
 
 ## Remaining roadmap items — pick next available
 
-### Phase 8 (DAP):
-- [x] All DAP roadmap items completed (evaluate, threads, setVariable, gotoTargets, exceptionInfo, function/exception breakpoints, progress events, invalidated, runInTerminal, completions types, cancel types, modules, attach, backpressure)
-
-### Phase 6 (Git):
-- [x] tag management, remote management
-- [ ] submodule support, conflict resolution
-
-### Phase 9 (Extensions):
-- [ ] WASM editor/workspace/commands host implementations
-- [ ] Registry download with checksum verification
 ### Phase 6 (Git):
 - [x] tag management, remote management
 - [x] submodule support
 - [ ] conflict resolution
+
+### Phase 9 (Extensions):
+- [ ] WASM editor/workspace/commands host implementations
+- [ ] Registry download with checksum verification
+
+### Phase 4 (UI):
+- [ ] Minimap, split editor, context menu, drag-and-drop tabs, scrollbar annotations, peek view, output panel, settings UI, keybindings editor, theme picker, welcome screen, multi-cursor Alt+Click, column select mode
 
 ### Phase 12:
 - [ ] Update checker, crash reporter, installers (Windows/macOS/Linux), CI workflows, performance pass, README/docs site
