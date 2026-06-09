@@ -419,8 +419,8 @@ mod tests {
 
     #[test]
     fn hex_encode_basic() {
-        assert_eq!(hex_encode(&[0x00, 0xFF, 0xab]), "00ffab");
-        assert_eq!(hex_encode(&[]), "");
+        assert_eq!(hex_encode([0x00, 0xFF, 0xab]), "00ffab");
+        assert_eq!(hex_encode([]), "");
     }
 
     #[test]

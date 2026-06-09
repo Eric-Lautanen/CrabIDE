@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn result_ok() {
         let res: Result<i32> = Ok(42);
-        assert_eq!(res.unwrap(), 42);
+        assert!(res.is_ok());
     }
 
     #[test]

@@ -645,7 +645,7 @@ mod tests {
         abort.abort(); // Abort before searching
 
         let results = grep_workspace(
-            &[dir.clone()],
+            std::slice::from_ref(&dir),
             "unique_match_content_xyz",
             false,
             true,
@@ -811,7 +811,7 @@ mod tests {
         let _ = std::fs::create_dir(dir.join(".hidden_dir"));
         let _ = std::fs::write(dir.join(".hidden_dir").join("nested.rs"), b"");
 
-        let files = index_workspace_files(&[dir.clone()]);
+        let files = index_workspace_files(std::slice::from_ref(&dir));
         assert_eq!(files.len(), 1, "should only find visible.rs");
         assert!(files[0].ends_with("visible.rs"));
 
@@ -827,7 +827,7 @@ mod tests {
         let _ = std::fs::create_dir(dir.join("node_modules"));
         let _ = std::fs::write(dir.join("node_modules").join("pkg.rs"), b"");
 
-        let files = index_workspace_files(&[dir.clone()]);
+        let files = index_workspace_files(std::slice::from_ref(&dir));
         assert!(files.is_empty(), "should skip target and node_modules");
 
         let _ = std::fs::remove_dir_all(&dir);

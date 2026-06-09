@@ -123,71 +123,6 @@ fn extract_rust(root: tree_sitter::Node<'_>, source: &[u8]) -> Vec<SymbolOutline
     symbols
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn symbol_outline_new_creates_empty_children() {
-        let range = Range::new(
-            crabide_core::types::Position::new(0, 0),
-            crabide_core::types::Position::new(5, 0),
-        );
-        let sel = Range::new(
-            crabide_core::types::Position::new(0, 4),
-            crabide_core::types::Position::new(0, 8),
-        );
-        let sym = SymbolOutline::new("main".into(), SymbolKind::Function, range, sel);
-        assert_eq!(sym.name, "main");
-        assert_eq!(sym.kind, SymbolKind::Function);
-        assert!(sym.children.is_empty());
-        assert_eq!(sym.range, range);
-        assert_eq!(sym.selection_range, sel);
-    }
-
-    #[test]
-    fn extract_outline_dispatches_unknown_language() {
-        let _ = extract_outline;
-    }
-
-    #[test]
-    fn symbol_kind_variants_cover_lsp_symbol_kinds() {
-        let _ = SymbolKind::File;
-        let _ = SymbolKind::Module;
-        let _ = SymbolKind::Namespace;
-        let _ = SymbolKind::Package;
-        let _ = SymbolKind::Class;
-        let _ = SymbolKind::Method;
-        let _ = SymbolKind::Property;
-        let _ = SymbolKind::Field;
-        let _ = SymbolKind::Constructor;
-        let _ = SymbolKind::Enum;
-        let _ = SymbolKind::Interface;
-        let _ = SymbolKind::Function;
-        let _ = SymbolKind::Variable;
-        let _ = SymbolKind::Constant;
-        let _ = SymbolKind::String;
-        let _ = SymbolKind::Number;
-        let _ = SymbolKind::Boolean;
-        let _ = SymbolKind::Array;
-        let _ = SymbolKind::Object;
-        let _ = SymbolKind::Key;
-        let _ = SymbolKind::Null;
-        let _ = SymbolKind::EnumMember;
-        let _ = SymbolKind::Struct;
-        let _ = SymbolKind::Event;
-        let _ = SymbolKind::Operator;
-        let _ = SymbolKind::TypeParameter;
-    }
-
-    #[test]
-    fn symbol_outline_reasonable_size() {
-        use std::mem;
-        assert_eq!(mem::size_of::<SymbolKind>(), 1);
-        assert!(mem::size_of::<SymbolOutline>() < 200);
-    }
-}
-
 fn rust_symbol(node: tree_sitter::Node<'_>, source: &[u8]) -> Option<SymbolOutline> {
     match node.kind() {
         "function_item" | "function_signature_item" => {
@@ -796,4 +731,69 @@ fn extract_markdown(root: tree_sitter::Node<'_>, source: &[u8]) -> Vec<SymbolOut
         }
     }
     symbols
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn symbol_outline_new_creates_empty_children() {
+        let range = Range::new(
+            crabide_core::types::Position::new(0, 0),
+            crabide_core::types::Position::new(5, 0),
+        );
+        let sel = Range::new(
+            crabide_core::types::Position::new(0, 4),
+            crabide_core::types::Position::new(0, 8),
+        );
+        let sym = SymbolOutline::new("main".into(), SymbolKind::Function, range, sel);
+        assert_eq!(sym.name, "main");
+        assert_eq!(sym.kind, SymbolKind::Function);
+        assert!(sym.children.is_empty());
+        assert_eq!(sym.range, range);
+        assert_eq!(sym.selection_range, sel);
+    }
+
+    #[test]
+    fn extract_outline_dispatches_unknown_language() {
+        let _ = extract_outline;
+    }
+
+    #[test]
+    fn symbol_kind_variants_cover_lsp_symbol_kinds() {
+        let _ = SymbolKind::File;
+        let _ = SymbolKind::Module;
+        let _ = SymbolKind::Namespace;
+        let _ = SymbolKind::Package;
+        let _ = SymbolKind::Class;
+        let _ = SymbolKind::Method;
+        let _ = SymbolKind::Property;
+        let _ = SymbolKind::Field;
+        let _ = SymbolKind::Constructor;
+        let _ = SymbolKind::Enum;
+        let _ = SymbolKind::Interface;
+        let _ = SymbolKind::Function;
+        let _ = SymbolKind::Variable;
+        let _ = SymbolKind::Constant;
+        let _ = SymbolKind::String;
+        let _ = SymbolKind::Number;
+        let _ = SymbolKind::Boolean;
+        let _ = SymbolKind::Array;
+        let _ = SymbolKind::Object;
+        let _ = SymbolKind::Key;
+        let _ = SymbolKind::Null;
+        let _ = SymbolKind::EnumMember;
+        let _ = SymbolKind::Struct;
+        let _ = SymbolKind::Event;
+        let _ = SymbolKind::Operator;
+        let _ = SymbolKind::TypeParameter;
+    }
+
+    #[test]
+    fn symbol_outline_reasonable_size() {
+        use std::mem;
+        assert_eq!(mem::size_of::<SymbolKind>(), 1);
+        assert!(mem::size_of::<SymbolOutline>() < 200);
+    }
 }

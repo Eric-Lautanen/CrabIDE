@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Build & Package ───────────────────────────────────────────────────────
+  package:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: crabide-linux-x86_64
+            script: package-linux.sh
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: crabide-macos-arm64
+            script: package-macos.sh
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: crabide-macos-x86_64
+            script: package-macos.sh
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: crabide-windows-x86_64
+            script: package-windows.ps1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libclang-dev libgtk-3-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+            libssl-dev libgit2-dev pkg-config mold
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: release-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --release --package crabide --target ${{ matrix.target }}
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          bash "tools/${{ matrix.script }}" "target/${{ matrix.target }}/release"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          powershell -File "tools/${{ matrix.script }}" -TargetDir "target/${{ matrix.target }}/release"
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p upload/
+          cp -r dist/* upload/ 2>/dev/null || true
+          # Also upload raw binary
+          if [ -f "target/${{ matrix.target }}/release/crabide" ]; then
+            cp "target/${{ matrix.target }}/release/crabide" "upload/${{ matrix.artifact }}"
+          fi
+          if [ -f "target/${{ matrix.target }}/release/crabide.exe" ]; then
+            cp "target/${{ matrix.target }}/release/crabide.exe" "upload/${{ matrix.artifact }}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: upload/
+
+  # ── Create Release ────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate release notes
+        run: |
+          cat > RELEASE_NOTES.md << 'EOF'
+          ## crabide Editor
+
+          ### Installation
+          - **Windows**: Download `crabide-windows-x86_64.exe` (portable) or the `.zip` archive
+          - **macOS (ARM64)**: Download `crabide-macos-arm64`
+          - **macOS (x86_64)**: Download `crabide-macos-x86_64`
+          - **Linux**: Download `crabide-linux-x86_64` (AppImage, .deb, or .rpm)
+
+          ### Changes
+          See [CHANGELOG](https://github.com/crabide-editor/crabide/blob/main/CHANGELOG.md) for details.
+          EOF
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: |
+            artifacts/**/*
+          fail_on_unmatched_files: false

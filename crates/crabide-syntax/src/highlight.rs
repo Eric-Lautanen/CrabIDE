@@ -75,123 +75,6 @@ pub fn scope_to_vscode(scope: &str) -> &'static str {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn scope_to_vscode_comment() {
-        assert_eq!(scope_to_vscode("comment"), "comment");
-        assert_eq!(scope_to_vscode("comment.line"), "comment");
-        assert_eq!(scope_to_vscode("comment.block"), "comment");
-    }
-
-    #[test]
-    fn scope_to_vscode_string() {
-        assert_eq!(scope_to_vscode("string"), "string");
-        assert_eq!(scope_to_vscode("string.special"), "string");
-    }
-
-    #[test]
-    fn scope_to_vscode_number() {
-        assert_eq!(scope_to_vscode("number"), "constant.numeric");
-        assert_eq!(scope_to_vscode("number.float"), "constant.numeric");
-    }
-
-    #[test]
-    fn scope_to_vscode_boolean() {
-        assert_eq!(scope_to_vscode("boolean"), "constant.language");
-    }
-
-    #[test]
-    fn scope_to_vscode_constant() {
-        assert_eq!(scope_to_vscode("constant"), "constant");
-        assert_eq!(scope_to_vscode("constant.builtin"), "constant");
-    }
-
-    #[test]
-    fn scope_to_vscode_keyword() {
-        assert_eq!(scope_to_vscode("keyword"), "keyword");
-        assert_eq!(scope_to_vscode("keyword.control"), "keyword");
-        assert_eq!(scope_to_vscode("keyword.operator"), "keyword");
-    }
-
-    #[test]
-    fn scope_to_vscode_operator() {
-        assert_eq!(scope_to_vscode("operator"), "keyword.operator");
-    }
-
-    #[test]
-    fn scope_to_vscode_function() {
-        assert_eq!(scope_to_vscode("function"), "entity.name.function");
-        assert_eq!(scope_to_vscode("function.call"), "entity.name.function");
-        assert_eq!(scope_to_vscode("function.method"), "entity.name.function");
-    }
-
-    #[test]
-    fn scope_to_vscode_type() {
-        assert_eq!(scope_to_vscode("type"), "entity.name.type");
-        assert_eq!(scope_to_vscode("type.builtin"), "entity.name.type");
-    }
-
-    #[test]
-    fn scope_to_vscode_variable() {
-        assert_eq!(scope_to_vscode("variable"), "variable");
-        assert_eq!(scope_to_vscode("variable.builtin"), "variable");
-        assert_eq!(scope_to_vscode("variable.member"), "variable");
-    }
-
-    #[test]
-    fn scope_to_vscode_namespace() {
-        assert_eq!(scope_to_vscode("namespace"), "entity.name.namespace");
-    }
-
-    #[test]
-    fn scope_to_vscode_attribute() {
-        assert_eq!(scope_to_vscode("attribute"), "entity.other.attribute-name");
-    }
-
-    #[test]
-    fn scope_to_vscode_punctuation() {
-        assert_eq!(scope_to_vscode("punctuation"), "punctuation");
-        assert_eq!(scope_to_vscode("punctuation.bracket"), "punctuation");
-        assert_eq!(scope_to_vscode("punctuation.delimiter"), "punctuation");
-    }
-
-    #[test]
-    fn scope_to_vscode_label() {
-        assert_eq!(scope_to_vscode("label"), "entity.name.label");
-    }
-
-    #[test]
-    fn scope_to_vscode_markup() {
-        assert_eq!(scope_to_vscode("markup"), "markup");
-        assert_eq!(scope_to_vscode("markup.bold"), "markup");
-        assert_eq!(scope_to_vscode("markup.raw.inline"), "markup");
-    }
-
-    #[test]
-    fn scope_to_vscode_tag() {
-        assert_eq!(scope_to_vscode("tag"), "entity.name.tag");
-    }
-
-    #[test]
-    fn scope_to_vscode_property() {
-        assert_eq!(scope_to_vscode("property"), "support.type.property-name");
-    }
-
-    #[test]
-    fn scope_to_vscode_unknown_falls_back_to_source() {
-        assert_eq!(scope_to_vscode("unknown"), "source");
-        assert_eq!(scope_to_vscode(""), "source");
-    }
-
-    #[test]
-    fn scope_to_vscode_empty_scope() {
-        assert_eq!(scope_to_vscode(""), "source");
-    }
-}
-
 // ── HighlightEngine ───────────────────────────────────────────────────────────
 
 /// Caches compiled `tree_sitter::Query` objects per language and runs
@@ -518,4 +401,121 @@ fn byte_offset_for_position(source: &str, pos: &Position) -> usize {
 /// Check if `inner` range is fully contained within `outer` range.
 fn range_contains(outer: &Range, inner: &Range) -> bool {
     inner.start >= outer.start && inner.end <= outer.end
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scope_to_vscode_comment() {
+        assert_eq!(scope_to_vscode("comment"), "comment");
+        assert_eq!(scope_to_vscode("comment.line"), "comment");
+        assert_eq!(scope_to_vscode("comment.block"), "comment");
+    }
+
+    #[test]
+    fn scope_to_vscode_string() {
+        assert_eq!(scope_to_vscode("string"), "string");
+        assert_eq!(scope_to_vscode("string.special"), "string");
+    }
+
+    #[test]
+    fn scope_to_vscode_number() {
+        assert_eq!(scope_to_vscode("number"), "constant.numeric");
+        assert_eq!(scope_to_vscode("number.float"), "constant.numeric");
+    }
+
+    #[test]
+    fn scope_to_vscode_boolean() {
+        assert_eq!(scope_to_vscode("boolean"), "constant.language");
+    }
+
+    #[test]
+    fn scope_to_vscode_constant() {
+        assert_eq!(scope_to_vscode("constant"), "constant");
+        assert_eq!(scope_to_vscode("constant.builtin"), "constant");
+    }
+
+    #[test]
+    fn scope_to_vscode_keyword() {
+        assert_eq!(scope_to_vscode("keyword"), "keyword");
+        assert_eq!(scope_to_vscode("keyword.control"), "keyword");
+        assert_eq!(scope_to_vscode("keyword.operator"), "keyword");
+    }
+
+    #[test]
+    fn scope_to_vscode_operator() {
+        assert_eq!(scope_to_vscode("operator"), "keyword.operator");
+    }
+
+    #[test]
+    fn scope_to_vscode_function() {
+        assert_eq!(scope_to_vscode("function"), "entity.name.function");
+        assert_eq!(scope_to_vscode("function.call"), "entity.name.function");
+        assert_eq!(scope_to_vscode("function.method"), "entity.name.function");
+    }
+
+    #[test]
+    fn scope_to_vscode_type() {
+        assert_eq!(scope_to_vscode("type"), "entity.name.type");
+        assert_eq!(scope_to_vscode("type.builtin"), "entity.name.type");
+    }
+
+    #[test]
+    fn scope_to_vscode_variable() {
+        assert_eq!(scope_to_vscode("variable"), "variable");
+        assert_eq!(scope_to_vscode("variable.builtin"), "variable");
+        assert_eq!(scope_to_vscode("variable.member"), "variable");
+    }
+
+    #[test]
+    fn scope_to_vscode_namespace() {
+        assert_eq!(scope_to_vscode("namespace"), "entity.name.namespace");
+    }
+
+    #[test]
+    fn scope_to_vscode_attribute() {
+        assert_eq!(scope_to_vscode("attribute"), "entity.other.attribute-name");
+    }
+
+    #[test]
+    fn scope_to_vscode_punctuation() {
+        assert_eq!(scope_to_vscode("punctuation"), "punctuation");
+        assert_eq!(scope_to_vscode("punctuation.bracket"), "punctuation");
+        assert_eq!(scope_to_vscode("punctuation.delimiter"), "punctuation");
+    }
+
+    #[test]
+    fn scope_to_vscode_label() {
+        assert_eq!(scope_to_vscode("label"), "entity.name.label");
+    }
+
+    #[test]
+    fn scope_to_vscode_markup() {
+        assert_eq!(scope_to_vscode("markup"), "markup");
+        assert_eq!(scope_to_vscode("markup.bold"), "markup");
+        assert_eq!(scope_to_vscode("markup.raw.inline"), "markup");
+    }
+
+    #[test]
+    fn scope_to_vscode_tag() {
+        assert_eq!(scope_to_vscode("tag"), "entity.name.tag");
+    }
+
+    #[test]
+    fn scope_to_vscode_property() {
+        assert_eq!(scope_to_vscode("property"), "support.type.property-name");
+    }
+
+    #[test]
+    fn scope_to_vscode_unknown_falls_back_to_source() {
+        assert_eq!(scope_to_vscode("unknown"), "source");
+        assert_eq!(scope_to_vscode(""), "source");
+    }
+
+    #[test]
+    fn scope_to_vscode_empty_scope() {
+        assert_eq!(scope_to_vscode(""), "source");
+    }
 }

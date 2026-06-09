@@ -1,15 +1,20 @@
-# crabide
+# crabide Documentation
 
-A resource-efficient cross-platform code editor built in Rust.
+Welcome to the crabide documentation.
 
-## Architecture
+## Getting Started
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for an overview of the crate dependency graph and component interactions.
+- [BUILD.md](BUILD.md) — Build prerequisites, feature flags, and platform-specific instructions
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Crate dependency graph and component interactions
 
-## Building
+## Reference
 
-See [BUILD.md](BUILD.md) for build prerequisites, feature flags, and platform-specific instructions.
+- [ROADMAP.md](../ROADMAP.md) — Feature completion status across all phases
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — Coding standards, PR workflow, commit conventions
+- [CHANGELOG.md](../CHANGELOG.md) — Version history
 
-## Contributing
+## Project Links
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards, PR workflow, and commit conventions.
+- **Repository**: https://github.com/crabide-editor/crabide
+- **Website**: https://crabide-editor.dev
+- **API Docs**: https://docs.crabide-editor.dev

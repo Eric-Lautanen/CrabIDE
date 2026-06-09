@@ -172,6 +172,56 @@ jobs:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/crabide.exe
 
+  # ── Feature flag matrix test ─────────────────────────────────────────────
+  # Verifies that every feature flag combination compiles and tests pass.
+  feature-matrix:
+    name: Feature Matrix (${{ matrix.features }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - --no-default-features
+          - --all-features
+          - --features git-support
+          - --features wasm-extensions
+          - --features webview
+          - --features remote-ssh
+          - --features dev-containers
+          - --features wasm-extensions,webview
+          - --features remote-ssh,dev-containers
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libclang-dev libgtk-3-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+            libssl-dev libgit2-dev pkg-config mold
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.CACHE_VERSION }}-feature-matrix-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: cargo check
+        run: cargo check --workspace ${{ matrix.features }}
+
+      - name: cargo test
+        run: cargo test --workspace ${{ matrix.features }}
+
   # ── Security audit ──────────────────────────────────────────────────────────
   audit:
     name: Security Audit

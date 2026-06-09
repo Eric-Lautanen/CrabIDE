@@ -280,7 +280,7 @@ mod tests {
         assert_eq!(h.history_len(), 2); // initial + overwritten entry
 
         h.undo();
-        assert_eq!(h.entries.get(0).unwrap().rope.to_string(), "");
+        assert_eq!(h.entries.front().unwrap().rope.to_string(), "");
     }
 
     #[test]

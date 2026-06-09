@@ -337,7 +337,7 @@ mod tests {
         assert!(state.variables.is_empty());
         assert!(state.watch_expressions.is_empty());
         assert!(state.console_lines.is_empty());
-        assert!(state.pending_launch == false);
+        assert!(!state.pending_launch);
     }
 
     #[test]
@@ -365,8 +365,10 @@ mod tests {
 
     #[test]
     fn dap_panel_append_console_sets_scroll_flag() {
-        let mut state = DapPanelState::default();
-        state.console_scroll_to_bottom = false;
+        let mut state = DapPanelState {
+            console_scroll_to_bottom: false,
+            ..Default::default()
+        };
         state.append_console(OutputCategory::Stdout, "hello".into());
         assert!(state.console_scroll_to_bottom);
     }

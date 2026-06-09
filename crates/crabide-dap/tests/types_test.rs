@@ -538,9 +538,11 @@ fn disconnect_arguments_defaults() {
 
 #[test]
 fn resolve_adapter_explicit_command() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_command = "my-dap".into();
-    cfg.adapter_args = vec!["--flag".into()];
+    let cfg = LaunchConfig {
+        adapter_command: "my-dap".into(),
+        adapter_args: vec!["--flag".into()],
+        ..Default::default()
+    };
     let (cmd, args) = resolve_adapter(&cfg);
     assert_eq!(cmd, "my-dap");
     assert_eq!(args, vec!["--flag"]);
@@ -548,9 +550,11 @@ fn resolve_adapter_explicit_command() {
 
 #[test]
 fn resolve_adapter_python() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("python".into());
-    cfg.port = Some(5678);
+    let cfg = LaunchConfig {
+        adapter_type: Some("python".into()),
+        port: Some(5678),
+        ..Default::default()
+    };
     let (cmd, args) = resolve_adapter(&cfg);
     assert_eq!(cmd, "debugpy");
     assert!(args.iter().any(|a| a.contains("5678")));
@@ -558,32 +562,40 @@ fn resolve_adapter_python() {
 
 #[test]
 fn resolve_adapter_debugpy() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("debugpy".into());
+    let cfg = LaunchConfig {
+        adapter_type: Some("debugpy".into()),
+        ..Default::default()
+    };
     let (cmd, _) = resolve_adapter(&cfg);
     assert_eq!(cmd, "debugpy");
 }
 
 #[test]
 fn resolve_adapter_node() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("node".into());
+    let cfg = LaunchConfig {
+        adapter_type: Some("node".into()),
+        ..Default::default()
+    };
     let (cmd, _) = resolve_adapter(&cfg);
     assert_eq!(cmd, "js-debug-dap");
 }
 
 #[test]
 fn resolve_adapter_lldb() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("lldb".into());
+    let cfg = LaunchConfig {
+        adapter_type: Some("lldb".into()),
+        ..Default::default()
+    };
     let (cmd, _) = resolve_adapter(&cfg);
     assert_eq!(cmd, "lldb-dap");
 }
 
 #[test]
 fn resolve_adapter_gdb() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("gdb".into());
+    let cfg = LaunchConfig {
+        adapter_type: Some("gdb".into()),
+        ..Default::default()
+    };
     let (cmd, args) = resolve_adapter(&cfg);
     assert_eq!(cmd, "gdb");
     assert_eq!(args, vec!["--interpreter=dap"]);
@@ -591,16 +603,20 @@ fn resolve_adapter_gdb() {
 
 #[test]
 fn resolve_adapter_codelldb() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("codelldb".into());
+    let cfg = LaunchConfig {
+        adapter_type: Some("codelldb".into()),
+        ..Default::default()
+    };
     let (cmd, _) = resolve_adapter(&cfg);
     assert_eq!(cmd, "codelldb");
 }
 
 #[test]
 fn resolve_adapter_unknown_type() {
-    let mut cfg = LaunchConfig::default();
-    cfg.adapter_type = Some("unknown-debugger".into());
+    let cfg = LaunchConfig {
+        adapter_type: Some("unknown-debugger".into()),
+        ..Default::default()
+    };
     // With no adapter_command and unknown type, should return empty strings.
     let (cmd, args) = resolve_adapter(&cfg);
     assert_eq!(cmd, "");

@@ -2804,7 +2804,7 @@ mod tests {
         let input: Vec<u8> = (0..100).map(|i| b'A' + (i % 26) as u8).collect();
         g.feed(&input);
         // Should have scrolled several lines
-        assert!(g.scrollback.len() > 0);
+        assert!(!g.scrollback.is_empty());
     }
 
     // ── Reverse index edge cases ──────────────────────────────────────────
@@ -2892,7 +2892,7 @@ mod tests {
         g.feed(b"\x1b[?1049h"); // enter alt screen
         let delta = g.take_delta();
         assert!(
-            delta.rows.len() > 0,
+            !delta.rows.is_empty(),
             "alt screen switch should mark all rows dirty"
         );
     }

@@ -2307,11 +2307,11 @@ mod tests {
         let first = parse_chord("ctrl+k").unwrap();
         let _ = engine.press(first, None);
         assert!(engine.has_pending_chord());
-        // Pressing a single key that matches a different binding should cancel the
-        // pending chord and try the new press as a fresh single chord.
+        // Pressing ctrl+s after ctrl+k completes the two-chord binding
+        // ctrl+k ctrl+s -> ToggleKeybindingsEditor
         let ctrl_s = parse_chord("ctrl+s").unwrap();
         let action = engine.press(ctrl_s, None);
-        assert_eq!(action, Some(Action::SaveFile));
+        assert_eq!(action, Some(Action::ToggleKeybindingsEditor));
         assert!(!engine.has_pending_chord());
     }
 

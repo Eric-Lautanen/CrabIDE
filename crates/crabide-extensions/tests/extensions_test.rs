@@ -1,12 +1,12 @@
-﻿//! Unit tests for `crabide-extensions`.
+//! Unit tests for `crabide-extensions`.
 
 use crabide_extensions::{
     is_output_allowed, CommandResult, CompletionItem, CompletionKind, ContentBlock,
     ContextMenuContext, ContextMenuContribution, ExtensionCapabilities, ExtensionCategory,
     ExtensionContext, ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput,
     ExtensionSeverity, ExtensionSource, GutterMarker, HoverResult, InstalledExtension,
-    NativeExtension, NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand,
-    RegistryClient, RowItem, SidebarPaneRegistration, StatusBarAlignment,
+    NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RegistryClient, RowItem,
+    SidebarPaneRegistration, StatusBarAlignment,
 };
 use std::path::PathBuf;
 
@@ -918,49 +918,6 @@ fn is_output_allowed_status_bar_visible() {
         visible: true,
     };
     assert!(is_output_allowed(&out, &caps));
-}
-
-/// Mock extension that returns a specific set of capabilities and poll outputs.
-struct MockCapExtension {
-    id: String,
-    caps: ExtensionCapabilities,
-    outputs: Vec<ExtensionOutput>,
-}
-
-impl NativeExtension for MockCapExtension {
-    fn manifest(&self) -> &ExtensionManifest {
-        // Lazy static manifest for testing.
-        use std::sync::OnceLock;
-        static MAN: OnceLock<ExtensionManifest> = OnceLock::new();
-        MAN.get_or_init(|| ExtensionManifest {
-            id: self.id.clone(),
-            name: self.id.clone(),
-            description: "mock".into(),
-            version: "0.0.0".into(),
-            author: "test".into(),
-            categories: vec![],
-            is_builtin: true,
-        })
-    }
-
-    fn capabilities(&self) -> ExtensionCapabilities {
-        self.caps.clone()
-    }
-
-    fn activate(&mut self, _ctx: &ExtensionContext) {}
-    fn deactivate(&mut self) {}
-
-    fn on_document_open(&mut self, _uri: &str, _language_id: &str, _ctx: &ExtensionContext) {}
-    fn on_document_change(&mut self, _uri: &str, _ctx: &ExtensionContext) {}
-    fn on_document_save(&mut self, _uri: &str, _ctx: &ExtensionContext) {}
-
-    fn execute_command(&mut self, _command: &str, _args: &[String]) -> CommandResult {
-        CommandResult::Error("not implemented".into())
-    }
-
-    fn poll(&mut self, _ctx: &ExtensionContext) -> Vec<ExtensionOutput> {
-        std::mem::take(&mut self.outputs)
-    }
 }
 
 #[test]
