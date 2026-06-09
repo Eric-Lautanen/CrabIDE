@@ -19,6 +19,7 @@ pub mod minimap;
 pub mod output_panel;
 pub mod peek_view;
 pub mod problems_panel;
+pub mod settings_panel;
 pub mod status_bar;
 pub mod symbol_outline;
 pub mod tab_bar;

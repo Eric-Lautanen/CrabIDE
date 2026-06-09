@@ -25,8 +25,9 @@ pub use state::{
     ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
     GitPanelState, KeybindingsEditorState, LspStatus, OutputPanelState, PeekKind, PeekState,
-    SidebarPaneUiState, SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance,
-    TerminalPanelState, ThemePickerState, UiState,
+    SettingsField, SettingsFieldType, SettingsPanelState, SidebarPaneUiState, SidebarTab,
+    SymbolOutlineEntry, SymbolOutlineState, TerminalInstance, TerminalPanelState, ThemePickerState,
+    UiState,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -322,6 +323,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
 
     // ── Keybindings editor overlay ───────────────────────────────────────
     panels::keybindings_editor::show(ui, state);
+
+    // ── Settings panel overlay ───────────────────────────────────────────
+    panels::settings_panel::show(ui, state);
 
     actions
 }
@@ -1413,6 +1417,12 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
         // ── Keybindings editor ─────────────────────────────────────────────────
         Action::ToggleKeybindingsEditor => {
             state.keybindings_editor.visible = !state.keybindings_editor.visible;
+            true
+        }
+
+        // ── Settings panel ──────────────────────────────────────────────────────
+        Action::ToggleSettingsPanel => {
+            state.settings_panel.visible = !state.settings_panel.visible;
             true
         }
 

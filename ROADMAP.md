@@ -190,7 +190,7 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [x] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
 - [x] **Peek view**: inline definition/reference preview (like VS Code peek)
 - [x] **Output panel**: wire `ToggleOutputPanel` to actual panel
-- [ ] **Settings UI panel**: visual editor for `settings.toml`
+- [x] **Settings UI panel**: visual editor for `settings.toml` (Ctrl+, overlay with grouped fields)
 - [x] **Keybindings editor UI** (Ctrl+K Ctrl+S overlay with searchable table)
 - [x] **Theme picker UI** (Ctrl+K Ctrl+T overlay with searchable list)
 - [x] **Welcome screen**: interactive cards (not just decorative)

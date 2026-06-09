@@ -2001,6 +2001,36 @@ pub struct KeybindingsEditorState {
     pub query: String,
 }
 
+// ── SettingsPanelState ──────────────────────────────────────────────────────────
+
+/// State for the settings editor panel.
+#[derive(Default)]
+pub struct SettingsPanelState {
+    /// Whether the settings panel is visible.
+    pub visible: bool,
+    /// The current settings fields as a list of (group, key, value, field_type).
+    /// Populated by the app each frame from `Settings`.
+    pub fields: Vec<SettingsField>,
+}
+
+/// A single editable field in the settings panel.
+#[derive(Clone)]
+pub struct SettingsField {
+    pub group: String,
+    pub key: String,
+    pub value: String,
+    pub field_type: SettingsFieldType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettingsFieldType {
+    Bool,
+    Int,
+    Float,
+    String,
+    Enum(Vec<String>),
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -2163,6 +2193,8 @@ pub struct UiState {
     pub theme_picker: ThemePickerState,
     // ── Keybindings editor state ─────────────────────────────────────────
     pub keybindings_editor: KeybindingsEditorState,
+    // ── Settings panel state ─────────────────────────────────────────────
+    pub settings_panel: SettingsPanelState,
 }
 
 impl UiState {
@@ -2221,6 +2253,7 @@ impl UiState {
             pending_peek_method: None,
             theme_picker: ThemePickerState::default(),
             keybindings_editor: KeybindingsEditorState::default(),
+            settings_panel: SettingsPanelState::default(),
         }
     }
 

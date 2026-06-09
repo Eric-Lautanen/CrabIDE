@@ -4098,6 +4098,81 @@ impl eframe::App for crabideApp {
             self.ui_state.keybindings_editor.bindings = key_map;
         }
 
+        // Populate settings fields for the settings panel.
+        if self.ui_state.settings_panel.fields.is_empty() {
+            let settings = self.config.settings();
+            let mut fields = Vec::new();
+            use crabide_ui::state::{SettingsField, SettingsFieldType};
+
+            // Editor settings
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "font_size".into(),
+                value: settings.editor.font_size.to_string(),
+                field_type: SettingsFieldType::Float,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "tab_size".into(),
+                value: settings.editor.tab_size.to_string(),
+                field_type: SettingsFieldType::Int,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "insert_spaces".into(),
+                value: settings.editor.insert_spaces.to_string(),
+                field_type: SettingsFieldType::Bool,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "word_wrap".into(),
+                value: settings.editor.word_wrap.to_string(),
+                field_type: SettingsFieldType::Bool,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "format_on_save".into(),
+                value: settings.editor.format_on_save.to_string(),
+                field_type: SettingsFieldType::Bool,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "minimap_enabled".into(),
+                value: settings.editor.minimap_enabled.to_string(),
+                field_type: SettingsFieldType::Bool,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "font_family".into(),
+                value: settings.editor.font_family.clone(),
+                field_type: SettingsFieldType::String,
+            });
+            fields.push(SettingsField {
+                group: "Editor".into(),
+                key: "line_height".into(),
+                value: settings.editor.line_height.to_string(),
+                field_type: SettingsFieldType::Float,
+            });
+
+            // UI settings
+            fields.push(SettingsField {
+                group: "UI".into(),
+                key: "color_theme".into(),
+                value: settings.ui.color_theme.clone(),
+                field_type: SettingsFieldType::String,
+            });
+
+            // Git settings
+            fields.push(SettingsField {
+                group: "Git".into(),
+                key: "enabled".into(),
+                value: settings.git.enabled.to_string(),
+                field_type: SettingsFieldType::Bool,
+            });
+
+            self.ui_state.settings_panel.fields = fields;
+        }
+
         let actions = crabide_ui::render(ui, &mut self.ui_state);
         self.dispatch_actions(actions, &ctx);
 
