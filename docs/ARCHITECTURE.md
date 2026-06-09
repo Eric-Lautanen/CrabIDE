@@ -34,12 +34,12 @@ crabide (binary/app)
 | 1 | core, config, vfs, buffer | ✅ Complete |
 | 2 | syntax | 🔶 Partial |
 | 3 | lsp | 🔶 ~90% |
-| 4 | ui | 🔶 ~65% |
+| 4 | ui | ✅ Complete |
 | 5 | search | 🔶 Partial |
 | 6 | git | 🔶 Partial |
 | 7 | terminal | 🔶 ~85% |
-| 8 | dap | 🔶 ~70% |
-| 9 | extensions | 🔶 ~60% |
+| 8 | dap | 🔶 ~95% |
+| 9 | extensions | 🔶 ~85% |
 | 10 | app (polish) | 🔶 ~60% |
 
 See `ROADMAP.md` at the repository root for detailed status per feature.

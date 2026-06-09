@@ -335,16 +335,16 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [x] Session restore (reopen files from last session)
 
 ### Phase 12 items:
-- [ ] Settings UI panel (visual editor for settings.toml)
-- [ ] Keybindings editor UI
-- [ ] Theme picker UI
-- [ ] Welcome / splash screen (interactive)
+- [x] Settings UI panel (visual editor for settings.toml)
+- [x] Keybindings editor UI
+- [x] Theme picker UI
+- [x] Welcome / splash screen (interactive)
 - [x] **Update checker** (background thread → GitHub releases → status message)
 - [x] **Crash reporter** (panic hook → file `~/.crabide/crash.log`)
-- [ ] Windows installer (NSIS or WiX)
-- [ ] macOS `.app` bundle + code signing + notarization
-- [ ] Linux `.AppImage` + `.deb` / `.rpm`
-- [ ] CI release artifacts (`.github/workflows/` dir exists but no workflow file — needs scaffolding)
+- [ ] Windows installer (NSIS or WiX) — see `tools/package-windows.sh`
+- [ ] macOS `.app` bundle + code signing + notarization — see `tools/package-macos.sh`
+- [ ] Linux `.AppImage` + `.deb` / `.rpm` — see `tools/package-linux.sh`
+- [ ] CI release artifacts — see `.github/workflows/release.yml`
 - [ ] Performance pass: egui frame time, LSP round-trip latency, heap profiling
 - [ ] README, docs site
 
