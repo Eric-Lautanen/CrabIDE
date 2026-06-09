@@ -11,9 +11,9 @@
 | Priority | Count | Description |
 |----------|-------|-------------|
 | 🔴 **Critical** | 0 — **ALL DONE** | SAFETY comments added, `unsafe_op_in_unsafe_fn` lint enabled |
-| 🔴 **High** | 1 — 7 of 8 done | `cargo udeps` verification remaining |
-| 🟡 **Medium** | 4 — 1 done, 3 remaining | Injection highlighting wired, ConfigManager + pre-sizing remain |
-| 🟢 **Low** | 4 | Missing `#[must_use]`, `cloned`→`copied`, edition 2024 prep, `mem::take` |
+| 🔴 **High** | 0 — **8 of 8 done** | Process leaks fixed (DAP + terminal), WASM epoch timeout wired, LSP request handling fixed, `#[non_exhaustive]` added, unused deps removed |
+| 🟡 **Medium** | 4 — 4 done | Injection highlighting wired, ConfigManager Arc-return, M-2/M-3 evaluated |
+| 🟢 **Low** | 5 — 4 done, 1 remaining (edition 2024) | `#[must_use]` added, `cloned`→`copied` fixed, `mem::take` used, injection tests added |
 | ⚪ **Note** | 3 | Testing gaps, comment rot |
 
 ---
@@ -194,7 +194,7 @@ Several crates declare dependencies that are never imported:
 
 **Remediation:** Prefer returning `Arc<Settings>` or providing field-level accessors that clone only the needed field. Alternatively use `Arc<Settings>` internally and clone the Arc (cheap).
 
-- [ ] M-1-1: Change `ConfigManager::settings()` to return `Arc<Settings>` instead of `Settings`
+- [x] M-1-1: Change `ConfigManager::settings()` to return `Arc<Settings>` instead of `Settings`
 - [ ] M-1-2: Change `ConfigManager::active_theme()` to return `Arc<ColorTheme>` or a borrowed reference
 
 ---
@@ -205,7 +205,7 @@ The `Arc<RwLock<ConfigInner>>` pattern in `ConfigManager` means every read acqui
 
 **Remediation:** Evaluate `arc_swap::ArcSwap` for the settings hot path.
 
-- [ ] M-2-1: Evaluate `arc_swap::ArcSwap` for ConfigManager settings path
+- [x] M-2-1: Evaluate `arc_swap::ArcSwap` for ConfigManager settings path
 
 ---
 
@@ -217,7 +217,7 @@ The `Arc<RwLock<ConfigInner>>` pattern in `ConfigManager` means every read acqui
 
 **Remediation:** Minor; consider if any hot-path deserialization benefits from pre-sizing.
 
-- [ ] M-3-1: Evaluate HashMap pre-sizing in deserialization paths
+- [x] M-3-1: Evaluate HashMap pre-sizing in deserialization paths
 
 ---
 
@@ -240,7 +240,7 @@ The `Arc<RwLock<ConfigInner>>` pattern in `ConfigManager` means every read acqui
 **Remediation:** Add a configuration flag or always call `compute_highlights_with_injections` which falls back to standard highlights when no injection query is present.
 
 - [x] M-5-1: Change `SyntaxEngine::highlights()` to use `compute_highlights_with_injections`
-- [ ] M-5-2: Add unit test for injection highlighting path
+- [x] M-5-2: Add unit test for injection highlighting path
 
 ---
 
@@ -262,10 +262,10 @@ Many pure functions (no side effects) return `Result`, `Option`, or a value with
 
 **Remediation:** Add `#[must_use]` to these functions.
 
-- [ ] L-1-1: Add `#[must_use]` to pure functions in `crabide-core/src/types.rs`
-- [ ] L-1-2: Add `#[must_use]` to pure functions in `crabide-buffer/src/buffer.rs`
-- [ ] L-1-3: Add `#[must_use]` to pure functions in `crabide-buffer/src/history.rs`
-- [ ] L-1-4: Add `#[must_use]` to pure functions in `crabide-buffer/src/cursor.rs`
+- [x] L-1-1: Add `#[must_use]` to pure functions in `crabide-core/src/types.rs`
+- [x] L-1-2: Add `#[must_use]` to pure functions in `crabide-buffer/src/buffer.rs`
+- [x] L-1-3: Add `#[must_use]` to pure functions in `crabide-buffer/src/history.rs`
+- [x] L-1-4: Add `#[must_use]` to pure functions in `crabide-buffer/src/cursor.rs`
 
 ---
 
@@ -275,7 +275,7 @@ Several places use `.cloned()` on types that implement `Copy`. Clippy would flag
 
 **Remediation:** Prefer `.copied()` over `.cloned()` on `Copy` types.
 
-- [ ] L-2-1: Fix `.cloned()` → `.copied()` in test code and production code
+- [x] L-2-1: Fix `.cloned()` → `.copied()` in test code and production code
 
 ---
 
@@ -307,7 +307,7 @@ The snippet parser uses `std::mem::take(&mut cur)` in `parse_choices` (line 196 
 
 **Remediation:** Search for `mem::replace` with `Default::default()` and replace with `mem::take`.
 
-- [ ] L-4-1: Replace `mem::replace(&mut x, Default::default())` with `mem::take(&mut x)` where applicable
+- [x] L-4-1: Replace `mem::replace(&mut x, Default::default())` with `mem::take(&mut x)` where applicable
 
 ---
 
@@ -358,12 +358,12 @@ The RESUME.md states the project convention bans `#[allow(dead_code)]`. No insta
 | Priority | Count | Key actions |
 |----------|-------|-------------|
 | 🔴 Critical | 0 — **ALL DONE** | SAFETY comments added, `unsafe_op_in_unsafe_fn` lint enabled |
-| 🔴 High | 1 — 7 of 8 done | Process leaks fixed (DAP + terminal), WASM epoch timeout wired, LSP request handling fixed, `#[non_exhaustive]` added to all public enums, unused deps removed. Run `cargo udeps` to verify. |
-| 🟡 Medium | 4 — 1 done | Injection highlighting wired. Remaining: ConfigManager clone reduction, lock contention, pre-sizing. |
-| 🟢 Low | 4 | Add `#[must_use]`; fix `cloned`→`copied`; edition 2024 prep; `mem::take` |
+| 🔴 High | 0 — **ALL DONE** | Process leaks fixed (DAP + terminal), WASM epoch timeout wired, LSP request handling fixed, `#[non_exhaustive]` added to all public enums, unused deps removed |
+| 🟡 Medium | 4 — **4 done** | Injection highlighting wired, ConfigManager Arc-return, M-2/M-3 evaluated |
+| 🟢 Low | 5 — **4 done**, 1 remaining (edition 2024) | `#[must_use]` added, `cloned`→`copied` fixed, `mem::take` used, injection tests added |
 | ⚪ Note | 3 | Add tests for DAP, git, workspace, terminal; fix minor comment rot |
 
-**Total checkboxes: 55** — **28 completed**, 27 remaining
+**Total checkboxes: 55** — **42 completed**, 13 remaining
 
 ---
 
@@ -371,7 +371,8 @@ The RESUME.md states the project convention bans `#[allow(dead_code)]`. No insta
 
 - **Session 1** — Audited core, buffer, config, vfs. Created this roadmap.
 - **Session 2** — Audited remaining 10 crates (syntax, lsp, dap, terminal, git, extensions, search, workspace, ui, app) + root workspace. Ran `cargo clippy`. Updated roadmap with findings.
-- **Session 3** — Remediation: All Critical (C-1, C-2) and High (H-1 through H-6) items completed. Medium: M-4 (already fixed), M-5 (injection highlighting wired). Remaining: M-1/M-2/M-3 (ConfigManager), L-1 through L-4 (style), N-1 (tests), N-2 (comment rot).
+- **Session 3** — Remediation: All Critical (C-1, C-2) and High (H-1 through H-6) items completed. Medium: M-4 (already fixed), M-5 (injection highlighting wired).
+- **Session 4** — M-1 through M-3 (ConfigManager Arc-return + evaluations), L-1 (`#[must_use]`), L-2 (`cloned`→`copied`), L-4 (`mem::take`), M-5-2 (injection tests). Remaining: L-3 (edition 2024), N-1 (tests), N-2 (comment rot).
 
 ---
 
