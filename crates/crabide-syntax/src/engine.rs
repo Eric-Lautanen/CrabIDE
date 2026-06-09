@@ -566,4 +566,143 @@ mod tests {
         let indents = engine.indents(id);
         assert!(indents.is_empty());
     }
+
+    // ── Roundtrip tests (parse → highlight/fold/outline/indent) ──────────────
+
+    /// Helper: create a SyntaxEngine with grammars registered for testing.
+    fn engine_with_rust_grammar() -> SyntaxEngine {
+        let registry = Box::leak(Box::new(GrammarRegistry::new()));
+        let rust_lang = tree_sitter_rust::LANGUAGE;
+        // Register with minimal queries — empty queries are valid (just produce no results)
+        registry.register(
+            Language::RUST,
+            rust_lang.into(),
+            "", // empty highlights query
+            "", // empty locals query
+            "", // empty indents query
+        );
+        SyntaxEngine::with_registry(registry)
+    }
+
+    /// Parse Rust source and verify the engine doesn't crash.
+    #[test]
+    fn roundtrip_rust_parses_successfully() {
+        let engine = engine_with_rust_grammar();
+        let id = BufferId::new();
+        let source = r#"
+fn main() {
+    let x = 42;
+    println!("hello {}", x);
+}
+"#;
+        engine.parse_document(id, &Language::RUST, source, 1);
+        assert!(engine.is_parsed(id), "document should be marked as parsed");
+        assert_eq!(engine.version(id), Some(1));
+        // Even with empty queries, the parse cache should have the entry
+        let _spans = engine.highlights(id);
+        let _ranges = engine.folding_ranges(id);
+        let _symbols = engine.outline(id);
+        let _indents = engine.indents(id);
+        // Should return empty results but not panic
+    }
+
+    /// Parse Rust and close — verifies cache lifecycle.
+    #[test]
+    fn roundtrip_close_and_reopen() {
+        let engine = engine_with_rust_grammar();
+        let id = BufferId::new();
+        engine.parse_document(id, &Language::RUST, "fn a() {}", 1);
+        assert!(engine.is_parsed(id));
+        engine.close_document(id);
+        assert!(engine.version(id).is_none(), "cache entry should be removed");
+
+        // Re-parse after close
+        engine.parse_document(id, &Language::RUST, "fn b() {}", 2);
+        assert!(engine.is_parsed(id), "re-parsed doc should exist");
+    }
+
+    /// Full re-parse with updated version.
+    #[test]
+    fn roundtrip_reparse() {
+        let engine = engine_with_rust_grammar();
+        let id = BufferId::new();
+        engine.parse_document(id, &Language::RUST, "fn foo() {}", 1);
+        assert!(engine.is_parsed(id));
+        assert_eq!(engine.version(id), Some(1));
+
+        // Re-parse with new source
+        engine.parse_document(id, &Language::RUST, "fn foo() {}\nfn bar() {}\n", 2);
+        assert!(engine.is_parsed(id));
+        assert_eq!(engine.version(id), Some(2));
+    }
+
+    /// Verify async parse roundtrip.
+    #[test]
+    fn roundtrip_async_parse() {
+        let engine = engine_with_rust_grammar();
+        let id = BufferId::new();
+        let source = "fn compute() -> u32 { 42 }\n";
+        engine.parse_document_async(id, &Language::RUST, source, 1);
+        // Poll until result is available
+        let updated = std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            loop {
+                let result = engine.poll_async_results();
+                if !result.is_empty() {
+                    return result;
+                }
+                if start.elapsed() > std::time::Duration::from_secs(5) {
+                    panic!("async parse did not complete within timeout");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        })
+        .join()
+        .unwrap();
+        assert!(updated.contains(&id), "should have updated our buffer id");
+    }
+
+    /// Roundtrip with Python grammar.
+    #[test]
+    fn roundtrip_python_parse() {
+        let registry = Box::leak(Box::new(GrammarRegistry::new()));
+        let py_lang = tree_sitter_python::LANGUAGE;
+        registry.register(Language::new("python"), py_lang.into(), "", "", "");
+        let engine = SyntaxEngine::with_registry(registry);
+        let id = BufferId::new();
+        engine.parse_document(id, &Language::new("python"), "def hello():\n    pass\n", 1);
+        assert!(engine.is_parsed(id));
+        // Verify highlights don't panic
+        let _ = engine.highlights(id);
+    }
+
+    /// Roundtrip with JSON grammar.
+    #[test]
+    fn roundtrip_json_parse() {
+        let registry = Box::leak(Box::new(GrammarRegistry::new()));
+        let json_lang = tree_sitter_json::LANGUAGE;
+        registry.register(Language::new("json"), json_lang.into(), "", "", "");
+        let engine = SyntaxEngine::with_registry(registry);
+        let id = BufferId::new();
+        engine.parse_document(id, &Language::new("json"), r#"{"key": "value"}"#, 1);
+        assert!(engine.is_parsed(id));
+        // Verify folding ranges don't panic
+        let _ = engine.folding_ranges(id);
+    }
+
+    /// Test multiple documents parsed simultaneously.
+    #[test]
+    fn roundtrip_multiple_documents() {
+        let engine = engine_with_rust_grammar();
+        let id1 = BufferId::new();
+        let id2 = BufferId::new();
+        engine.parse_document(id1, &Language::RUST, "fn a() {}", 1);
+        engine.parse_document(id2, &Language::RUST, "fn b() {}", 1);
+        assert!(engine.is_parsed(id1));
+        assert!(engine.is_parsed(id2));
+        // Close one, verify the other still exists
+        engine.close_document(id1);
+        assert!(!engine.is_parsed(id1));
+        assert!(engine.is_parsed(id2));
+    }
 }

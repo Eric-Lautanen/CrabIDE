@@ -622,3 +622,98 @@ fn resolve_adapter_unknown_type() {
     assert_eq!(cmd, "");
     assert!(args.is_empty());
 }
+
+// ── DAP transport error-path tests ─────────────────────────────────────────────
+
+#[test]
+fn dap_message_deserialize_response_with_unknown_fields() {
+    // DAP messages may include extra fields — they should be ignored
+    let json = r#"{"seq":1,"type":"response","request_seq":1,"success":true,"command":"continue","extraField":"ignored"}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert!(msg.is_response());
+    assert_eq!(msg.command.as_deref(), Some("continue"));
+}
+
+#[test]
+fn dap_message_deserialize_response_missing_request_seq() {
+    // Missing request_seq in response (should still parse)
+    let json = r#"{"seq":1,"type":"response","success":true,"command":"continue"}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert!(msg.is_response());
+    assert!(msg.request_seq.is_none());
+}
+
+#[test]
+fn dap_message_deserialize_response_with_error_message() {
+    let json = r#"{"seq":2,"type":"response","request_seq":1,"success":false,"command":"launch","message":"adapter not found"}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert_eq!(msg.success, Some(false));
+    assert_eq!(msg.message.as_deref(), Some("adapter not found"));
+}
+
+#[test]
+fn dap_message_deserialize_event_with_body() {
+    let json = r#"{"seq":3,"type":"event","event":"stopped","body":{"reason":"breakpoint","threadId":1}}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert!(msg.is_event());
+    assert_eq!(msg.event.as_deref(), Some("stopped"));
+    assert!(msg.body.is_some());
+}
+
+#[test]
+fn dap_message_deserialize_event_no_body() {
+    let json = r#"{"seq":4,"type":"event","event":"terminated"}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert!(msg.is_event());
+    assert!(msg.body.is_none());
+}
+
+#[test]
+fn dap_message_deserialize_missing_type_field() {
+    // Missing type defaults to empty string
+    let json = r#"{"seq":1}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert_eq!(msg.msg_type, "");
+    assert!(!msg.is_response());
+    assert!(!msg.is_event());
+}
+
+#[test]
+fn dap_message_serialize_request_with_all_fields() {
+    let msg = DapMessage::request(10, "evaluate", serde_json::json!({"expression": "2+2"}));
+    let json = serde_json::to_string(&msg).unwrap();
+    assert!(json.contains("\"seq\":10"));
+    assert!(json.contains("\"type\":\"request\""));
+    assert!(json.contains("\"command\":\"evaluate\""));
+    assert!(json.contains("\"arguments\":{\"expression\":\"2+2\"}"));
+}
+
+#[test]
+fn dap_message_response_roundtrip_with_body() {
+    let original = DapMessage {
+        seq: 5,
+        msg_type: "response".into(),
+        command: Some("stackTrace".into()),
+        arguments: None,
+        request_seq: Some(3),
+        success: Some(true),
+        body: Some(serde_json::json!({"stackFrames": [{"id":1,"name":"main","line":42,"column":5}]})),
+        message: None,
+        event: None,
+    };
+    let json = serde_json::to_string(&original).unwrap();
+    let deserialized: DapMessage = serde_json::from_str(&json).unwrap();
+    assert_eq!(deserialized.request_seq, Some(3));
+    assert!(deserialized.success.unwrap_or(false));
+    assert!(deserialized.body.is_some());
+}
+
+#[test]
+fn dap_message_response_with_null_body() {
+    let json = r#"{"seq":6,"type":"response","request_seq":4,"success":true,"command":"continue","body":null}"#;
+    let msg: DapMessage = serde_json::from_str(json).unwrap();
+    assert!(msg.is_response());
+    // Null body is deserialized as Some(Value::Null)
+    assert_eq!(msg.body, Some(serde_json::Value::Null));
+}
+

@@ -3002,4 +3002,133 @@ mod tests {
         assert_eq!(g.screen[0][5].ch, ' ');
         assert_eq!(g.screen[0][6].ch, 'W');
     }
+
+    // ── Property-based / fuzz tests ─────────────────────────────────────────
+
+    /// Simple Xorshift PRNG for deterministic random byte generation.
+    #[allow(dead_code)]
+    struct FuzzRng(u64);
+
+    impl FuzzRng {
+        fn new(seed: u64) -> Self {
+            Self(seed)
+        }
+        fn next_u8(&mut self) -> u8 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 as u8
+        }
+        fn next_bytes(&mut self, buf: &mut [u8]) {
+            for b in buf.iter_mut() {
+                *b = self.next_u8();
+            }
+        }
+    }
+
+    #[test]
+    fn fuzz_random_byte_sequences_no_crash() {
+        // Feed random byte sequences at various grid sizes and ensure no panic.
+        let sizes = [(80, 24), (40, 10), (10, 5), (200, 100), (1, 1)];
+        for &(cols, rows) in &sizes {
+            let mut rng = FuzzRng(42);
+            for _seq in 0..200 {
+                let mut buf = vec![0u8; 50 + (rng.next_u8() as usize % 200)];
+                rng.next_bytes(&mut buf);
+                let mut g = Grid::new(cols, rows);
+                g.feed(&buf);
+                // Invariants after feed:
+                assert!(g.cursor_col < cols, "col={} >= cols={}", g.cursor_col, cols);
+                assert!(g.cursor_row < rows, "row={} >= rows={}", g.cursor_row, rows);
+                assert_eq!(g.screen.len(), rows as usize);
+                assert_eq!(g.alt_screen.len(), rows as usize);
+                assert_eq!(g.dirty.len(), rows as usize);
+                for r in 0..rows as usize {
+                    assert_eq!(g.screen[r].len(), cols as usize);
+                    assert_eq!(g.alt_screen[r].len(), cols as usize);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fuzz_random_bytes_with_resize_no_crash() {
+        let mut rng = FuzzRng(12345);
+        for _seq in 0..100 {
+            let start_cols = 10 + (rng.next_u8() as u16 % 100);
+            let start_rows = 5 + (rng.next_u8() as u16 % 50);
+            let mut g = Grid::new(start_cols, start_rows);
+
+            // Feed some random data
+            let mut buf = vec![0u8; (rng.next_u8() as usize) * 2];
+            rng.next_bytes(&mut buf);
+            g.feed(&buf);
+
+            // Resize to new random size
+            let new_cols = 5 + (rng.next_u8() as u16 % 150);
+            let new_rows = 3 + (rng.next_u8() as u16 % 60);
+            g.resize(new_cols, new_rows);
+
+            // Invariants after resize
+            assert_eq!(g.cols, new_cols);
+            assert_eq!(g.rows, new_rows);
+            assert!(g.cursor_col < new_cols);
+            assert!(g.cursor_row < new_rows);
+            assert_eq!(g.screen.len(), new_rows as usize);
+            assert_eq!(g.alt_screen.len(), new_rows as usize);
+            assert_eq!(g.dirty.len(), new_rows as usize);
+            for r in 0..new_rows as usize {
+                assert_eq!(g.screen[r].len(), new_cols as usize);
+                assert_eq!(g.alt_screen[r].len(), new_cols as usize);
+            }
+        }
+    }
+
+    #[test]
+    fn fuzz_alternate_screen_switch_no_crash() {
+        let mut rng = FuzzRng(9999);
+        let mut g = Grid::new(80, 24);
+        for _ in 0..50 {
+            // Feed random bytes
+            let mut buf = vec![0u8; (rng.next_u8() as usize) * 3];
+            rng.next_bytes(&mut buf);
+            g.feed(&buf);
+
+            // Toggle alternate screen
+            g.feed(b"\x1b[?1049h"); // enter alt screen
+            let mut buf2 = vec![0u8; (rng.next_u8() as usize) * 2];
+            rng.next_bytes(&mut buf2);
+            g.feed(&buf2);
+            g.feed(b"\x1b[?1049l"); // exit alt screen
+
+            // Invariants
+            assert_eq!(g.screen.len(), 24);
+            assert_eq!(g.alt_screen.len(), 24);
+            assert!(!g.alt_active);
+            assert!(g.cursor_col < 80);
+            assert!(g.cursor_row < 24);
+        }
+    }
+
+    #[test]
+    fn fuzz_take_delta_after_random_bytes_non_empty() {
+        let mut rng = FuzzRng(7777);
+        let mut g = Grid::new(80, 24);
+        let mut total_rows = 0;
+        for _ in 0..30 {
+            let mut buf = vec![0u8; (rng.next_u8() as usize) * 4];
+            rng.next_bytes(&mut buf);
+            g.feed(&buf);
+            let delta = g.take_delta();
+            // Delta may be empty if only control chars were processed,
+            // but it should never panic or return out-of-bounds rows.
+            for changed in &delta.rows {
+                assert!(changed.row < 24, "row {} >= 24", changed.row);
+                assert_eq!(changed.cells.len(), 80);
+            }
+            total_rows += delta.rows.len();
+        }
+        // At least some content was produced (very likely with random data)
+        assert!(total_rows > 0, "no delta rows produced from random bytes");
+    }
 }

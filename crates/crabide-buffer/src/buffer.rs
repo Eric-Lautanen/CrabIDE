@@ -676,4 +676,134 @@ mod tests {
         // 'w' is at line 1, col 0, offset 6
         assert_eq!(doc.position_to_char_offset(Position::new(1, 0)), Some(6));
     }
+
+    // ── Error-path tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_from_bytes_invalid_utf8_returns_err() {
+        let path = if cfg!(windows) {
+            r"C:\test.bin"
+        } else {
+            "/test.bin"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        let result = Document::from_bytes(uri, b"\xFF\xFE\x00\x01");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_apply_edit_line_out_of_bounds() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        let edit = TextEdit::insert(Position::new(999, 0), "text".to_string());
+        assert!(doc.apply_edit(&edit).is_err());
+    }
+
+    #[test]
+    fn test_apply_edit_column_exceeds_line_len() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        // Insert some text first
+        doc.apply_edit(&TextEdit::insert(Position::ZERO, "abc".to_string()))
+            .unwrap();
+        // Column 10 > line length 3
+        let edit = TextEdit::insert(Position::new(0, 10), "x".to_string());
+        assert!(doc.apply_edit(&edit).is_err());
+    }
+
+    #[test]
+    fn test_apply_edit_start_after_end_returns_err() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        let edit = TextEdit::delete(Range::new(Position::new(0, 5), Position::new(0, 3)));
+        assert!(doc.apply_edit(&edit).is_err());
+    }
+
+    #[test]
+    fn test_reload_invalid_utf8_returns_err() {
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        let mut doc = Document::from_bytes(uri, b"valid").unwrap();
+        let result = doc.reload(b"\xFF\xFE\x00");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_slice_out_of_bounds_returns_none() {
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        let doc = Document::from_bytes(uri, b"hello").unwrap();
+        // Start past end
+        assert!(doc.slice(Range::new(Position::new(0, 10), Position::new(0, 15))).is_none());
+        // Start > end
+        assert!(doc.slice(Range::new(Position::new(0, 3), Position::new(0, 1))).is_none());
+    }
+
+    #[test]
+    fn test_position_to_char_offset_out_of_bounds_returns_none() {
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        let doc = Document::from_bytes(uri, b"hello").unwrap();
+        assert!(doc.position_to_char_offset(Position::new(5, 0)).is_none());
+        assert!(doc.position_to_char_offset(Position::new(0, 10)).is_none());
+    }
+
+    #[test]
+    fn test_char_offset_to_position_out_of_bounds_returns_none() {
+        let path = if cfg!(windows) {
+            r"C:\test.txt"
+        } else {
+            "/test.txt"
+        };
+        let uri = DocumentUri::from_file_path(path).unwrap();
+        let doc = Document::from_bytes(uri, b"hello").unwrap();
+        assert!(doc.char_offset_to_position(999).is_none());
+    }
+
+    #[test]
+    fn test_line_str_out_of_bounds_returns_none() {
+        let doc = Document::new_untitled(Language::PLAIN_TEXT);
+        assert!(doc.line_str(0).is_some()); // empty doc has one line
+        assert!(doc.line_str(1).is_none()); // line 1 does not exist
+    }
+
+    #[test]
+    fn test_line_char_len_out_of_bounds_returns_none() {
+        let doc = Document::new_untitled(Language::PLAIN_TEXT);
+        assert!(doc.line_char_len(0).is_some());
+        assert!(doc.line_char_len(1).is_none());
+    }
+
+    #[test]
+    fn test_rope_snapshot_does_not_mutate() {
+        let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
+        let snap = doc.rope_snapshot();
+        doc.apply_edit(&TextEdit::insert(Position::ZERO, "modified".to_string()))
+            .unwrap();
+        // Snapshot should still be empty
+        assert_eq!(snap.to_string(), "");
+        assert_eq!(doc.text_content(), "modified");
+    }
+
+    #[test]
+    fn test_restore_rope_resets_content() {
+        let mut doc = Document::new_untitled(Language::RUST);
+        doc.apply_edit(&TextEdit::insert(Position::ZERO, "before".to_string()))
+            .unwrap();
+        let snap = doc.rope_snapshot();
+        doc.apply_edit(&TextEdit::insert(Position::ZERO, "after ".to_string()))
+            .unwrap();
+        doc.restore_rope(snap);
+        assert_eq!(doc.text_content(), "before");
+        assert!(doc.is_dirty);
+    }
 }

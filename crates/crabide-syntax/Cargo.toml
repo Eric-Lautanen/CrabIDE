@@ -26,3 +26,8 @@ streaming-iterator.workspace = true
 rayon.workspace = true
 # crossbeam-channel for async parse result delivery
 crossbeam-channel.workspace = true
+
+[dev-dependencies]
+tree-sitter-rust.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-json.workspace = true

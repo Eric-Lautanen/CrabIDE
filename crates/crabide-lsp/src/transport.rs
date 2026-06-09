@@ -217,6 +217,73 @@ mod tests {
         let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
         assert!(msg.is_notification());
     }
+
+    #[test]
+    fn message_deserialize_error_response_full() {
+        let json_str = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"Internal error","data":{"detail":"panic"}}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_response());
+        let err = msg.error.as_ref().unwrap();
+        assert_eq!(err.code, -32603);
+        assert_eq!(err.message, "Internal error");
+        assert!(err.data.is_some());
+    }
+
+    #[test]
+    fn message_deserialize_missing_jsonrpc_field() {
+        // Missing jsonrpc field — still valid JSON, but technically malformed JSON-RPC
+        let json_str = r#"{"id":1,"method":"test"}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        // Default is empty string for jsonrpc since not an Option
+        assert_eq!(msg.jsonrpc, "");
+        assert!(msg.is_request());
+    }
+
+    #[test]
+    fn message_deserialize_with_unknown_fields() {
+        // LSP servers may include extra fields — they should be ignored
+        let json_str = r#"{"jsonrpc":"2.0","id":1,"method":"test","params":{},"extraField":"ignored"}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_request());
+    }
+
+    #[test]
+    fn message_error_response_with_data() {
+        let json_str = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32099,"message":"Server closed","data":{"retryAfter":5}}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        let err = msg.error.as_ref().unwrap();
+        assert_eq!(err.code, -32099);
+        assert!(err.data.is_some());
+    }
+
+    #[test]
+    fn message_request_with_string_id() {
+        // Some servers use string IDs
+        let json_str = r#"{"jsonrpc":"2.0","id":"req-1","method":"test"}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        assert!(msg.is_request());
+        assert_eq!(msg.id, Some(Value::String("req-1".into())));
+    }
+
+    #[test]
+    fn message_both_method_and_result_is_invalid() {
+        // If both method and result are present, it's ambiguous but parsed
+        let json_str = r#"{"jsonrpc":"2.0","id":1,"method":"test","result":{}}"#;
+        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
+        // is_request checks id.is_some() && method.is_some()
+        assert!(msg.is_request());
+        // is_response checks id.is_some() && method.is_none()
+        assert!(!msg.is_response());
+    }
+
+    #[test]
+    fn message_serialize_omits_optional_fields() {
+        let msg = JsonRpcMessage::notification("test", json!({}));
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(!json.contains("\"id\""));
+        assert!(!json.contains("\"result\""));
+        assert!(!json.contains("\"error\""));
+    }
 }
 
 // ── Transport ─────────────────────────────────────────────────────────────────

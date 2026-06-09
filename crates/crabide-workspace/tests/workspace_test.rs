@@ -392,3 +392,112 @@ fn workspace_register_document() {
     let _id = ws.register_document(doc);
     assert_eq!(ws.open_buffer_ids().len(), 1);
 }
+
+// ── Additional edge-case tests ────────────────────────────────────────────────
+
+#[tokio::test]
+async fn workspace_apply_edits_batch() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let uri = file_uri("/tmp/batch.txt");
+    let path = uri.to_file_path().expect("valid file path");
+    vfs.insert(path, b"abcdef".to_vec());
+    let ws = Workspace::new(vfs);
+    let id = ws.open_file(uri).await.unwrap();
+
+    // Apply edits in reverse order (back-to-front)
+    let edits = vec![
+        TextEdit::replace(
+            Range::new(Position::new(0, 3), Position::new(0, 6)),
+            "DEF".to_string(),
+        ),
+        TextEdit::replace(
+            Range::new(Position::new(0, 0), Position::new(0, 3)),
+            "ABC".to_string(),
+        ),
+    ];
+    ws.apply_edits(id, &edits, "batch").unwrap();
+    let lines = ws.get_lines(id).unwrap();
+    assert_eq!(lines[0], "ABCDEF");
+}
+
+#[tokio::test]
+async fn workspace_undo_and_redo_nonexistent_document() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let ws = Workspace::new(vfs);
+    let id = BufferId::new();
+    assert!(ws.undo(id).is_err());
+    assert!(ws.redo(id).is_err());
+}
+
+#[tokio::test]
+async fn workspace_edit_nonexistent_document() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let ws = Workspace::new(vfs);
+    let id = BufferId::new();
+    let edit = TextEdit::insert(Position::ZERO, "text".to_string());
+    assert!(ws.apply_edit(id, edit, "test").is_err());
+}
+
+#[tokio::test]
+async fn workspace_open_multiple_close_one() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let uri1 = file_uri("/tmp/a.txt");
+    let uri2 = file_uri("/tmp/b.txt");
+    let p1 = uri1.to_file_path().expect("valid path");
+    let p2 = uri2.to_file_path().expect("valid path");
+    vfs.insert(p1, b"file a".to_vec());
+    vfs.insert(p2, b"file b".to_vec());
+    let ws = Workspace::new(vfs);
+    let id1 = ws.open_file(uri1).await.unwrap();
+    let id2 = ws.open_file(uri2).await.unwrap();
+    assert_eq!(ws.open_buffer_ids().len(), 2);
+
+    // Close first, verify second still accessible
+    ws.close(id1, true).unwrap();
+    assert_eq!(ws.open_buffer_ids().len(), 1);
+    assert!(ws.with_document(id2, |_| ()).is_ok());
+    assert!(ws.with_document(id1, |_| ()).is_err());
+}
+
+#[tokio::test]
+async fn workspace_remove_root_not_added() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let ws = Workspace::new(vfs);
+    // Removing a root that was never added should be a no-op
+    ws.remove_root(&PathBuf::from("/nonexistent"));
+    assert_eq!(ws.roots().len(), 0);
+}
+
+#[tokio::test]
+async fn workspace_save_as_to_already_open_uri() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let uri_a = file_uri("/tmp/a.txt");
+    let uri_b = file_uri("/tmp/b.txt");
+    let pa = uri_a.to_file_path().expect("valid path");
+    let pb = uri_b.to_file_path().expect("valid path");
+    vfs.insert(pa, b"content a".to_vec());
+    vfs.insert(pb, b"content b".to_vec());
+    let ws = Workspace::new(vfs.clone());
+
+    let id_a = ws.open_file(uri_a.clone()).await.unwrap();
+    let _id_b = ws.open_file(uri_b.clone()).await.unwrap();
+
+    // Save id_a under uri_b which is already open → should succeed, and old buffer becomes untracked
+    ws.save_as(id_a, uri_b.clone()).await.unwrap();
+    assert_eq!(ws.uri(id_a).unwrap(), uri_b);
+    // The old b-tracking id should still reference a valid buffer
+    assert!(!ws.open_buffer_ids().is_empty());
+}
+
+#[test]
+fn workspace_register_document_twice() {
+    let vfs = Arc::new(MemoryVfs::new());
+    let ws = Workspace::new(vfs);
+    let doc1 = crabide_workspace::Document::new_untitled(Language::RUST);
+    let doc2 = crabide_workspace::Document::new_untitled(Language::PYTHON);
+    let id1 = ws.register_document(doc1);
+    let id2 = ws.register_document(doc2);
+    assert_eq!(ws.open_buffer_ids().len(), 2);
+    assert_eq!(ws.language(id1), Some(Language::RUST));
+    assert_eq!(ws.language(id2), Some(Language::PYTHON));
+}

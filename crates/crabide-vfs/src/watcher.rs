@@ -105,3 +105,146 @@ fn translate_event(
         EventKind::Access(_) | EventKind::Other => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::event::{CreateKind, EventKind, ModifyKind, RemoveKind, RenameMode};
+
+    /// Helper: create a crossbeam channel and translate a notify event through it.
+    fn translate(kind: EventKind, paths: Vec<PathBuf>) -> Vec<VfsEvent> {
+        let (tx, rx) = crossbeam_channel::unbounded();
+        translate_event(kind, paths, &tx);
+        rx.try_iter().collect()
+    }
+
+    #[test]
+    fn translate_create_sends_file_created() {
+        let events = translate(
+            EventKind::Create(CreateKind::File),
+            vec![PathBuf::from("/tmp/test.txt")],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileCreated(p) => assert_eq!(p, &PathBuf::from("/tmp/test.txt")),
+            other => panic!("expected FileCreated, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_modify_sends_file_modified() {
+        let events = translate(
+            EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Any)),
+            vec![PathBuf::from("/tmp/test.txt")],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileModified(p) => assert_eq!(p, &PathBuf::from("/tmp/test.txt")),
+            other => panic!("expected FileModified, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_remove_sends_file_deleted() {
+        let events = translate(
+            EventKind::Remove(RemoveKind::File),
+            vec![PathBuf::from("/tmp/test.txt")],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileDeleted(p) => assert_eq!(p, &PathBuf::from("/tmp/test.txt")),
+            other => panic!("expected FileDeleted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_rename_both_sends_renamed() {
+        let events = translate(
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
+            vec![
+                PathBuf::from("/tmp/old.txt"),
+                PathBuf::from("/tmp/new.txt"),
+            ],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileRenamed { from, to } => {
+                assert_eq!(from, &PathBuf::from("/tmp/old.txt"));
+                assert_eq!(to, &PathBuf::from("/tmp/new.txt"));
+            }
+            other => panic!("expected FileRenamed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_rename_from_sends_deleted() {
+        let events = translate(
+            EventKind::Modify(ModifyKind::Name(RenameMode::From)),
+            vec![PathBuf::from("/tmp/old.txt")],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileDeleted(p) => assert_eq!(p, &PathBuf::from("/tmp/old.txt")),
+            other => panic!("expected FileDeleted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_rename_to_sends_created() {
+        let events = translate(
+            EventKind::Modify(ModifyKind::Name(RenameMode::To)),
+            vec![PathBuf::from("/tmp/new.txt")],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileCreated(p) => assert_eq!(p, &PathBuf::from("/tmp/new.txt")),
+            other => panic!("expected FileCreated, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_access_sends_nothing() {
+        let events = translate(
+            EventKind::Access(notify::event::AccessKind::Any),
+            vec![PathBuf::from("/tmp/test.txt")],
+        );
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn translate_other_sends_nothing() {
+        let events = translate(
+            EventKind::Other,
+            vec![PathBuf::from("/tmp/test.txt")],
+        );
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn translate_modify_metadata_sends_modified() {
+        let events = translate(
+            EventKind::Modify(ModifyKind::Metadata(notify::event::MetadataKind::Any)),
+            vec![PathBuf::from("/tmp/test.txt")],
+        );
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileModified(p) => assert_eq!(p, &PathBuf::from("/tmp/test.txt")),
+            other => panic!("expected FileModified, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translate_rename_both_less_than_two_paths_sends_nothing() {
+        // RenameMode::Both with only 1 path — should not match the pattern
+        let events = translate(
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
+            vec![PathBuf::from("/tmp/only.txt")],
+        );
+        // Falls through to Modify(_) handler, sends FileModified
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            VfsEvent::FileModified(_) => {} // OK — falls through
+            other => panic!("expected FileModified, got {other:?}"),
+        }
+    }
+}
