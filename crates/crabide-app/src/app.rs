@@ -1927,10 +1927,12 @@ impl crabideApp {
                         let uri = tab.uri.clone();
                         // Collect extension notification data while `tab` is live.
                         let uri_str = tab.uri.to_string();
-                        let lang_id = language_id_from_uri(&uri_str);
+                        let lang_id = tab.language.as_str().to_owned();
                         let text = tab.lines.join("\n");
                         let cursor_line = tab.cursors.primary().pos().line;
                         let cursor_col = tab.cursors.primary().pos().character;
+                        // Drop tab borrow before mutating self.ui_state
+                        let _ = tab;
                         let ws = Arc::clone(&self.workspace);
                         self.rt.spawn(async move {
                             if let Err(e) = ws.save(id).await {
@@ -1954,7 +1956,7 @@ impl crabideApp {
                         let ext_ctx = ExtensionContext {
                             active_text: Some(&text),
                             active_uri: Some(&uri_str),
-                            active_language: lang_id,
+                            active_language: &lang_id,
                             workspace_roots: &roots,
                             blame_lines: &[],
                             cursor_line,
@@ -1969,13 +1971,13 @@ impl crabideApp {
 
             Action::SaveAll => {
                 // Collect per-tab save data before marking tabs dirty=false.
-                let save_docs: Vec<(String, &'static str, String, u32, u32)> = self
+                let save_docs: Vec<(String, String, String, u32, u32)> = self
                     .ui_state
                     .tabs()
                     .iter()
                     .map(|t| {
                         let uri_str = t.uri.to_string();
-                        let lang_id = language_id_from_uri(&uri_str);
+                        let lang_id = t.language.as_str().to_owned();
                         let text = t.lines.join("\n");
                         let cursor_line = t.cursors.primary().pos().line;
                         let cursor_col = t.cursors.primary().pos().character;
@@ -2002,7 +2004,7 @@ impl crabideApp {
                     let ext_ctx = ExtensionContext {
                         active_text: Some(text.as_str()),
                         active_uri: Some(uri_str.as_str()),
-                        active_language: lang_id,
+                        active_language: lang_id.as_str(),
                         workspace_roots: &roots,
                         blame_lines: &[],
                         cursor_line: *cursor_line,
@@ -3720,10 +3722,10 @@ impl crabideApp {
             if let Some(idx) = self.ui_state.active_tab() {
                 self.update_highlights(idx);
 
-                // Collect extension notification data before `path` is moved.
-                let lang_id = language_id_from_uri(&path.to_string_lossy());
-                let uri_str = self.ui_state.tabs_mut()[idx].uri.to_string();
-                let text = self.ui_state.tabs_mut()[idx].lines.join("\n");
+                // Collect extension notification data before mutating.
+                let lang_id = self.ui_state.tabs()[idx].language.as_str().to_owned();
+                let uri_str = self.ui_state.tabs()[idx].uri.to_string();
+                let text = self.ui_state.tabs()[idx].lines.join("\n");
 
                 // Request diff hunks for the newly opened file.
                 if let Some(svc) = &self.git_service {
@@ -3737,7 +3739,7 @@ impl crabideApp {
                 let ext_ctx = ExtensionContext {
                     active_text: Some(&text),
                     active_uri: Some(&uri_str),
-                    active_language: lang_id,
+                    active_language: &lang_id,
                     workspace_roots: &roots,
                     blame_lines: &[],
                     cursor_line: 0,
@@ -3746,7 +3748,7 @@ impl crabideApp {
                     current_theme_id: &self.ui_state.theme.id,
                 };
                 self.extension_host
-                    .notify_document_open(&uri_str, lang_id, &ext_ctx);
+                    .notify_document_open(&uri_str, &lang_id, &ext_ctx);
             }
         }
     }
@@ -4473,27 +4475,6 @@ fn open_path_as_tab(state: &mut UiState, workspace: &Arc<Workspace>, path: PathB
     };
 
     state.open_tab(tab);
-}
-
-/// Map a document URI string (or file path string) to an LSP language identifier.
-fn language_id_from_uri(uri: &str) -> &'static str {
-    if uri.ends_with(".rs") {
-        "rust"
-    } else if uri.ends_with(".py") {
-        "python"
-    } else if uri.ends_with(".js") {
-        "javascript"
-    } else if uri.ends_with(".ts") {
-        "typescript"
-    } else if uri.ends_with(".md") || uri.ends_with(".markdown") {
-        "markdown"
-    } else if uri.ends_with(".go") {
-        "go"
-    } else if uri.ends_with(".c") || uri.ends_with(".h") {
-        "c"
-    } else {
-        "text"
-    }
 }
 
 /// Build a `FileNode` for `path`, eagerly reading its immediate children.
