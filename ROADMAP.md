@@ -231,8 +231,8 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 - [x] Add branch deletion
 - [x] Add stash (push, pop, list, drop)
 - [x] Add log / history / graph view
-- [ ] Add tag management
-- [ ] Add remote management (add, remove, list)
+- [x] Add tag management
+- [x] Add remote management (add, remove, list)
 - [ ] Add submodule support
 - [x] Add diff for staged changes (index vs HEAD)
 - [ ] Add conflict resolution helpers

@@ -539,6 +539,24 @@ pub enum GitEvent {
 
     /// Commit log entries ready (in response to a log request).
     LogReady { entries: Vec<CommitEntry> },
+
+    /// List of tags returned.
+    TagListed { tags: Vec<TagInfo> },
+
+    /// Tag created.
+    TagCreated { name: String },
+
+    /// Tag deleted.
+    TagDeleted { name: String },
+
+    /// List of remotes returned.
+    RemotesListed { remotes: Vec<RemoteInfo> },
+
+    /// Remote added.
+    RemoteAdded { name: String, url: String },
+
+    /// Remote removed.
+    RemoteRemoved { name: String },
 }
 
 // ── VFS / File Events ─────────────────────────────────────────────────────────
@@ -993,6 +1011,32 @@ pub struct CommitEntry {
     pub ref_names: Vec<String>,
 }
 
+/// Information about a single git tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TagInfo {
+    /// Short tag name, e.g. "v1.0.0".
+    pub name: String,
+    /// The commit hash the tag points to.
+    pub commit: String,
+    /// The tag message (if it's an annotated tag).
+    pub message: Option<String>,
+    /// Whether this is an annotated tag (vs lightweight).
+    pub annotated: bool,
+    /// The tagger name (for annotated tags).
+    pub tagger: Option<String>,
+}
+
+/// Information about a git remote.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteInfo {
+    /// Remote name, e.g. "origin".
+    pub name: String,
+    /// Fetch URL.
+    pub url: String,
+    /// Push URL (if different from fetch URL).
+    pub push_url: Option<String>,
+}
+
 // ── Top-level event enum ─────────────────────────────────────────────────────
 
 /// All events that can be sent from background services to the UI.
@@ -1311,6 +1355,14 @@ impl fmt::Display for GitEvent {
             GitEvent::LogReady { entries } => {
                 write!(f, "git log: {} entries", entries.len())
             }
+            GitEvent::TagListed { tags } => write!(f, "git tags: {} listed", tags.len()),
+            GitEvent::TagCreated { name } => write!(f, "git tag created: {name}"),
+            GitEvent::TagDeleted { name } => write!(f, "git tag deleted: {name}"),
+            GitEvent::RemotesListed { remotes } => {
+                write!(f, "git remotes: {} listed", remotes.len())
+            }
+            GitEvent::RemoteAdded { name, url } => write!(f, "git remote added: {name} -> {url}"),
+            GitEvent::RemoteRemoved { name } => write!(f, "git remote removed: {name}"),
         }
     }
 }

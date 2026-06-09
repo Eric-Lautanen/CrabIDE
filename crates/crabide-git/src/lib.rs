@@ -246,6 +246,55 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = (branch, limit);
     }
+
+    /// List all tags (lightweight and annotated).
+    pub fn list_tags(&self) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ListTags);
+    }
+
+    /// Create a tag. If `message` is set, creates an annotated tag.
+    /// If `target` is None, tags HEAD.
+    pub fn create_tag(&self, name: String, target: Option<String>, message: Option<String>) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::CreateTag {
+            name,
+            target,
+            message,
+        });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (name, target, message);
+    }
+
+    /// Delete a tag by name.
+    pub fn delete_tag(&self, name: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::DeleteTag { name });
+        #[cfg(not(feature = "git-support"))]
+        let _ = name;
+    }
+
+    /// List all remotes.
+    pub fn list_remotes(&self) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ListRemotes);
+    }
+
+    /// Add a remote with the given URL.
+    pub fn add_remote(&self, name: String, url: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::AddRemote { name, url });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (name, url);
+    }
+
+    /// Remove a remote by name.
+    pub fn remove_remote(&self, name: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::RemoveRemote { name });
+        #[cfg(not(feature = "git-support"))]
+        let _ = name;
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -348,6 +397,31 @@ enum GitCommand {
     Log {
         branch: Option<String>,
         limit: usize,
+    },
+    /// List all tags (lightweight and annotated).
+    ListTags,
+    /// Create a tag.
+    CreateTag {
+        name: String,
+        /// Commit to tag (None = HEAD).
+        target: Option<String>,
+        /// Tag message (None = lightweight tag, Some = annotated tag).
+        message: Option<String>,
+    },
+    /// Delete a tag.
+    DeleteTag {
+        name: String,
+    },
+    /// List all remotes.
+    ListRemotes,
+    /// Add a remote.
+    AddRemote {
+        name: String,
+        url: String,
+    },
+    /// Remove a remote.
+    RemoveRemote {
+        name: String,
     },
 }
 
@@ -633,6 +707,46 @@ mod git_support {
 
                 GitCommand::Log { branch, limit } => {
                     send_log(&repo, &workdir, &event_tx, branch.as_deref(), limit);
+                }
+
+                GitCommand::ListTags => {
+                    send_tag_list(&repo, &event_tx);
+                }
+
+                GitCommand::CreateTag {
+                    name,
+                    target,
+                    message,
+                } => {
+                    create_tag_impl(
+                        &repo,
+                        &event_tx,
+                        &name,
+                        target.as_deref(),
+                        message.as_deref(),
+                    );
+                }
+
+                GitCommand::DeleteTag { name } => {
+                    run_op(&event_tx, format!("delete tag {name}"), || {
+                        delete_tag_impl(&repo, &name)
+                    });
+                }
+
+                GitCommand::ListRemotes => {
+                    send_remote_list(&repo, &event_tx);
+                }
+
+                GitCommand::AddRemote { name, url } => {
+                    run_op(&event_tx, format!("add remote {name}"), || {
+                        add_remote_impl(&repo, &name, &url)
+                    });
+                }
+
+                GitCommand::RemoveRemote { name } => {
+                    run_op(&event_tx, format!("remove remote {name}"), || {
+                        remove_remote_impl(&repo, &name)
+                    });
                 }
 
                 GitCommand::Shutdown => break,
@@ -1633,5 +1747,182 @@ mod git_support {
         }
 
         let _ = event_tx.send(EditorEvent::Git(GitEvent::LogReady { entries }));
+    }
+
+    // ── Tag operations ─────────────────────────────────────────────────────
+
+    fn send_tag_list(repo: &git2::Repository, event_tx: &Sender<EditorEvent>) {
+        use crabide_core::event::{GitEvent, TagInfo};
+        let tags = match repo.tag_names(None) {
+            Ok(names) => names
+                .iter()
+                .filter_map(|name_res| {
+                    let name = name_res.ok()??;
+                    let oid = repo.refname_to_id(&format!("refs/tags/{name}")).ok()?;
+                    let obj = repo.find_object(oid, None).ok()?;
+                    let (message, tagger) = if let Some(tag) = obj.as_tag() {
+                        (
+                            tag.message().ok().flatten().map(|m| m.to_owned()),
+                            tag.tagger().map(|t| t.name().unwrap_or("").to_owned()),
+                        )
+                    } else {
+                        (None, None)
+                    };
+                    Some(TagInfo {
+                        name: name.to_owned(),
+                        commit: oid.to_string(),
+                        message,
+                        annotated: obj.as_tag().is_some(),
+                        tagger,
+                    })
+                })
+                .collect::<Vec<_>>(),
+            Err(e) => {
+                warn!("list tags: {}", e.message());
+                Vec::new()
+            }
+        };
+        let _ = event_tx.send(EditorEvent::Git(GitEvent::TagListed { tags }));
+    }
+
+    fn create_tag_impl(
+        repo: &git2::Repository,
+        event_tx: &Sender<EditorEvent>,
+        name: &str,
+        target: Option<&str>,
+        message: Option<&str>,
+    ) {
+        use crabide_core::event::GitEvent;
+        // Resolve target commit.
+        let target_oid = if let Some(t) = target {
+            match repo.revparse_single(t) {
+                Ok(obj) => obj.id(),
+                Err(e) => {
+                    warn!("create tag: revparse {t}: {}", e.message());
+                    let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                        operation: format!("create tag {name}"),
+                        error: e.message().to_owned(),
+                    }));
+                    return;
+                }
+            }
+        } else if let Ok(head) = repo.head() {
+            head.target().unwrap_or_else(|| unreachable!())
+        } else {
+            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                operation: format!("create tag {name}"),
+                error: "no HEAD to tag".into(),
+            }));
+            return;
+        };
+
+        let target_obj = match repo.find_object(target_oid, None) {
+            Ok(o) => o,
+            Err(e) => {
+                warn!("create tag: find_object: {}", e.message());
+                let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                    operation: format!("create tag {name}"),
+                    error: e.message().to_owned(),
+                }));
+                return;
+            }
+        };
+
+        match message {
+            Some(msg) => {
+                let sig = match repo.signature() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        warn!("create tag: signature: {}", e.message());
+                        let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                            operation: format!("create tag {name}"),
+                            error: e.message().to_owned(),
+                        }));
+                        return;
+                    }
+                };
+                match repo.tag(name, &target_obj, &sig, msg, false) {
+                    Ok(_) => {
+                        let _ = event_tx
+                            .send(EditorEvent::Git(GitEvent::TagCreated { name: name.into() }));
+                    }
+                    Err(e) => {
+                        warn!("create annotated tag: {}", e.message());
+                        let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                            operation: format!("create tag {name}"),
+                            error: e.message().to_owned(),
+                        }));
+                    }
+                }
+            }
+            None => match repo.tag_lightweight(name, &target_obj, false) {
+                Ok(_) => {
+                    let _ =
+                        event_tx.send(EditorEvent::Git(GitEvent::TagCreated { name: name.into() }));
+                }
+                Err(e) => {
+                    warn!("create lightweight tag: {}", e.message());
+                    let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                        operation: format!("create tag {name}"),
+                        error: e.message().to_owned(),
+                    }));
+                }
+            },
+        }
+    }
+
+    fn delete_tag_impl(
+        repo: &git2::Repository,
+        name: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        let ref_name = format!("refs/tags/{name}");
+        // Delete by writing null OID (the standard way to delete a reference in libgit2).
+        let null_oid = git2::Oid::ZERO_SHA1;
+        repo.reference(&ref_name, null_oid, true, "delete tag")?;
+        Ok(())
+    }
+
+    // ── Remote operations ───────────────────────────────────────────────────
+
+    fn send_remote_list(repo: &git2::Repository, event_tx: &Sender<EditorEvent>) {
+        use crabide_core::event::{GitEvent, RemoteInfo};
+        let remotes = match repo.remotes() {
+            Ok(names) => names
+                .iter()
+                .filter_map(|name_res| {
+                    let name = name_res.ok()??;
+                    let remote = repo.find_remote(name).ok()?;
+                    let url = remote.url().unwrap_or("").to_owned();
+                    let push_url = remote.pushurl().ok().flatten().map(|u| u.to_owned());
+                    Some(RemoteInfo {
+                        name: name.to_owned(),
+                        url,
+                        push_url,
+                    })
+                })
+                .collect::<Vec<_>>(),
+            Err(e) => {
+                warn!("list remotes: {}", e.message());
+                Vec::new()
+            }
+        };
+        let _ = event_tx.send(EditorEvent::Git(GitEvent::RemotesListed { remotes }));
+    }
+
+    fn add_remote_impl(
+        repo: &git2::Repository,
+        name: &str,
+        url: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        repo.remote(name, url)?;
+        Ok(())
+    }
+
+    fn remove_remote_impl(
+        repo: &git2::Repository,
+        name: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        repo.remote_delete(name)?;
+        Ok(())
     }
 }

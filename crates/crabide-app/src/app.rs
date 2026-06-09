@@ -1296,6 +1296,41 @@ impl crabideApp {
                 self.ui_state.git_panel.log_entries = entries;
                 self.ui_state.set_status("Git log updated");
             }
+
+            TagListed { tags } => {
+                self.ui_state.git_panel.tags = tags;
+                self.ui_state.set_status("Git tags listed");
+            }
+            TagCreated { name } => {
+                self.ui_state.set_status(format!("Git tag created: {name}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_tags();
+                }
+            }
+            TagDeleted { name } => {
+                self.ui_state.set_status(format!("Git tag deleted: {name}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_tags();
+                }
+            }
+            RemotesListed { remotes } => {
+                self.ui_state.git_panel.remotes = remotes;
+                self.ui_state.set_status("Git remotes listed");
+            }
+            RemoteAdded { name, url } => {
+                self.ui_state
+                    .set_status(format!("Git remote added: {name} -> {url}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_remotes();
+                }
+            }
+            RemoteRemoved { name } => {
+                self.ui_state
+                    .set_status(format!("Git remote removed: {name}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_remotes();
+                }
+            }
         }
     }
 

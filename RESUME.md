@@ -2,17 +2,21 @@
 
 ## Session summary
 
-**DAP evaluate/threads/breakpoints/backpressure infrastructure added ✅**
-- Added new `DapEvent` variants: `EvaluateReady`, `ThreadsReady`, `SetVariableDone`, `FunctionBreakpointsReady`, `ExceptionInfoReady`, `ExceptionBreakpointsSet`, `GotoTargetsReady`, `ModulesReady`, `ProgressStart`, `ProgressUpdate`, `ProgressEnd`, `Invalidated`
-- Added DAP type definitions for evaluate, threads, setVariable, function/exception breakpoints, gotoTargets, modules, runInTerminal, cancel, completions
+**DAP + Git tag/remote infrastructure added ✅**
+- DAP: evaluate, threads, setVariable, function/exception breakpoints, progress events, invalidated, runInTerminal handler, attach workflow, writer backpressure (bounded channel)
+- Added DAP types: EvaluateArguments, AttachRequestArguments, ThreadsResponse, SetVariableArguments, FunctionBreakpoint, ExceptionInfoArguments, GotoTargetsArguments, ModulesArguments, RunInTerminalArguments, CancelArguments, CompletionsArguments
 - Added core event types: `DapThread`, `GotoTarget`, `DapModule`, `EvaluateResult`
-- Added `DapClient` methods: `evaluate()`, `request_threads()`, `set_variable()`, `set_function_breakpoints()`, `set_exception_breakpoints()`, `request_exception_info()`, `request_goto_targets()`, `goto()`, `request_modules()`, `attach()`
-- Extended `dispatch_event` to handle: `module`, `progressStart`, `progressUpdate`, `progressEnd`, `invalidated`
-- Added `handle_reverse_request` to respond to adapter reverse-requests (`runInTerminal`)
-- Added `send_response` method to `DapTransport`
-- Changed transport writer from unbounded to bounded channel (1024 slots, `try_send` backpressure)
-- Wired all new events in `apply_dap_event` in app.rs
-- Added new fields to `DapPanelState`: `threads`, `function_breakpoints`, `last_exception`, `goto_targets`, `modules`, `last_evaluate_result`, `progress`
+- Added DapClient methods: evaluate(), request_threads(), set_variable(), set_function_breakpoints(), set_exception_breakpoints(), request_exception_info(), request_goto_targets(), goto(), request_modules(), attach()
+- Added `handle_reverse_request` for adapter reverse-requests (runInTerminal)
+- Changed transport writer from unbounded to bounded channel (1024 slots, try_send backpressure)
+- Git: Added tag management (list, create annotated/lightweight, delete)
+- Git: Added remote management (list, add, remove)
+- Added core types: `TagInfo`, `RemoteInfo`
+- Added `GitEvent` variants: `TagListed`, `TagCreated`, `TagDeleted`, `RemotesListed`, `RemoteAdded`, `RemoteRemoved`
+- Added `GitCommand` variants: `ListTags`, `CreateTag`, `DeleteTag`, `ListRemotes`, `AddRemote`, `RemoveRemote`
+- Added `GitService` methods: `list_tags()`, `create_tag()`, `delete_tag()`, `list_remotes()`, `add_remote()`, `remove_remote()`
+- Added `tags` and `remotes` fields to `GitPanelState`
+- Wired all new events in app.rs
 - All workspace tests pass, zero warnings (clippy + check)
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
