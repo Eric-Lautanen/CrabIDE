@@ -530,4 +530,46 @@ mod tests {
         assert_eq!(pos.line, 0);
         assert_eq!(pos.character, 0);
     }
+
+    #[test]
+    fn highlights_returns_empty_for_unparsed_doc() {
+        let engine = SyntaxEngine::new();
+        let id = BufferId::new();
+        let spans = engine.highlights(id);
+        assert!(spans.is_empty(), "unparsed doc should yield no highlights");
+    }
+
+    #[test]
+    fn highlights_empty_for_unknown_language() {
+        let engine = SyntaxEngine::new();
+        let id = BufferId::new();
+        // Parse with a language not in registry
+        engine.parse_document(id, &Language::new("nonexistent"), "test", 1);
+        let spans = engine.highlights(id);
+        assert!(spans.is_empty(), "unknown language should yield no highlights");
+    }
+
+    #[test]
+    fn folding_ranges_returns_empty_for_unparsed_doc() {
+        let engine = SyntaxEngine::new();
+        let id = BufferId::new();
+        let ranges = engine.folding_ranges(id);
+        assert!(ranges.is_empty());
+    }
+
+    #[test]
+    fn outline_returns_empty_for_unparsed_doc() {
+        let engine = SyntaxEngine::new();
+        let id = BufferId::new();
+        let symbols = engine.outline(id);
+        assert!(symbols.is_empty());
+    }
+
+    #[test]
+    fn indents_returns_empty_for_unparsed_doc() {
+        let engine = SyntaxEngine::new();
+        let id = BufferId::new();
+        let indents = engine.indents(id);
+        assert!(indents.is_empty());
+    }
 }
