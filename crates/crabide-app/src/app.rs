@@ -351,10 +351,10 @@ impl crabideApp {
         // Collect all pending values before touching git_service borrow.
         let stage_file = self.ui_state.git_panel.pending_stage_file.take();
         let unstage_file = self.ui_state.git_panel.pending_unstage_file.take();
-        let stage_all = std::mem::replace(&mut self.ui_state.git_panel.pending_stage_all, false);
+        let stage_all = std::mem::take(&mut self.ui_state.git_panel.pending_stage_all);
         let unstage_all =
-            std::mem::replace(&mut self.ui_state.git_panel.pending_unstage_all, false);
-        let do_commit = std::mem::replace(&mut self.ui_state.git_panel.pending_commit, false);
+            std::mem::take(&mut self.ui_state.git_panel.pending_unstage_all);
+        let do_commit = std::mem::take(&mut self.ui_state.git_panel.pending_commit);
         let commit_msg = if do_commit {
             let m = self.ui_state.git_panel.commit_message.clone();
             if !m.is_empty() {
@@ -399,7 +399,7 @@ impl crabideApp {
     /// Drain all pending terminal panel actions and forward them to the manager.
     fn drain_terminal_pending(&mut self) {
         // Collect pending values.
-        let new_terminal = std::mem::replace(&mut self.ui_state.terminal.pending_new, false);
+        let new_terminal = std::mem::take(&mut self.ui_state.terminal.pending_new);
         let kill_id = self.ui_state.terminal.pending_kill.take();
         let resize = self.ui_state.terminal.pending_resize.take();
         let input: Vec<(u32, Vec<u8>)> = std::mem::take(&mut self.ui_state.terminal.pending_input);
@@ -447,21 +447,21 @@ impl crabideApp {
 
     /// Drain all pending debug panel actions and forward them to the DAP client.
     fn drain_dap_pending(&mut self) {
-        let pending_launch = std::mem::replace(&mut self.ui_state.dap_panel.pending_launch, false);
+        let pending_launch = std::mem::take(&mut self.ui_state.dap_panel.pending_launch);
         let pending_continue =
-            std::mem::replace(&mut self.ui_state.dap_panel.pending_continue, false);
+            std::mem::take(&mut self.ui_state.dap_panel.pending_continue);
         let pending_step_over =
-            std::mem::replace(&mut self.ui_state.dap_panel.pending_step_over, false);
+            std::mem::take(&mut self.ui_state.dap_panel.pending_step_over);
         let pending_step_in =
-            std::mem::replace(&mut self.ui_state.dap_panel.pending_step_in, false);
+            std::mem::take(&mut self.ui_state.dap_panel.pending_step_in);
         let pending_step_out =
-            std::mem::replace(&mut self.ui_state.dap_panel.pending_step_out, false);
-        let pending_stop = std::mem::replace(&mut self.ui_state.dap_panel.pending_stop, false);
+            std::mem::take(&mut self.ui_state.dap_panel.pending_step_out);
+        let pending_stop = std::mem::take(&mut self.ui_state.dap_panel.pending_stop);
         let pending_restart =
-            std::mem::replace(&mut self.ui_state.dap_panel.pending_restart, false);
-        let pending_pause = std::mem::replace(&mut self.ui_state.dap_panel.pending_pause, false);
+            std::mem::take(&mut self.ui_state.dap_panel.pending_restart);
+        let pending_pause = std::mem::take(&mut self.ui_state.dap_panel.pending_pause);
         let pending_stack_trace =
-            std::mem::replace(&mut self.ui_state.dap_panel.pending_stack_trace, false);
+            std::mem::take(&mut self.ui_state.dap_panel.pending_stack_trace);
         let pending_expand_var = self.ui_state.dap_panel.pending_expand_var.take();
         let pending_bps: Vec<(std::path::PathBuf, Vec<u32>)> =
             std::mem::take(&mut self.ui_state.dap_panel.pending_set_breakpoints);
@@ -602,9 +602,8 @@ impl crabideApp {
         }
 
         // ── Collect all pending actions from the panel state ──────────────────
-        let install_local = std::mem::replace(
+        let install_local = std::mem::take(
             &mut self.ui_state.extensions_panel.pending_install_local,
-            false,
         );
         let toggle_id = self.ui_state.extensions_panel.pending_toggle.take();
         let uninstall_id = self.ui_state.extensions_panel.pending_uninstall.take();
