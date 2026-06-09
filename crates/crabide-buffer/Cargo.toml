@@ -15,23 +15,11 @@ crabide-core.workspace = true
 
 # Rope buffer — ropey chosen for O(1) Arc clone + line/char/byte index APIs.
 # JumpRope is faster on raw edits but has NO line APIs, which are essential
-# for line/column ↔ byte offset conversions required by LSP and the editor view.
+# for line/column <-> byte offset conversions required by LSP and the editor view.
 ropey = { workspace = true }
 
 # For snippet parsing
 regex.workspace = true
 
-# Serialization (persisting undo history checkpoints)
-serde.workspace     = true
-serde_json.workspace = true
-
 # Error handling
-thiserror.workspace = true
 anyhow.workspace    = true
-
-# Logging
-log.workspace = true
-
-# Concurrency
-parking_lot.workspace = true
-
