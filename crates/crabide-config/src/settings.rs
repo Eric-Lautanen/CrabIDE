@@ -276,8 +276,6 @@ struct PartialSettings {
     git: PartialGitSettings,
     lsp: PartialLspSettings,
     extensions: PartialExtensionsSettings,
-    /// Per-language editor settings overrides. Map is merged (overwritten)
-    /// onto the base settings, so user/workspace files can add/override per-language keys.
     #[serde(rename = "language", default)]
     language_overrides: HashMap<String, PartialEditorSettings>,
 }

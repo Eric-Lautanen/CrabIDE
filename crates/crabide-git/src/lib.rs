@@ -1999,15 +1999,15 @@ mod git_support {
                     return;
                 }
             }
-        } else if let Ok(head) = repo.head() {
+        } else { match repo.head() { Ok(head) => {
             head.target().unwrap_or_else(|| unreachable!())
-        } else {
+        } _ => {
             let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
                 operation: format!("create tag {name}"),
                 error: "no HEAD to tag".into(),
             }));
             return;
-        };
+        }}};
 
         let target_obj = match repo.find_object(target_oid, None) {
             Ok(o) => o,

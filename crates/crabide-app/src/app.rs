@@ -476,21 +476,21 @@ impl crabideApp {
                 .get(config_idx)
                 .cloned()
             {
-                if let Some(client) = DapClient::start(
+                match DapClient::start(
                     &config.adapter_command,
                     &config.adapter_args,
                     self.event_tx.clone(),
                     self.rt.clone(),
-                ) {
+                ) { Some(client) => {
                     client.initialize();
                     client.launch(&config);
                     self.ui_state.dap_panel.session_active = true;
                     self.ui_state
                         .set_status(format!("Debugger started: {}", config.name));
                     self.dap_client = Some(client);
-                } else {
+                } _ => {
                     self.ui_state.set_status("Failed to start debug adapter");
-                }
+                }}
             } else {
                 self.ui_state.set_status("No launch configuration selected");
             }
@@ -2570,14 +2570,14 @@ impl crabideApp {
                         .next()
                         .or_else(|| std::env::current_dir().ok())
                         .unwrap_or_else(|| PathBuf::from("."));
-                    if let Some(svc) = GitService::start(start_path, self.event_tx.clone()) {
+                    match GitService::start(start_path, self.event_tx.clone()) { Some(svc) => {
                         svc.refresh();
                         self.git_service = Some(svc);
                         self.ui_state.set_status("Git enabled");
-                    } else {
+                    } _ => {
                         self.ui_state
                             .set_status("Git enabled — open a folder to start tracking");
-                    }
+                    }}
                 }
             }
 
@@ -4026,15 +4026,15 @@ impl crabideApp {
             if let Some(idx) = self.ui_state.active_tab() {
                 let tab = &self.ui_state.tabs_mut()[idx];
                 let lang = tab.language.clone();
-                if let Some(client) = self.lsp_manager.get_client(&lang) {
+                match self.lsp_manager.get_client(&lang) { Some(client) => {
                     let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
                     client.execute_command(cmd.clone(), vec![], req_id);
                     self.ui_state
                         .set_status(format!("Executing: {}", action.title));
-                } else {
+                } _ => {
                     self.ui_state
                         .set_status("No language server for code action");
-                }
+                }}
             } else {
                 self.ui_state
                     .set_status("No active document for code action");
@@ -5001,7 +5001,7 @@ fn register_grammars() {
             // for the lifetime of the returned `Language`.  We ensure this by
             // keeping the `Library` handle alive in `GrammarRegistry`.
             unsafe {
-                extern "C" {
+                unsafe extern "C" {
                     fn $fn_name() -> *const tree_sitter::ffi::TSLanguage;
                 }
                 tree_sitter::Language::from_raw($fn_name())

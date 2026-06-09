@@ -223,7 +223,7 @@ async fn run_reader(
                     continue;
                 }
             };
-            if let Some((_, req)) = pending.remove(&req_seq) {
+            match pending.remove(&req_seq) { Some((_, req)) => {
                 let outcome = if msg.success.unwrap_or(false) {
                     Ok(msg.body)
                 } else {
@@ -234,9 +234,9 @@ async fn run_reader(
                     ))
                 };
                 let _ = req.respond.send(outcome);
-            } else {
+            } _ => {
                 log::warn!("DAP reader: response for unknown seq {req_seq}");
-            }
+            }}
         } else {
             // Event or reverse-request — forward to the client.
             if in_tx.send(msg).is_err() {

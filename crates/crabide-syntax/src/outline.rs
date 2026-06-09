@@ -440,8 +440,7 @@ fn extract_go(root: tree_sitter::Node<'_>, source: &[u8]) -> Vec<SymbolOutline> 
                     let recv = field_child(child, "receiver")
                         .and_then(|r| {
                             let mut c = r.walk();
-                            let first = r.named_children(&mut c).next();
-                            first
+                            r.named_children(&mut c).next()
                         })
                         .and_then(|p| field_child(p, "type"))
                         .map(|t| node_text(t, source))

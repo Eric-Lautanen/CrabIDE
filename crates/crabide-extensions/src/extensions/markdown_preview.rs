@@ -68,7 +68,7 @@ impl MarkdownPreviewExtension {
                     continue;
                 }
             } else {
-                let end_marker: String = std::iter::repeat(fence_ch).take(3).collect();
+                let end_marker: String = std::iter::repeat_n(fence_ch, 3).collect();
                 if raw_line.starts_with(&end_marker) {
                     in_fence = false;
                     out.push_str("└────────────────────────\n");

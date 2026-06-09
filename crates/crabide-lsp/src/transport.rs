@@ -467,7 +467,7 @@ async fn run_reader(
                 }
             };
 
-            if let Some((_, req)) = pending.remove(&id) {
+            match pending.remove(&id) { Some((_, req)) => {
                 let elapsed = req.sent_at.elapsed();
                 let dur_us = elapsed.as_micros() as u64;
                 let outcome = if let Some(err) = msg.error {
@@ -487,9 +487,9 @@ async fn run_reader(
                     let _ = tx.send((dur_us, req.method.clone()));
                 }
                 let _ = req.respond.send(outcome);
-            } else {
+            } _ => {
                 log::warn!("LSP reader: response for unknown request id {id}");
-            }
+            }}
         } else {
             // Notification or server→client request — forward to LSP client
             if in_tx.send(msg).is_err() {
