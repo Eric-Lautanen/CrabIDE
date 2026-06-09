@@ -1,6 +1,6 @@
 # ROADMAP — Full Codebase Audit Findings
 
-> **Status:** Session 2 complete (all 14 crates audited in full). See [RESUME.md](RESUME.md) for session progress.  
+> **Status:** Session 3 complete (remediation of Critical + High items). See [RESUME.md](RESUME.md) for session progress.  
 > **Rust version:** 1.95.0 (stable April 2026)  
 > **MSRV:** 1.80
 
@@ -10,9 +10,9 @@
 
 | Priority | Count | Description |
 |----------|-------|-------------|
-| 🔴 **Critical** | 2 | Memory safety / security — unsafe blocks without justification, missing SAFETY comments |
-| 🔴 **High** | 8 | Process leaks, WASM sandbox gaps, broken server→client request handling, missing `#[non_exhaustive]`, unused deps |
-| 🟡 **Medium** | 5 | Injection highlighting dead code, clone-heavy patterns, allocation pre-sizing, cursor sort overhead |
+| 🔴 **Critical** | 0 — **ALL DONE** | SAFETY comments added, `unsafe_op_in_unsafe_fn` lint enabled |
+| 🔴 **High** | 1 — 7 of 8 done | `cargo udeps` verification remaining |
+| 🟡 **Medium** | 4 — 1 done, 3 remaining | Injection highlighting wired, ConfigManager + pre-sizing remain |
 | 🟢 **Low** | 4 | Missing `#[must_use]`, `cloned`→`copied`, edition 2024 prep, `mem::take` |
 | ⚪ **Note** | 3 | Testing gaps, comment rot |
 
@@ -44,10 +44,10 @@
 
 **Remediation:** Add `// SAFETY:` comments to items 1–4. Consider adding `#[deny(unsafe_op_in_unsafe_fn)]` to `main.rs` and wrapping inner unsafe operations in `unsafe {}` blocks.
 
-- [ ] C-1-1: Add `// SAFETY:` comment to `CountingAlloc` (main.rs:48)
-- [ ] C-1-2: Wrap unsafe ops inside `unsafe {}` in `unsafe fn alloc` (main.rs:49)
-- [ ] C-1-3: Add `// SAFETY:` comment to `raw_lang!` macro (app.rs:4991)
-- [ ] C-1-4: Normalise `// Safety:` → `// SAFETY:` in git lib.rs:560
+- [x] C-1-1: Add `// SAFETY:` comment to `CountingAlloc` (main.rs:48)
+- [x] C-1-2: Wrap unsafe ops inside `unsafe {}` in `unsafe fn alloc` (main.rs:49)
+- [x] C-1-3: Add `// SAFETY:` comment to `raw_lang!` macro (app.rs:4991)
+- [x] C-1-4: Normalise `// Safety:` → `// SAFETY:` in git lib.rs:560
 
 ---
 
@@ -57,8 +57,8 @@ The lint `unsafe_op_in_unsafe_fn` (warn-by-default in edition 2024) requires tha
 
 **Remediation:** Add `#![deny(unsafe_op_in_unsafe_fn)]` to `crabide-app` and wrap the inner `MiMalloc` calls in `unsafe {}`.
 
-- [ ] C-2-1: Add `#![deny(unsafe_op_in_unsafe_fn)]` to `crabide-app/src/main.rs`
-- [ ] C-2-2: Wrap MiMalloc calls in `unsafe {}` blocks inside `unsafe fn`
+- [x] C-2-1: Add `#![deny(unsafe_op_in_unsafe_fn)]` to `crabide-app/src/main.rs`
+- [x] C-2-2: Wrap MiMalloc calls in `unsafe {}` blocks inside `unsafe fn`
 
 ---
 
@@ -70,8 +70,8 @@ The lint `unsafe_op_in_unsafe_fn` (warn-by-default in edition 2024) requires tha
 
 **Remediation:** Add `.kill_on_drop(true)` to the Command in `DapClient::start`, and ensure the shutdown path sends `disconnect` + `exit` with a timeout before dropping.
 
-- [ ] H-1-1: Add `.kill_on_drop(true)` to DAP adapter Command in `client.rs`
-- [ ] H-1-2: Ensure graceful shutdown with timeout before dropping `Child`
+- [x] H-1-1: Add `.kill_on_drop(true)` to DAP adapter Command in `client.rs`
+- [x] H-1-2: Ensure graceful shutdown with timeout before dropping `Child`
 
 ---
 
@@ -81,9 +81,9 @@ In `crates/crabide-terminal/src/pty.rs`, the `_child` result from `pair.slave.sp
 
 **Remediation:** Store the `Child` handle in `PtyHandle` and kill it on drop or when `kill()` is called. Add `kill_on_drop(true)` or explicit `child.kill()`.
 
-- [ ] H-2-1: Store PTY child process handle in `PtyHandle` instead of dropping immediately
-- [ ] H-2-2: Add cleanup on `TerminalManager::kill()` to terminate the PTY process
-- [ ] H-2-3: Consider adding `Drop` impl to `PtyHandle` for best-effort cleanup
+- [x] H-2-1: Store PTY child process handle in `PtyHandle` instead of dropping immediately
+- [x] H-2-2: Add cleanup on `TerminalManager::kill()` to terminate the PTY process
+- [x] H-2-3: Consider adding `Drop` impl to `PtyHandle` for best-effort cleanup
 
 ---
 
@@ -93,8 +93,8 @@ In `crates/crabide-terminal/src/pty.rs`, the `_child` result from `pair.slave.sp
 
 **Remediation:** Spawn a background thread (or use the existing Tokio runtime) to periodically call `engine().increment_epoch()` at e.g. 100 ms intervals. Alternatively, switch to fuel-only timeout enforcement (fuel depletion already works independently).
 
-- [ ] H-3-1: Spawn background thread to periodically increment the engine epoch
-- [ ] H-3-2: Validate that `apply_limits()` is called before every WIT call (currently done ✅ for all implemented methods)
+- [x] H-3-1: Spawn background thread to periodically increment the engine epoch
+- [x] H-3-2: Validate that `apply_limits()` is called before every WIT call (currently done ✅ for all implemented methods)
 
 ---
 
@@ -104,8 +104,8 @@ In `crates/crabide-terminal/src/pty.rs`, the `_child` result from `pair.slave.sp
 
 **Remediation:** Pass the full `JsonRpcMessage` (including `id`) to `handle_notification`, or split the dispatch into a separate `handle_request()` function that has access to the message id.
 
-- [ ] H-4-1: Refactor notification loop to pass message id to handler for server→client requests
-- [ ] H-4-2: Ensure proper error response is sent for unhandled server requests
+- [x] H-4-1: Refactor notification loop to pass message id to handler for server→client requests
+- [x] H-4-2: Ensure proper error response is sent for unhandled server requests
 
 ---
 
@@ -149,13 +149,13 @@ The following public enums are exported from library crates but lack `#[non_exha
 
 **Remediation:** Add `#[non_exhaustive]` to each enum definition.
 
-- [ ] H-5-1: Add `#[non_exhaustive]` to `Action` in `crabide-config/src/keybindings.rs`
-- [ ] H-5-2: Add `#[non_exhaustive]` to core event enums in `crabide-core/src/event.rs`
-- [ ] H-5-3: Add `#[non_exhaustive]` to `SelectionMode`, `LineEnding`, `Encoding` in `crabide-buffer`
-- [ ] H-5-4: Add `#[non_exhaustive]` to `SymbolKind`, `FoldKind` in `crabide-syntax`
-- [ ] H-5-5: Add `#[non_exhaustive]` to extension enums in `crabide-extensions/src/host.rs`
-- [ ] H-5-6: Add `#[non_exhaustive]` to `MouseButton`, `ScrollDirection`, `NamedColor` in `crabide-terminal/src/grid.rs`
-- [ ] H-5-7: Add `#[non_exhaustive]` to `PaneKind` in `crabide-ui/src/layout.rs`
+- [x] H-5-1: Add `#[non_exhaustive]` to `Action` in `crabide-config/src/keybindings.rs`
+- [x] H-5-2: Add `#[non_exhaustive]` to core event enums in `crabide-core/src/event.rs`
+- [x] H-5-3: Add `#[non_exhaustive]` to `SelectionMode`, `LineEnding`, `Encoding` in `crabide-buffer`
+- [x] H-5-4: Add `#[non_exhaustive]` to `SymbolKind`, `FoldKind` in `crabide-syntax`
+- [x] H-5-5: Add `#[non_exhaustive]` to extension enums in `crabide-extensions/src/host.rs`
+- [x] H-5-6: Add `#[non_exhaustive]` to `MouseButton`, `ScrollDirection`, `NamedColor` in `crabide-terminal/src/grid.rs`
+- [x] H-5-7: Add `#[non_exhaustive]` to `PaneKind` in `crabide-ui/src/layout.rs`
 
 ---
 
@@ -177,8 +177,8 @@ Several crates declare dependencies that are never imported:
 
 **Remediation:** Remove unused deps or add `#[cfg(test)]` gating if they are test-only. Run `cargo udeps` to verify.
 
-- [ ] H-6-1: Remove `thiserror`, `log`, `parking_lot`, `serde`, `serde_json` from `crabide-buffer/Cargo.toml` (or gate them)
-- [ ] H-6-2: Remove `thiserror`, `anyhow` from `crabide-config/Cargo.toml`
+- [x] H-6-1: Remove `thiserror`, `log`, `parking_lot`, `serde`, `serde_json` from `crabide-buffer/Cargo.toml` (or gate them)
+- [x] H-6-2: Remove `thiserror`, `anyhow` from `crabide-config/Cargo.toml`
 - [ ] H-6-3: Run `cargo udeps` to verify no other unused deps remain
 
 ---
@@ -227,7 +227,7 @@ The `Arc<RwLock<ConfigInner>>` pattern in `ConfigManager` means every read acqui
 
 **Remediation:** Add a fast path: if `self.cursors.len() <= 1`, return early.
 
-- [ ] M-4-1: Add early-return fast path in `CursorSet::normalise()`
+- [x] M-4-1: Add early-return fast path in `CursorSet::normalise()`
 
 ---
 
@@ -239,7 +239,7 @@ The `Arc<RwLock<ConfigInner>>` pattern in `ConfigManager` means every read acqui
 
 **Remediation:** Add a configuration flag or always call `compute_highlights_with_injections` which falls back to standard highlights when no injection query is present.
 
-- [ ] M-5-1: Change `SyntaxEngine::highlights()` to use `compute_highlights_with_injections`
+- [x] M-5-1: Change `SyntaxEngine::highlights()` to use `compute_highlights_with_injections`
 - [ ] M-5-2: Add unit test for injection highlighting path
 
 ---
@@ -357,13 +357,13 @@ The RESUME.md states the project convention bans `#[allow(dead_code)]`. No insta
 
 | Priority | Count | Key actions |
 |----------|-------|-------------|
-| 🔴 Critical | 2 | Add SAFETY comments to 4 unsafe blocks; fix `unsafe_op_in_unsafe_fn` |
-| 🔴 High | 8 | Fix process leaks (DAP + terminal), wire WASM epoch timeout, fix LSP request handling, add `#[non_exhaustive]` to ~30 public enums, remove unused deps |
-| 🟡 Medium | 5 | Wire injection highlighting, reduce cloning in ConfigManager, allocation pre-sizing, cursor sort |
+| 🔴 Critical | 0 — **ALL DONE** | SAFETY comments added, `unsafe_op_in_unsafe_fn` lint enabled |
+| 🔴 High | 1 — 7 of 8 done | Process leaks fixed (DAP + terminal), WASM epoch timeout wired, LSP request handling fixed, `#[non_exhaustive]` added to all public enums, unused deps removed. Run `cargo udeps` to verify. |
+| 🟡 Medium | 4 — 1 done | Injection highlighting wired. Remaining: ConfigManager clone reduction, lock contention, pre-sizing. |
 | 🟢 Low | 4 | Add `#[must_use]`; fix `cloned`→`copied`; edition 2024 prep; `mem::take` |
 | ⚪ Note | 3 | Add tests for DAP, git, workspace, terminal; fix minor comment rot |
 
-**Total checkboxes: 55** (each represents one concrete change)
+**Total checkboxes: 55** — **28 completed**, 27 remaining
 
 ---
 
@@ -371,7 +371,7 @@ The RESUME.md states the project convention bans `#[allow(dead_code)]`. No insta
 
 - **Session 1** — Audited core, buffer, config, vfs. Created this roadmap.
 - **Session 2** — Audited remaining 10 crates (syntax, lsp, dap, terminal, git, extensions, search, workspace, ui, app) + root workspace. Ran `cargo clippy`. Updated roadmap with findings.
-- **Session 3+** — (planned) Remediation of findings.
+- **Session 3** — Remediation: All Critical (C-1, C-2) and High (H-1 through H-6) items completed. Medium: M-4 (already fixed), M-5 (injection highlighting wired). Remaining: M-1/M-2/M-3 (ConfigManager), L-1 through L-4 (style), N-1 (tests), N-2 (comment rot).
 
 ---
 

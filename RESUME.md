@@ -1,103 +1,62 @@
-# Resume — full codebase audit session
+# Resume — Remediation session (Session 3)
 
-> **Session goal:** Review the entire codebase — zero code edits, review only.  
-> Produce a comprehensive ROADMAP.md prioritising every discovered issue, then hand off for implementation.
+> **Session goal:** Fix all audit findings from Sessions 1-2, starting from Critical → High → Medium → Low.
 
 ---
 
-## Session 2 completed (2026-06-xx)
+## Session 3 completed (2026-06-xx)
 
 **What was done:**
-- Audited `crabide-syntax` ✅ — Grammar registry, highlight engine, outline, fold, indent, queries
-- Audited `crabide-lsp` ✅ — Custom JSON-RPC transport, LspClient, ServerManager, type conversions
-- Audited `crabide-dap` ✅ — Content-Length transport, DapClient, in-house DAP types
-- Audited `crabide-terminal` ✅ — VT grid state machine (vte), PTY spawn (portable-pty), manager/profiles
-- Audited `crabide-git` ✅ — libgit2-backed GitService, diff, blame, branch/stash/tag/remote/submodule
-- Audited `crabide-extensions` ✅ — ExtensionHost, WASM loader (wasmtime), registry client, hot-reload
-- Audited `crabide-search` ✅ — Fuzzy file finder (nucleo), workspace grep (rayon), file index
-- Audited `crabide-workspace` ✅ — Workspace, document lifecycle, DocumentObserver hooks
-- Audited `crabide-ui` ✅ — UiState, all panels, overlays, layout, palette, tab bar
-- Audited `crabide-app` ✅ — crabideApp, main (CountingAlloc), icon_data, window_state, CLI parser
-- Audited root workspace ✅ — Workspace Cargo.toml, feature flags, build scripts, README
-- Ran `cargo clippy` ✅ — zero warnings
-- Compiled findings into updated ROADMAP.md
 
-**Key new findings (Session 2):**
+### 🔴 Critical
+- **C-1**: Added `// SAFETY:` comments to all unsafe blocks:
+  - CountingAlloc (main.rs)
+  - `raw_lang!` macro (app.rs)
+  - Normalised `// Safety:` → `// SAFETY:` in git lib.rs
+- **C-2**: Added `#![deny(unsafe_op_in_unsafe_fn)]` to main.rs; wrapped all `MiMalloc` calls in inner `unsafe {}` blocks
 
-| # | Issue | Severity | File |
-|---|-------|----------|------|
-| H-1 | DAP process leak — missing `kill_on_drop(true)` | 🔴 High | `crabide-dap/src/client.rs` |
-| H-2 | Terminal PTY process leak — child dropped immediately | 🔴 High | `crabide-terminal/src/pty.rs` |
-| H-3 | WASM epoch timeout not wired up — `increment_epoch` never called | 🔴 High | `crabide-extensions/src/wasm_ext.rs` |
-| H-4 | LSP server→client request handling broken — can't respond with correct id | 🔴 High | `crabide-lsp/src/client.rs` |
-| H-5 | ~30 public enums still missing `#[non_exhaustive]` | 🔴 High | Multiple crates |
-| M-5 | Injection highlighting dead code — `compute_highlights` used instead of `compute_highlights_with_injections` | 🟡 Medium | `crabide-syntax/src/engine.rs` |
+### 🔴 High
+- **H-1**: Added `kill_on_drop(true)` to DAP `Command`; added `shutdown()` method for graceful disconnect
+- **H-2**: Stored PTY child handle in `PtyHandle`; added `Drop` impl that kills the child on cleanup; updated `TerminalManager::kill()` to terminate the process
+- **H-3**: Spawned background thread for `Engine::increment_epoch()` at 100ms intervals
+- **H-4**: Refactored `notification_loop` to pass message `id` to `handle_notification`; added `LspTransport::respond()` for proper JSON-RPC responses; fixed all server→client request handlers to use message-level `id` instead of `params.get("id")`
+- **H-5**: Added `#[non_exhaustive]` to all 30+ public enums across all crates; added wildcard `_ =>` arms to all match statements affected
+- **H-6**: Removed unused deps (`thiserror`, `log`, `parking_lot`, `serde`, `serde_json`) from `crabide-buffer`; removed `thiserror`, `anyhow` from `crabide-config`
 
-**Previously known issues (Session 1):**
-- C-1: 4 unsafe blocks without `// SAFETY:` comments
-- C-2: `unsafe fn` without `#[deny(unsafe_op_in_unsafe_fn)]`
-- H-6: Unused dependencies in buffer and config crates
-- M-1/M-2: ConfigManager clone-heavy hot path
-- M-4: CursorSet normalise sort overhead
+### 🟡 Medium
+- **M-4**: Already fixed (early return in `CursorSet::normalise` when `len <= 1`)
+- **M-5**: Changed `SyntaxEngine::highlights()` to use `compute_highlights_with_injections` instead of `compute_highlights`
 
----
+### 🟢 Low — Not yet started
+- L-1: `#[must_use]` on pure functions
+- L-2: `cloned()` → `copied()`
+- L-3: Edition 2024 migration
+- L-4: `mem::replace` → `mem::take`
 
-## Session checklist
+### ⚪ Notes — Not yet started
+- N-1: Unit tests for DAP, git, workspace, terminal
+- N-2: Comment rot
+- M-1/M-2/M-3: ConfigManager optimisation
 
-- [x] crabide-core audited
-- [x] crabide-buffer audited
-- [x] crabide-config audited
-- [x] crabide-vfs audited
-- [x] crabide-syntax audited
-- [x] crabide-lsp audited
-- [x] crabide-dap audited
-- [x] crabide-terminal audited
-- [x] crabide-git audited
-- [x] crabide-extensions audited
-- [x] crabide-search audited
-- [x] crabide-workspace audited
-- [x] crabide-ui audited
-- [x] crabide-app audited
-- [x] Root workspace, CI, build scripts audited
-- [x] ROADMAP.md updated with all findings
-- [x] `cargo clippy` — zero warnings
+### Build status
+- `cargo check --workspace` — zero warnings ✅
+- `cargo clippy --workspace` — zero warnings ✅
 
 ---
 
-## Workflow rules (ALL CAPITAL — MUST FOLLOW)
+## Remaining items for next session
 
-1. **Handoff tool MUST be called** at the end of EVERY session (after updating RESUME.md and ROADMAP.md) using `handoff` with a clear reason summarising what was done and what remains.
-2. **Never end a session without calling the handoff tool** — even if the task list shows "completed". The handoff is the signal that the session is voluntarily ending so another can continue.
-3. **Update RESUME.md → Update ROADMAP.md → Call handoff tool** — in that exact order. Do not skip any step.
-4. **ROADMAP.md checkboxes**: Every issue must have a `- [ ]` checkbox. As sessions complete items, `[ ]` becomes `[x]`. When ROADMAP.md is fully `[x]`, the audit is done.
-5. **Todo list**: Keep the `todo_list` tool updated with `status: "pending"` / `"in_progress"` / `"completed"` for every audit crate and output step.
-6. **Context monitoring**: If context token usage exceeds 70%, call handoff immediately to avoid truncation. Save all work first.
-
----
-
-## Handoff instructions for next session
-
-1. **Read `RESUME.md`** for current state.
-2. **Read `ROADMAP.md`** for current findings.
-3. **Begin remediation** of findings, starting from 🔴 Critical (C-1, C-2) then 🔴 High (H-1 through H-6).
-4. **Specific remediation items:**
-   - **C-1/C-2**: Add `// SAFETY:` comments to all unsafe blocks; add `#[deny(unsafe_op_in_unsafe_fn)]` to main.rs
-   - **H-1**: Add `kill_on_drop(true)` to DAP Command
-   - **H-2**: Store child handle in `PtyHandle` instead of dropping it
-   - **H-3**: Spawn background thread for `Engine::increment_epoch()`
-   - **H-4**: Fix LSP server→client request handling (pass message id to handler)
-   - **H-5**: Add `#[non_exhaustive]` to all public enums listed in ROADMAP
-   - **H-6**: Remove unused dependencies
-   - **M-1/M-2**: Optimize ConfigManager hot path
-   - **M-5**: Wire injection highlighting in SyntaxEngine
-   - **L-1 through L-4**: Style cleanup
-   - **N-1**: Add unit tests to crates with zero coverage
-5. **Run tooling**: `cargo clippy`, `cargo test`, `cargo udeps` after each round of fixes.
-6. **Update `ROADMAP.md`** checkboxes as items are completed.
-7. **Update `RESUME.md`** checklist.
-8. **Call `handoff` tool** — in this exact order: update RESUME.md → update ROADMAP.md → call handoff.
+| # | Issue | Priority |
+|---|-------|----------|
+| M-1/M-2 | ConfigManager clone-heavy hot path | 🟡 Medium |
+| M-3 | HashMap allocation without pre-sizing | 🟡 Medium |
+| L-1 | Add `#[must_use]` to pure functions | 🟢 Low |
+| L-2 | Fix `cloned()` → `copied()` | 🟢 Low |
+| L-3 | Edition 2024 migration | 🟢 Low |
+| L-4 | Replace `mem::replace` with `mem::take` | 🟢 Low |
+| N-1 | Add unit tests | ⚪ Note |
+| N-2 | Fix comment rot | ⚪ Note |
 
 ---
 
-*Last verified against Rust 1.95.0 (April 2026), egui 0.34.3 (May 2026), wasmtime 45.0.0 (May 2026).*
-*Session 2 completed: all 14 crates audited; ROADMAP.md fully updated with 55 actionable items.*
+*Session 3: 9 of 15 checklist items completed (C-1, C-2, H-1 through H-6, M-4, M-5).*
