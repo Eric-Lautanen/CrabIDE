@@ -260,7 +260,7 @@ impl crabideApp {
         // Wire marketplace URL from config settings to the registry client.
         {
             let settings = config.settings();
-            let url = settings.extensions.marketplace_url;
+            let url = settings.extensions.marketplace_url.clone();
             if !url.is_empty() {
                 registry.set_base_url(url.clone());
                 extension_host.set_marketplace_url(url);
@@ -1036,7 +1036,7 @@ impl crabideApp {
         self.config.set_active_theme(next_id);
         self.ui_state.theme = self.config.active_theme();
         configure_egui_style(ctx, &self.ui_state);
-        let mut settings = self.config.settings();
+        let mut settings = self.config.settings().as_ref().clone();
         settings.ui.color_theme = next_id.to_owned();
         if let Some(user_dir) = crabide_config::SettingsLoader::user_config_dir() {
             let path = user_dir.join("settings.toml");
@@ -4247,7 +4247,7 @@ impl eframe::App for crabideApp {
             self.config.set_active_theme(&theme_id);
             self.ui_state.theme = self.config.active_theme();
             configure_egui_style(&ctx, &self.ui_state);
-            let mut settings = self.config.settings();
+            let mut settings = self.config.settings().as_ref().clone();
             settings.ui.color_theme = theme_id.clone();
             if let Some(user_dir) = crabide_config::SettingsLoader::user_config_dir() {
                 let path = user_dir.join("settings.toml");

@@ -58,7 +58,7 @@ pub struct ConfigManager {
 }
 
 struct ConfigInner {
-    settings: Settings,
+    settings: Arc<Settings>,
     keybinding_engine: KeybindingEngine,
     themes: IndexMap<String, ColorTheme>,
     active_theme_id: String,
@@ -91,7 +91,7 @@ impl ConfigManager {
         };
 
         let inner = Arc::new(RwLock::new(ConfigInner {
-            settings,
+            settings: Arc::new(settings),
             keybinding_engine,
             themes,
             active_theme_id,
@@ -109,7 +109,7 @@ impl ConfigManager {
         (manager, rx)
     }
 
-    pub fn settings(&self) -> Settings {
+    pub fn settings(&self) -> Arc<Settings> {
         self.inner.read().settings.clone()
     }
 
@@ -156,7 +156,7 @@ impl ConfigManager {
 
     pub fn reload_settings(&self) {
         let new_settings = SettingsLoader::load(self.workspace_root.as_deref());
-        self.inner.write().settings = new_settings;
+        self.inner.write().settings = Arc::new(new_settings);
         let _ = self.event_tx.try_send(ConfigEvent::SettingsChanged);
     }
 
@@ -237,7 +237,7 @@ impl ConfigManager {
                 }
 
                 if reload_settings {
-                    inner.write().settings = SettingsLoader::load(workspace_root_owned.as_deref());
+                    inner.write().settings = Arc::new(SettingsLoader::load(workspace_root_owned.as_deref()));
                     let _ = tx.try_send(ConfigEvent::SettingsChanged);
                 }
                 if reload_keybindings {
