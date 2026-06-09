@@ -331,7 +331,8 @@ impl SyntaxEngine {
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
-    /// Compute highlight spans for a document. Returns `[]` if not parsed.
+    /// Compute highlight spans for a document, including injection highlights.
+    /// Returns `[]` if not parsed.
     pub fn highlights(&self, id: BufferId) -> Vec<HighlightSpan> {
         let cached = match self.cache.get(&id) {
             Some(c) => c,
@@ -343,7 +344,13 @@ impl SyntaxEngine {
         };
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
         self.highlighter
-            .compute_highlights(&cached.language, &entry, source, &cached.tree)
+            .compute_highlights_with_injections(
+                &cached.language,
+                &entry,
+                source,
+                &cached.tree,
+                self.registry,
+            )
     }
 
     /// Extract folding ranges for a document. Returns `[]` if not parsed.
