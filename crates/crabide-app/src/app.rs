@@ -1357,6 +1357,21 @@ impl crabideApp {
                     svc.list_submodules();
                 }
             }
+            ConflictsDetected { conflicts } => {
+                self.ui_state.git_panel.conflicts = conflicts;
+                self.ui_state.set_status(format!(
+                    "Git conflicts: {} files",
+                    self.ui_state.git_panel.conflicts.len()
+                ));
+            }
+            ConflictResolved { path } => {
+                self.ui_state
+                    .set_status(format!("Git conflict resolved: {path}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_conflicts();
+                    svc.refresh();
+                }
+            }
         }
     }
 

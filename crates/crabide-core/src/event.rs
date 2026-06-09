@@ -569,6 +569,12 @@ pub enum GitEvent {
 
     /// Submodule URLs synced.
     SubmoduleSynced { path: String },
+
+    /// List of conflicted files detected during a merge/rebase.
+    ConflictsDetected { conflicts: Vec<ConflictInfo> },
+
+    /// A conflict was resolved (ours, theirs, or marked resolved).
+    ConflictResolved { path: String },
 }
 
 // ── VFS / File Events ─────────────────────────────────────────────────────────
@@ -1068,6 +1074,19 @@ pub struct SubmoduleInfo {
     pub cloned: bool,
 }
 
+/// Information about a conflicted file during merge/rebase.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConflictInfo {
+    /// Path relative to repository root.
+    pub path: String,
+    /// OID of the merge base (ancestor) stage.
+    pub ancestor_oid: Option<String>,
+    /// OID of our side (HEAD, stage 2).
+    pub ours_oid: Option<String>,
+    /// OID of their side (merge source, stage 3).
+    pub theirs_oid: Option<String>,
+}
+
 // ── Top-level event enum ─────────────────────────────────────────────────────
 
 /// All events that can be sent from background services to the UI.
@@ -1400,6 +1419,10 @@ impl fmt::Display for GitEvent {
             GitEvent::SubmoduleAdded { path } => write!(f, "git submodule added: {path}"),
             GitEvent::SubmoduleUpdated { path } => write!(f, "git submodule updated: {path}"),
             GitEvent::SubmoduleSynced { path } => write!(f, "git submodule synced: {path}"),
+            GitEvent::ConflictsDetected { conflicts } => {
+                write!(f, "git conflicts: {} files", conflicts.len())
+            }
+            GitEvent::ConflictResolved { path } => write!(f, "git conflict resolved: {path}"),
         }
     }
 }

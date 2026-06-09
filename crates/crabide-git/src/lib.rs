@@ -333,6 +333,36 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = path;
     }
+
+    /// List all conflicted files in the index.
+    pub fn list_conflicts(&self) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ListConflicts);
+    }
+
+    /// Resolve a conflict by taking our side (stage 2 / HEAD version).
+    pub fn resolve_ours(&self, path: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ResolveOurs { path });
+        #[cfg(not(feature = "git-support"))]
+        let _ = path;
+    }
+
+    /// Resolve a conflict by taking their side (stage 3 / merge source version).
+    pub fn resolve_theirs(&self, path: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ResolveTheirs { path });
+        #[cfg(not(feature = "git-support"))]
+        let _ = path;
+    }
+
+    /// Mark a conflict as resolved after manual editing.
+    pub fn mark_resolved(&self, path: String) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::MarkResolved { path });
+        #[cfg(not(feature = "git-support"))]
+        let _ = path;
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -478,6 +508,20 @@ enum GitCommand {
     /// Sync submodule URL(s).
     SubmoduleSync {
         path: Option<String>,
+    },
+    /// List conflicted files in the index.
+    ListConflicts,
+    /// Resolve a conflict by taking our side (stage 2 / HEAD).
+    ResolveOurs {
+        path: String,
+    },
+    /// Resolve a conflict by taking their side (stage 3 / merge source).
+    ResolveTheirs {
+        path: String,
+    },
+    /// Mark a conflict as resolved after manual editing (removes conflict entries from index).
+    MarkResolved {
+        path: String,
     },
 }
 
@@ -868,6 +912,34 @@ mod git_support {
                             }));
                         }
                     }
+                }
+
+                GitCommand::ListConflicts => {
+                    use crabide_core::event::GitEvent;
+                    let conflicts = list_conflicts_impl(&repo);
+                    let _ =
+                        event_tx.send(EditorEvent::Git(GitEvent::ConflictsDetected { conflicts }));
+                }
+
+                GitCommand::ResolveOurs { path } => {
+                    run_op(&event_tx, format!("resolve ours: {path}"), || {
+                        resolve_ours_impl(&repo, &path)
+                    });
+                    send_status(&repo, &event_tx);
+                }
+
+                GitCommand::ResolveTheirs { path } => {
+                    run_op(&event_tx, format!("resolve theirs: {path}"), || {
+                        resolve_theirs_impl(&repo, &path)
+                    });
+                    send_status(&repo, &event_tx);
+                }
+
+                GitCommand::MarkResolved { path } => {
+                    run_op(&event_tx, format!("mark resolved: {path}"), || {
+                        mark_resolved_impl(&repo, &path)
+                    });
+                    send_status(&repo, &event_tx);
                 }
 
                 GitCommand::Shutdown => break,
@@ -2172,5 +2244,139 @@ mod git_support {
             }
         }
         Ok(synced)
+    }
+
+    // ── Conflict resolution ─────────────────────────────────────────────
+
+    fn list_conflicts_impl(repo: &git2::Repository) -> Vec<crabide_core::event::ConflictInfo> {
+        use crabide_core::event::ConflictInfo;
+        let index = match repo.index() {
+            Ok(idx) => idx,
+            Err(e) => {
+                warn!("list_conflicts: index: {}", e.message());
+                return Vec::new();
+            }
+        };
+
+        if !index.has_conflicts() {
+            return Vec::new();
+        }
+
+        let mut conflicts: Vec<ConflictInfo> = Vec::new();
+        if let Ok(iter) = index.conflicts() {
+            for entry_result in iter {
+                let conflict = match entry_result {
+                    Ok(c) => c,
+                    Err(e) => {
+                        warn!("conflict entry: {}", e.message());
+                        continue;
+                    }
+                };
+                // Get the path from whichever stage is present.
+                let path = conflict
+                    .ancestor
+                    .as_ref()
+                    .or(conflict.our.as_ref())
+                    .or(conflict.their.as_ref())
+                    .map(|e| std::str::from_utf8(&e.path).unwrap_or("").to_owned())
+                    .unwrap_or_default();
+                if path.is_empty() {
+                    continue;
+                }
+                conflicts.push(ConflictInfo {
+                    path,
+                    ancestor_oid: conflict.ancestor.as_ref().map(|e| e.id.to_string()),
+                    ours_oid: conflict.our.as_ref().map(|e| e.id.to_string()),
+                    theirs_oid: conflict.their.as_ref().map(|e| e.id.to_string()),
+                });
+            }
+        }
+        conflicts
+    }
+
+    fn resolve_ours_impl(
+        repo: &git2::Repository,
+        path: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        // Checkout our version (stage 2) from the index
+        let mut checkout = git2::build::CheckoutBuilder::new();
+        checkout.force().path(std::path::Path::new(path));
+        // Use checkout with conflict style to write our version
+        repo.checkout_head(Some(&mut checkout))?;
+
+        // Remove conflict entries from index
+        let mut index = repo.index()?;
+        index.conflict_remove(std::path::Path::new(path))?;
+        // Re-add the file as staged (ours version)
+        index.add_path(std::path::Path::new(path))?;
+        index.write()?;
+        Ok(())
+    }
+
+    fn resolve_theirs_impl(
+        repo: &git2::Repository,
+        path: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        // Write the theirs blob content to the working tree
+        checkout_theirs_blob(repo, path)?;
+        // Remove conflict entries and stage the result
+        let mut index = repo.index()?;
+        index.conflict_remove(std::path::Path::new(path))?;
+        index.add_path(std::path::Path::new(path))?;
+        index.write()?;
+        Ok(())
+    }
+
+    fn mark_resolved_impl(
+        repo: &git2::Repository,
+        path: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        let mut index = repo.index()?;
+        index.conflict_remove(std::path::Path::new(path))?;
+        // Re-add the working tree version (the user's manually resolved version)
+        index.add_path(std::path::Path::new(path))?;
+        index.write()?;
+        Ok(())
+    }
+
+    /// Helper: write the stage 3 (theirs) blob content to the working tree.
+    fn checkout_theirs_blob(
+        repo: &git2::Repository,
+        path: &str,
+    ) -> std::result::Result<(), git2::Error> {
+        let index = repo.index()?;
+        // Find the theirs entry (stage 3)
+        let conflict_entries: Vec<_> = index.conflicts()?.filter_map(|r| r.ok()).collect();
+        for conflict in &conflict_entries {
+            let entry_path = conflict
+                .ancestor
+                .as_ref()
+                .or(conflict.our.as_ref())
+                .or(conflict.their.as_ref())
+                .map(|e| std::str::from_utf8(&e.path).unwrap_or(""))
+                .unwrap_or("");
+            if entry_path != path {
+                continue;
+            }
+            if let Some(theirs_entry) = &conflict.their {
+                let blob = repo.find_blob(theirs_entry.id)?;
+                if blob.is_binary() {
+                    return Err(git2::Error::from_str("cannot checkout binary blob"));
+                }
+                let content = blob.content();
+                let workdir = repo
+                    .workdir()
+                    .ok_or_else(|| git2::Error::from_str("no workdir"))?;
+                let full_path = workdir.join(path);
+                if let Some(parent) = full_path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| git2::Error::from_str(&format!("create dir: {e}")))?;
+                }
+                std::fs::write(&full_path, content)
+                    .map_err(|e| git2::Error::from_str(&format!("write file: {e}")))?;
+                return Ok(());
+            }
+        }
+        Err(git2::Error::from_str("no theirs entry found for path"))
     }
 }
