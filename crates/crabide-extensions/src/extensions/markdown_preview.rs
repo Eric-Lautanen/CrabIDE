@@ -160,12 +160,36 @@ fn strip_inline(s: &str) -> String {
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
-            // Bold / italic: consume one or two `*` / `_` markers.
+            // Bold / italic: consume markers but keep the text content.
             '*' | '_' => {
-                if chars.peek() == Some(&c) {
+                let double = chars.peek() == Some(&c);
+                if double {
                     chars.next();
                 }
-                // (the actual text follows — no output for the marker)
+                // Read and output text until matching closer.
+                let mut closer_found = false;
+                while let Some(ic) = chars.next() {
+                    if ic == c {
+                        if double {
+                            if chars.peek() == Some(&c) {
+                                chars.next();
+                                closer_found = true;
+                                break;
+                            }
+                        } else {
+                            closer_found = true;
+                            break;
+                        }
+                    }
+                    out.push(ic);
+                }
+                // If no closer was found, re-emit the opening marker(s).
+                if !closer_found {
+                    out.push(c);
+                    if double {
+                        out.push(c);
+                    }
+                }
             }
             // Inline code: consume until closing backtick, keep content.
             '`' => {

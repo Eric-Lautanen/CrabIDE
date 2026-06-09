@@ -1340,6 +1340,8 @@ pub struct FileNode {
 pub struct FileExplorerState {
     /// Top-level workspace roots (populated by the app).
     pub roots: Vec<FileNode>,
+    /// Pending index of a root to close (set by file explorer context menu).
+    pub pending_close_root: Option<usize>,
 }
 
 // ── GitPanelState ─────────────────────────────────────────────────────────────
@@ -2263,6 +2265,10 @@ pub struct UiState {
     /// App drains this each frame; it maps to `Action::OpenFile`.
     pub pending_open_path: Option<PathBuf>,
 
+    // ── Pending folder close (set by file explorer context menu) ──────────────
+    /// App drains this each frame; it maps to `Action::CloseFolder`.
+    pub pending_close_folder_path: Option<PathBuf>,
+
     // ── Pending tab close (set by tab bar close button) ───────────────────────
     /// App drains this each frame after handling `Action::CloseTab`.
     pub pending_close_buffer: Option<BufferId>,
@@ -2378,6 +2384,7 @@ impl UiState {
             font_size: 14.0,
             word_wrap: false,
             pending_open_path: None,
+            pending_close_folder_path: None,
             pending_close_buffer: None,
             pending_scroll_line: None,
             minimap_visible: false,

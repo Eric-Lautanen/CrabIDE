@@ -40,6 +40,7 @@ pub enum Action {
     SaveAll,
     CloseTab,
     CloseAllTabs,
+    CloseFolder,
     Quit,
     // Edit
     Undo,
@@ -1380,6 +1381,7 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::SaveAll, "File: Save All");
     m.insert(Action::CloseTab, "View: Close Editor");
     m.insert(Action::CloseAllTabs, "View: Close All Editors");
+    m.insert(Action::CloseFolder, "File: Close Folder");
     m.insert(Action::Quit, "File: Quit");
     m.insert(Action::Undo, "Edit: Undo");
     m.insert(Action::Redo, "Edit: Redo");

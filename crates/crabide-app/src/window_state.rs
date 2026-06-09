@@ -57,6 +57,8 @@ pub fn save_window_state(state: &WindowState) {
 pub struct SessionState {
     /// File paths that were open when the editor last closed.
     pub open_files: Vec<String>,
+    /// Workspace root directories open when the editor last closed.
+    pub workspace_roots: Vec<String>,
 }
 
 /// Path to the session state file.

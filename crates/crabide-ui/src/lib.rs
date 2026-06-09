@@ -617,6 +617,10 @@ fn show_menu_bar(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Actio
                         actions.push(Action::CloseAllTabs);
                         ui.close();
                     }
+                    if !state.file_explorer.roots.is_empty() && menu_row(ui, "Close Folder", "") {
+                        actions.push(Action::CloseFolder);
+                        ui.close();
+                    }
                     ui.separator();
                     if menu_row(ui, "Quit", "Alt+F4") {
                         actions.push(Action::Quit);

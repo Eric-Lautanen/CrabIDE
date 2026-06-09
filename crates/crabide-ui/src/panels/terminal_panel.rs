@@ -213,6 +213,15 @@ pub fn show(ui: &mut Ui, state: &mut UiState) -> Vec<Action> {
     let painter = ui.painter();
     let visible_rows = ((grid_rect.height() / cell_h) as usize).max(1);
     let visible_cols = ((grid_rect.width() / cell_w) as usize).max(1);
+
+    // Detect PTY resize and queue it for the app drain.
+    let inst_id = inst.id;
+    let inst_cols = inst.cols as usize;
+    let inst_rows = inst.grid_rows as usize;
+    if visible_cols != inst_cols || visible_rows != inst_rows {
+        state.terminal.pending_resize = Some((inst_id, visible_cols as u16, visible_rows as u16));
+    }
+
     let total_rows = inst.rows.len();
 
     // Scroll viewport to always keep cursor visible.

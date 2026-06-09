@@ -239,6 +239,13 @@ impl egui_tiles::Behavior<PaneKind> for UiBehavior<'_> {
                             self.actions.push(crabide_config::Action::OpenFile);
                             self.state.pending_open_path = Some(path);
                         }
+                        // Close folder from file explorer context menu.
+                        if let Some(root_idx) = self.state.file_explorer.pending_close_root.take() {
+                            if let Some(root) = self.state.file_explorer.roots.get(root_idx) {
+                                self.state.pending_close_folder_path = Some(root.path.clone());
+                                self.actions.push(crabide_config::Action::CloseFolder);
+                            }
+                        }
                     }
                     SidebarTab::Extensions => {
                         panels::extensions_panel::show(ui, self.state);

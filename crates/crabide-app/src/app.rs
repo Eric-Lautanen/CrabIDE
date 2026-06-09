@@ -347,6 +347,20 @@ impl crabideApp {
                 }
             }
         }
+        // Restore workspace roots from the previous session.
+        for root_path in &session.workspace_roots {
+            let p = std::path::PathBuf::from(root_path);
+            if p.is_dir() && !app.workspace.roots().contains(&p) {
+                app.workspace.add_root(p.clone());
+                if let Some(watcher) = &mut app.vfs_watcher {
+                    if let Err(e) = watcher.watch(&p, true) {
+                        log::warn!("Cannot watch {}: {e}", p.display());
+                    }
+                }
+                let root_node = build_file_node(p.clone());
+                app.ui_state.file_explorer.roots.push(root_node);
+            }
+        }
         app
     }
 
@@ -962,18 +976,52 @@ impl crabideApp {
                 }
 
                 ExtensionOutput::SetCursorPosition { line, character } => {
-                    // TODO: wire to active document cursor set
-                    log::debug!("Extension set cursor position: {line}:{character}");
+                    if let Some(tab) = self.ui_state.active_tab_mut() {
+                        tab.cursors.set_single(Position::new(line, character));
+                        self.ui_state.pending_scroll_line = Some(line as usize);
+                    }
                 }
 
                 ExtensionOutput::ApplyEdits { uri, edits } => {
-                    // TODO: wire to document text apply
-                    log::debug!("Extension apply {} edits to {uri}", edits.len());
+                    let uri = match DocumentUri::parse(&uri) {
+                        Ok(u) => u,
+                        Err(_) => return,
+                    };
+                    let Some(id) = self.workspace.get_buffer_id(&uri) else {
+                        return;
+                    };
+                    for ext_edit in edits {
+                        let (sl, sc, el, ec) = ext_edit.range;
+                        let range = Range::new(Position::new(sl, sc), Position::new(el, ec));
+                        let te = TextEdit {
+                            range,
+                            new_text: ext_edit.new_text,
+                        };
+                        if let Err(e) = self.workspace.apply_edit(id, te, "ext-apply") {
+                            log::warn!("extension apply_edits: {e}");
+                        }
+                    }
+                    let tab_idx = self.ui_state.tabs().iter().position(|t| t.uri == uri);
+                    if let Some(idx) = tab_idx {
+                        self.sync_tab_from_workspace(idx);
+                    }
                 }
 
                 ExtensionOutput::InsertAtCursor { text } => {
-                    // TODO: wire to active document insert
-                    log::debug!("Extension insert at cursor: {} chars", text.len());
+                    if let Some(idx) = self.ui_state.active_tab() {
+                        let tab = &mut self.ui_state.tabs_mut()[idx];
+                        let id = tab.buffer_id;
+                        let pos = tab.cursors.primary().pos();
+                        let edit = TextEdit {
+                            range: Range::new(pos, pos),
+                            new_text: text,
+                        };
+                        if let Err(e) = self.workspace.apply_edit(id, edit, "ext-insert") {
+                            log::warn!("extension insert_at_cursor: {e}");
+                        } else {
+                            self.sync_tab_from_workspace(idx);
+                        }
+                    }
                 }
 
                 ExtensionOutput::StatusBarVisible {
@@ -1822,11 +1870,8 @@ impl crabideApp {
                 }
             }
             Exited { terminal_id, .. } => {
-                if let Some(inst) = self.ui_state.terminal.by_id_mut(terminal_id) {
-                    inst.exited = true;
-                    inst.title.push_str(" [exited]");
-                }
                 self.terminal_manager.kill(terminal_id);
+                self.ui_state.terminal.remove_by_id(terminal_id);
                 log::info!("terminal {terminal_id} exited");
             }
             CommandStarted { .. } | CommandFinished { .. } | LinkDetected { .. } => {}
@@ -2038,12 +2083,55 @@ impl crabideApp {
                 }
             }
 
+            Action::CloseFolder => {
+                let path = self.ui_state.pending_close_folder_path.take();
+                if let Some(path) = path.or_else(|| {
+                    // Fallback: close the first workspace root.
+                    self.workspace.roots().into_iter().next()
+                }) {
+                    // Remove from workspace roots.
+                    self.workspace.remove_root(&path);
+                    // Remove from file explorer.
+                    self.ui_state.file_explorer.roots.retain(|r| r.path != path);
+                    // Unwatch in VFS.
+                    if let Some(watcher) = &mut self.vfs_watcher {
+                        let _ = watcher.unwatch(&path);
+                    }
+                    self.ui_state
+                        .set_status(format!("Closed folder: {}", path.display()));
+                } else {
+                    self.ui_state.set_status("No folder to close");
+                }
+            }
+
             Action::SaveFileAs => {
                 self.ui_state.set_status("Save As — not yet implemented");
             }
 
             Action::CloseTab => {
                 if let Some(id) = self.ui_state.pending_close_buffer.take() {
+                    // Notify extensions before closing.
+                    if let Some(tab) = self.ui_state.tabs().iter().find(|t| t.buffer_id == id) {
+                        let uri_str = tab.uri.to_string();
+                        let lang_id = tab.language.as_str().to_owned();
+                        let text = tab.lines.join("\n");
+                        let cursor_line = tab.cursors.primary().pos().line;
+                        let cursor_col = tab.cursors.primary().pos().character;
+                        let roots = self.workspace.roots();
+                        let ext_ctx = ExtensionContext {
+                            active_text: Some(&text),
+                            active_uri: Some(&uri_str),
+                            active_language: &lang_id,
+                            workspace_roots: &roots,
+                            blame_lines: &[],
+                            cursor_line,
+                            cursor_col,
+                            selection: None,
+                            current_theme_id: &self.ui_state.theme.id,
+                        };
+                        self.extension_host
+                            .notify_document_close(&uri_str, &ext_ctx);
+                    }
                     let _ = self.workspace.close(id, false);
                     self.syntax.close_document(id);
                     log::debug!("tab closed: {id}");
@@ -4324,7 +4412,16 @@ impl eframe::App for crabideApp {
                 }
             })
             .collect();
-        crate::window_state::save_session(&crate::window_state::SessionState { open_files });
+        let workspace_roots: Vec<String> = self
+            .workspace
+            .roots()
+            .into_iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
+        crate::window_state::save_session(&crate::window_state::SessionState {
+            open_files,
+            workspace_roots,
+        });
     }
 }
 
