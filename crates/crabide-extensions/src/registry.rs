@@ -39,6 +39,7 @@ pub struct DownloadResult {
 }
 
 /// Registry HTTP client (sync via ureq, called from a blocking thread).
+#[derive(Default)]
 pub struct RegistryClient {
     /// Base URL for the extension registry API.
     /// `None` until a public registry is stood up.
@@ -292,11 +293,6 @@ impl RegistryClient {
     }
 }
 
-impl Default for RegistryClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

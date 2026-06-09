@@ -405,7 +405,7 @@ pub struct KeyBinding {
 /// Extensions (or other dynamic sources) register custom action IDs here so they
 /// appear in the command palette and can be bound to keys. The registry is
 /// thread-safe via `Arc<RwLock<…>>`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ActionRegistry {
     /// Map of action ID → human-readable title (e.g. "Markdown: Toggle Preview")
     actions: IndexMap<String, String>,
@@ -451,11 +451,7 @@ impl ActionRegistry {
     }
 }
 
-impl Default for ActionRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 // ── When condition evaluation ─────────────────────────────────────────────────
 
