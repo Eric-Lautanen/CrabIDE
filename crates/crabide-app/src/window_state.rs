@@ -100,9 +100,8 @@ fn home_dir() -> Option<PathBuf> {
 }
 
 fn with_json_file<T: Serialize>(path: &Option<PathBuf>, value: &T, label: &str) {
-    let path = match path {
-        Some(p) => p,
-        None => return,
+    let Some(path) = path else {
+        return;
     };
     let json = match serde_json::to_string_pretty(value) {
         Ok(j) => j,
