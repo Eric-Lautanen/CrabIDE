@@ -21,6 +21,7 @@ pub struct Settings {
     pub terminal: TerminalSettings,
     pub git: GitSettings,
     pub lsp: LspSettings,
+    pub extensions: ExtensionsSettings,
     // Per-language editor settings overrides, keyed by language ID.
     // E.g., `[language.rust] tab_size = 4`
     #[serde(rename = "language", default)]
@@ -254,6 +255,16 @@ impl Default for LspSettings {
     }
 }
 
+/// Settings for the extension system: marketplace, WASM engine limits, etc.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ExtensionsSettings {
+    /// URL of the extension marketplace / registry API base.
+    /// When empty, the built-in curated catalogue of recommended extensions is
+    /// shown instead of fetching from a remote registry.
+    pub marketplace_url: String,
+}
+
 // ── Partial overlay (all fields optional for merging) ─────────────────────────
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -264,6 +275,7 @@ struct PartialSettings {
     terminal: PartialTerminalSettings,
     git: PartialGitSettings,
     lsp: PartialLspSettings,
+    extensions: PartialExtensionsSettings,
     /// Per-language editor settings overrides. Map is merged (overwritten)
     /// onto the base settings, so user/workspace files can add/override per-language keys.
     #[serde(rename = "language", default)]
@@ -393,6 +405,12 @@ struct PartialLspSettings {
     completion_trigger_characters: Option<Vec<String>>,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct PartialExtensionsSettings {
+    marketplace_url: Option<String>,
+}
+
 impl PartialSettings {
     fn apply_onto(&self, base: &mut Settings) {
         let e = &self.editor;
@@ -517,6 +535,11 @@ impl PartialSettings {
         }
         if let Some(v) = l.completion_trigger_characters.clone() {
             base.lsp.completion_trigger_characters = v
+        }
+
+        let ex = &self.extensions;
+        if let Some(v) = ex.marketplace_url.clone() {
+            base.extensions.marketplace_url = v
         }
 
         // Per-language overrides: merge language_overrides maps, inserting/overwriting

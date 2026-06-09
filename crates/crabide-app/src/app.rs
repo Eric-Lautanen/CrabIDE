@@ -236,7 +236,7 @@ impl crabideApp {
 
         // Pre-open any files passed on the command line.
         let mut extension_host = ExtensionHost::new();
-        let registry = RegistryClient::new();
+        let mut registry = RegistryClient::new();
         let lsp_manager = LspServerManager::new(event_tx.clone());
         let lsp_request_id = Arc::new(AtomicU32::new(1));
 
@@ -251,6 +251,16 @@ impl crabideApp {
                     loaded.len(),
                     ext_dir
                 );
+            }
+        }
+
+        // Wire marketplace URL from config settings to the registry client.
+        {
+            let settings = config.settings();
+            let url = settings.extensions.marketplace_url;
+            if !url.is_empty() {
+                registry.set_base_url(url.clone());
+                extension_host.set_marketplace_url(url);
             }
         }
 

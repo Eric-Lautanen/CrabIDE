@@ -11,6 +11,8 @@
 
 use std::path::PathBuf;
 
+use crate::registry::RegistryClient;
+
 // ── Gutter marker types ───────────────────────────────────────────────────────
 
 /// A gutter decoration marker contributed by an extension.
@@ -602,6 +604,8 @@ pub struct ExtensionHost {
     /// Pending document-change notifications keyed by URI.
     /// Maps uri → time the last change was queued.
     pending_doc_changes: std::collections::HashMap<String, std::time::Instant>,
+    /// Registry HTTP client for browsing and downloading extensions.
+    registry_client: RegistryClient,
 }
 
 impl ExtensionHost {
@@ -642,6 +646,7 @@ impl ExtensionHost {
             extensions_dir: None,
             hot_reload_rx: None,
             pending_doc_changes: std::collections::HashMap::new(),
+            registry_client: RegistryClient::new(),
         }
     }
 
@@ -1045,6 +1050,25 @@ impl ExtensionHost {
                 Err(e) => log::warn!("Extension hot-reload watcher unavailable: {e}"),
             }
         }
+    }
+
+    /// Configure the marketplace / registry base URL.
+    ///
+    /// When set, the extension registry client will make HTTP requests to this
+    /// URL for search and download instead of showing the built-in curated
+    /// catalogue.  An empty string clears the URL and falls back to the local
+    /// catalogue.
+    pub fn set_marketplace_url(&mut self, url: String) {
+        if url.is_empty() {
+            self.registry_client = RegistryClient::new();
+        } else {
+            self.registry_client.set_base_url(url);
+        }
+    }
+
+    /// Access the registry client (for search, browse, download).
+    pub fn registry(&self) -> &RegistryClient {
+        &self.registry_client
     }
 
     /// Scan the extensions directory for `.wasm` files and load any that are

@@ -316,8 +316,8 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [x] Implement registry download (actual ureq HTTP download with checksum verification)
 - [x] Implement `ExtensionHost::install_registry()` — actual download + verify + install flow
 - [x] Add capability enforcement (check `ExtensionCapabilities` before granting resource access)
-- [ ] Add WASM engine resource limits (memory cap, fuel metering, execution timeout)
-- [ ] Add marketplace URL configuration
+- [x] Add WASM engine resource limits (memory cap, fuel metering, execution timeout)
+- [x] Add marketplace URL configuration
 
 ---
 

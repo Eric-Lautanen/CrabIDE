@@ -17,9 +17,9 @@ pub use keybindings::{
     KeybindingEngine, Modifiers, WhenCondition, WhenContext,
 };
 pub use settings::{
-    AutoSave, CursorBlinking, CursorStyle, EditorSettings, GitSettings, LineNumberStyle,
-    LspSettings, PanelLocation, PartialEditorSettings, RenderWhitespace, Settings, SettingsLoader,
-    SidebarLocation, TerminalSettings, UiSettings,
+    AutoSave, CursorBlinking, CursorStyle, EditorSettings, ExtensionsSettings, GitSettings,
+    LineNumberStyle, LspSettings, PanelLocation, PartialEditorSettings, RenderWhitespace, Settings,
+    SettingsLoader, SidebarLocation, TerminalSettings, UiSettings,
 };
 pub use theme::{
     builtin_themes, parse_vscode_theme, parse_vscode_theme_str, Color, ColorTheme, FontStyle,

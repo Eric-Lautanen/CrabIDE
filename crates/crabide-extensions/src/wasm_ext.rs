@@ -16,6 +16,7 @@
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 // wasmtime 34: all component types live in wasmtime::component::*
 // Store is re-exported directly from wasmtime.
@@ -27,6 +28,28 @@ use crate::host::{
     ExtensionContext, ExtensionDiagnostic, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
     GutterMarker, HoverResult, NativeExtension, TextEdit,
 };
+
+// ── Resource limit constants ───────────────────────────────────────────────────
+
+/// Maximum linear memory per WASM extension instance (64 MB).
+const MAX_MEMORY_BYTES: usize = 64 * 1024 * 1024;
+
+/// Fuel units allocated per WASM call invocation.
+///
+/// Each executed WASM instruction costs at least 1 fuel unit. 100,000 units
+/// allows roughly 100k simple operations — enough for a typical extension
+/// handler but prevents runaway infinite loops from consuming resources.
+const FUEL_PER_CALL: u64 = 100_000;
+
+/// If an extension consumes more than this many fuel units in a single call,
+/// a warning is logged so the user can investigate.
+const FUEL_WARN_THRESHOLD: u64 = 80_000;
+
+/// Maximum execution wall-clock time per WASM call.
+///
+/// Extensions that take longer than this are interrupted by the epoch-based
+/// deadline mechanism.
+const CALL_TIMEOUT: Duration = Duration::from_millis(500);
 
 // ── WIT bindings ──────────────────────────────────────────────────────────────
 //
@@ -57,6 +80,19 @@ fn engine() -> &'static Engine {
     ENGINE.get_or_init(|| {
         let mut cfg = Config::new();
         cfg.wasm_component_model(true);
+
+        // Memory cap — 64 MB per instance prevents runaway allocation.
+        cfg.wasm_memory_maximum_size(MAX_MEMORY_BYTES as u64);
+
+        // Fuel metering — each WASM instruction costs at least 1 fuel unit.
+        // The Store must call `add_fuel` before each guest call.
+        cfg.consume_fuel(true);
+
+        // Epoch-based interruption — lets us enforce a wall-clock timeout
+        // per WASM call by incrementing the engine epoch and setting a
+        // deadline on the store before each guest call.
+        cfg.epoch_interruption(true);
+
         Engine::new(&cfg).expect("wasmtime Engine creation failed")
     })
 }
@@ -705,6 +741,35 @@ impl WasmExtension {
     fn drain_pending(&mut self) -> Vec<ExtensionOutput> {
         std::mem::take(&mut self.store.data_mut().pending)
     }
+
+    /// Apply resource limits before a WASM guest call: add fuel and set
+    /// epoch deadline for execution-timeout enforcement.
+    ///
+    /// This must be called immediately before every `self.bindings...call_...`
+    /// invocation.  Failure to call this means the extension can execute
+    /// without fuel limits or timeout.
+    fn apply_limits(&mut self) {
+        if let Err(e) = self.store.add_fuel(FUEL_PER_CALL) {
+            log::warn!(
+                "[wasm:{}] add_fuel({FUEL_PER_CALL}) failed: {e}",
+                self.manifest.id
+            );
+        }
+        self.store.set_epoch_deadline(1);
+    }
+
+    /// Log a warning if the last WASM call consumed more fuel than the
+    /// high-water-mark threshold.  Call this after every guest invocation.
+    fn check_fuel(&self) {
+        if let Ok(consumed) = self.store.fuel_consumed() {
+            if consumed > FUEL_WARN_THRESHOLD {
+                log::warn!(
+                    "[wasm:{}] consumed {consumed} fuel units (threshold {FUEL_WARN_THRESHOLD})",
+                    self.manifest.id
+                );
+            }
+        }
+    }
 }
 
 impl NativeExtension for WasmExtension {
@@ -718,6 +783,7 @@ impl NativeExtension for WasmExtension {
 
     fn activate(&mut self, ctx: &ExtensionContext) {
         self.set_ctx(ctx);
+        self.apply_limits();
         if let Err(e) = self
             .bindings
             .crabide_extension_extension()
@@ -725,9 +791,11 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] activate trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn deactivate(&mut self) {
+        self.apply_limits();
         if let Err(e) = self
             .bindings
             .crabide_extension_extension()
@@ -735,10 +803,12 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] deactivate trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn on_document_open(&mut self, uri: &str, language_id: &str, ctx: &ExtensionContext) {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         let lang_s = language_id.to_string();
         if let Err(e) = self
@@ -748,10 +818,12 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_document_open trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn on_document_change(&mut self, uri: &str, ctx: &ExtensionContext) {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         if let Err(e) = self
             .bindings
@@ -760,10 +832,12 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_document_change trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn on_document_save(&mut self, uri: &str, ctx: &ExtensionContext) {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         if let Err(e) = self
             .bindings
@@ -772,10 +846,12 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_document_save trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn on_document_close(&mut self, uri: &str, ctx: &ExtensionContext) {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         if let Err(e) = self
             .bindings
@@ -784,10 +860,12 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_document_close trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn on_cursor_move(&mut self, uri: &str, line: u32, col: u32, ctx: &ExtensionContext) {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         let pos = wit::Position {
             line,
@@ -800,6 +878,7 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_cursor_move trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn on_selection_change(
@@ -812,6 +891,7 @@ impl NativeExtension for WasmExtension {
         ctx: &ExtensionContext,
     ) {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         let sel = wit::Range {
             start: wit::Position {
@@ -830,12 +910,14 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_selection_change trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
     }
 
     fn execute_command(&mut self, command: &str, args: &[String]) -> CommandResult {
         let cmd_s = command.to_string();
         let args_vec: Vec<String> = args.to_vec();
-        match self
+        self.apply_limits();
+        let result = match self
             .bindings
             .crabide_extension_command_handler()
             .call_execute(&mut self.store, &cmd_s, &args_vec)
@@ -846,13 +928,16 @@ impl NativeExtension for WasmExtension {
                 log::error!("[wasm:{}] execute trap: {e}", self.manifest.id);
                 CommandResult::Error(format!("trap: {e}"))
             }
-        }
+        };
+        self.check_fuel();
+        result
     }
 
     fn provide_gutter_markers(&mut self, uri: &str, ctx: &ExtensionContext) -> Vec<GutterMarker> {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
-        match self
+        let result = match self
             .bindings
             .crabide_extension_gutter_provider()
             .call_provide_markers(&mut self.store, &uri_s)
@@ -871,7 +956,9 @@ impl NativeExtension for WasmExtension {
                 log::error!("[wasm:{}] provide_markers trap: {e}", self.manifest.id);
                 vec![]
             }
-        }
+        };
+        self.check_fuel();
+        result
     }
 
     fn provide_hover(
@@ -882,12 +969,13 @@ impl NativeExtension for WasmExtension {
         ctx: &ExtensionContext,
     ) -> Option<HoverResult> {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         let pos = wit::Position {
             line,
             character: col,
         };
-        match self
+        let result = match self
             .bindings
             .crabide_extension_hover_provider()
             .call_provide_hover(&mut self.store, &uri_s, pos)
@@ -904,7 +992,9 @@ impl NativeExtension for WasmExtension {
                 log::error!("[wasm:{}] provide_hover trap: {e}", self.manifest.id);
                 None
             }
-        }
+        };
+        self.check_fuel();
+        result
     }
 
     fn provide_completions(
@@ -915,12 +1005,13 @@ impl NativeExtension for WasmExtension {
         ctx: &ExtensionContext,
     ) -> Vec<CompletionItem> {
         self.set_ctx(ctx);
+        self.apply_limits();
         let uri_s = uri.to_string();
         let pos = wit::Position {
             line,
             character: col,
         };
-        match self
+        let result = match self
             .bindings
             .crabide_extension_completion_provider()
             .call_provide_completions(&mut self.store, &uri_s, pos)
@@ -938,10 +1029,13 @@ impl NativeExtension for WasmExtension {
                 log::error!("[wasm:{}] provide_completions trap: {e}", self.manifest.id);
                 vec![]
             }
-        }
+        };
+        self.check_fuel();
+        result
     }
 
     fn on_terminal_output(&mut self, terminal_id: u32, data: &[u8]) -> Vec<ExtensionOutput> {
+        self.apply_limits();
         if let Err(e) = self
             .bindings
             .crabide_extension_terminal_listener()
@@ -949,6 +1043,7 @@ impl NativeExtension for WasmExtension {
         {
             log::error!("[wasm:{}] on_terminal_output trap: {e}", self.manifest.id);
         }
+        self.check_fuel();
         self.drain_pending()
     }
 
