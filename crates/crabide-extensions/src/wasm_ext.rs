@@ -93,7 +93,24 @@ fn engine() -> &'static Engine {
         // deadline on the store before each guest call.
         cfg.epoch_interruption(true);
 
-        Engine::new(&cfg).expect("wasmtime Engine creation failed")
+        let engine = Engine::new(&cfg).expect("wasmtime Engine creation failed");
+
+        // Spawn a background thread to periodically increment the epoch
+        // counter.  This enables epoch-based interruption: `apply_limits()`
+        // sets `set_epoch_deadline(1)` on each Store, so any WASM call that
+        // runs longer than one tick (~100 ms) will be interrupted.
+        std::thread::Builder::new()
+            .name("wasm-epoch-ticker".into())
+            .spawn({
+                let eng = engine.clone();
+                move || loop {
+                    std::thread::sleep(Duration::from_millis(100));
+                    eng.increment_epoch();
+                }
+            })
+            .expect("failed to spawn WASM epoch ticker thread");
+
+        engine
     })
 }
 
