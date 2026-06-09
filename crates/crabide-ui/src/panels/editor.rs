@@ -94,6 +94,29 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 actions.push(Action::CloseTab);
             }
         }
+        tab_bar::TabBarAction::MoveTab { from, to } => {
+            let group = state.active_group_mut();
+            if from < group.tabs.len() && to < group.tabs.len() {
+                let tab = group.tabs.remove(from);
+                if to <= group.tabs.len() {
+                    group.tabs.insert(to, tab);
+                } else {
+                    group.tabs.push(tab);
+                }
+                // Adjust active_tab if needed.
+                if let Some(active) = group.active_tab {
+                    if active == from {
+                        group.active_tab = Some(to);
+                    } else if from < active && to >= active {
+                        // Tab moved from before active to after → active shifts left.
+                        group.active_tab = Some(active - 1);
+                    } else if from > active && to <= active {
+                        // Tab moved from after active to before → active shifts right.
+                        group.active_tab = Some(active + 1);
+                    }
+                }
+            }
+        }
         tab_bar::TabBarAction::None => {}
     }
 

@@ -189,12 +189,12 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [ ] **Drag-and-drop tab reordering** in tab bar
 - [ ] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
 - [ ] **Peek view**: inline definition/reference preview (like VS Code peek)
-- [ ] **Output panel**: wire `ToggleOutputPanel` to actual panel
+- [x] **Output panel**: wire `ToggleOutputPanel` to actual panel
 - [ ] **Settings UI panel**: visual editor for `settings.toml`
 - [ ] **Keybindings editor UI**
 - [ ] **Theme picker UI**
 - [x] **Welcome screen**: interactive cards (not just decorative)
-- [ ] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)
+- [x] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)
 - [ ] **Column select mode**: wire Shift+Alt+drag
 
 ### crabide-buffer → crabide-ui wiring

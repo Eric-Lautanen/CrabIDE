@@ -12,22 +12,17 @@
 
 ## Session summary
 
-**Phase 4 UI: split editor (multi-pane layouts) ✅**
-- Added `EditorGroup` struct with its own tabs/active_tab, replaced single `tabs`/`active_tab` with `editor_groups: Vec<EditorGroup>` + `active_group: usize`
-- Added backward-compatible helper methods (`tabs()`, `tabs_mut()`, `active_tab()`, etc.)
-- Updated `PaneKind` to `EditorGroup(usize)` for identifying which group a tile displays
-- Wired `SplitEditorRight`, `SplitEditorDown`, `CloseEditor` actions in `handle_ui_action`
-- Split creates a new editor group, moves the active tab, and rebuilds the layout
-- CloseEditor merges tabs back to group 0 and restores single-editor layout
-- Editor panel `show_for_group()` renders per-pane content correctly
-- Updated all UI panels and app layer to use new accessor methods
-- All workspace builds clean, zero clippy warnings (pre-existing `resize_stable` only)
+**Phase 4 UI: output panel ✅**
+- Added `OutputPanelState` struct with channel selector, auto-scroll, line cap
+- Created `panels/output_panel.rs` with channel dropdown, clear button, auto-scroll toggle
+- Wired `ToggleOutputPanel` action to toggle the bottom panel (was a no-op)
+- Removed `ToggleOutputPanel` from the app's no-op handler list
+- All workspace builds clean, all ~1110+ tests pass
 
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all ~960+ workspace tests pass
-
+- **TESTS** — all ~1110+ workspace tests pass
 
 ## Cross-cutting
 - [ ] Feature flag matrix test
