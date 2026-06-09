@@ -233,7 +233,7 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 - [x] Add log / history / graph view
 - [x] Add tag management
 - [x] Add remote management (add, remove, list)
-- [ ] Add submodule support
+- [x] Add submodule support
 - [x] Add diff for staged changes (index vs HEAD)
 - [ ] Add conflict resolution helpers
 - [x] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)

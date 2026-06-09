@@ -2,21 +2,14 @@
 
 ## Session summary
 
-**DAP + Git tag/remote infrastructure added ✅**
-- DAP: evaluate, threads, setVariable, function/exception breakpoints, progress events, invalidated, runInTerminal handler, attach workflow, writer backpressure (bounded channel)
-- Added DAP types: EvaluateArguments, AttachRequestArguments, ThreadsResponse, SetVariableArguments, FunctionBreakpoint, ExceptionInfoArguments, GotoTargetsArguments, ModulesArguments, RunInTerminalArguments, CancelArguments, CompletionsArguments
-- Added core event types: `DapThread`, `GotoTarget`, `DapModule`, `EvaluateResult`
-- Added DapClient methods: evaluate(), request_threads(), set_variable(), set_function_breakpoints(), set_exception_breakpoints(), request_exception_info(), request_goto_targets(), goto(), request_modules(), attach()
-- Added `handle_reverse_request` for adapter reverse-requests (runInTerminal)
-- Changed transport writer from unbounded to bounded channel (1024 slots, try_send backpressure)
-- Git: Added tag management (list, create annotated/lightweight, delete)
-- Git: Added remote management (list, add, remove)
-- Added core types: `TagInfo`, `RemoteInfo`
-- Added `GitEvent` variants: `TagListed`, `TagCreated`, `TagDeleted`, `RemotesListed`, `RemoteAdded`, `RemoteRemoved`
-- Added `GitCommand` variants: `ListTags`, `CreateTag`, `DeleteTag`, `ListRemotes`, `AddRemote`, `RemoveRemote`
-- Added `GitService` methods: `list_tags()`, `create_tag()`, `delete_tag()`, `list_remotes()`, `add_remote()`, `remove_remote()`
-- Added `tags` and `remotes` fields to `GitPanelState`
-- Wired all new events in app.rs
+**Git submodule support added ✅**
+- Added `SubmoduleInfo` core type with path, url, branch, commit, status fields
+- Added `GitEvent` variants: `SubmodulesListed`, `SubmoduleAdded`, `SubmoduleUpdated`, `SubmoduleSynced`
+- Added `GitCommand` variants: `ListSubmodules`, `SubmoduleAdd`, `SubmoduleUpdate`, `SubmoduleSync`
+- Added `GitService` methods: `list_submodules()`, `submodule_add()`, `submodule_update()`, `submodule_sync()`
+- Implemented git2 submodule operations: list (with status flags), add (setup + clone + finalize), update (init + fetch), sync
+- Added `submodules` field to `GitPanelState` with UI listing showing status icons and commit hashes
+- Wired all new events in app.rs event handler
 - All workspace tests pass, zero warnings (clippy + check)
 
 > **IMPORTANT:** After completing the session's tasks, you MUST call the `handoff` tool with reason `continuing to next roadmap item` to end this session and begin the next one. Do not stop working — always hand off to continue.
@@ -50,9 +43,10 @@
 ### Phase 9 (Extensions):
 - [ ] WASM editor/workspace/commands host implementations
 - [ ] Registry download with checksum verification
-
-### Phase 4 (UI):
-- [ ] Minimap, split editor, context menu, drag-and-drop tabs, scrollbar annotations, peek view, output panel, settings UI, keybindings editor, theme picker, welcome screen, multi-cursor Alt+Click, column select mode
+### Phase 6 (Git):
+- [x] tag management, remote management
+- [x] submodule support
+- [ ] conflict resolution
 
 ### Phase 12:
 - [ ] Update checker, crash reporter, installers (Windows/macOS/Linux), CI workflows, performance pass, README/docs site
