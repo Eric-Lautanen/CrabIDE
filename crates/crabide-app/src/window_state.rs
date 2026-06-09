@@ -36,9 +36,8 @@ fn window_state_path() -> Option<PathBuf> {
 
 /// Load saved window state, or return defaults if the file doesn't exist or is corrupt.
 pub fn load_window_state() -> WindowState {
-    let path = match window_state_path() {
-        Some(p) => p,
-        None => return WindowState::default(),
+    let Some(path) = window_state_path() else {
+        return WindowState::default();
     };
     match std::fs::read_to_string(&path) {
         Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
@@ -67,9 +66,8 @@ fn session_state_path() -> Option<PathBuf> {
 
 /// Load session state (list of files open in last session).
 pub fn load_session() -> SessionState {
-    let path = match session_state_path() {
-        Some(p) => p,
-        None => return SessionState::default(),
+    let Some(path) = session_state_path() else {
+        return SessionState::default();
     };
     match std::fs::read_to_string(&path) {
         Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
