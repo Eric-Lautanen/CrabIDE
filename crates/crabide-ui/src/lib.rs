@@ -1385,6 +1385,108 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
 
+        // ── Split editor ─────────────────────────────────────────────────────
+        Action::SplitEditorRight => {
+            let new_group_idx = state.editor_groups.len();
+            let mut new_group = crate::state::EditorGroup::new();
+            // Move the active tab from the current group to the new group.
+            if let Some(active_idx) = state.active_tab() {
+                let group = state.active_group_mut();
+                let tab = group.tabs.remove(active_idx);
+                group.active_tab = if group.tabs.is_empty() {
+                    None
+                } else {
+                    Some(active_idx.saturating_sub(1).min(group.tabs.len() - 1))
+                };
+                new_group.tabs.push(tab);
+                new_group.active_tab = Some(0);
+            }
+            state.editor_groups.push(new_group);
+
+            // Rebuild layout: Sidebar | Editor(0) | Editor(new)
+            let mut tiles = egui_tiles::Tiles::default();
+            let explorer_id = tiles.insert_pane(PaneKind::FileExplorer);
+            let editor0_id = tiles.insert_pane(PaneKind::EditorGroup(0));
+            let editor1_id = tiles.insert_pane(PaneKind::EditorGroup(new_group_idx));
+            let mut linear = egui_tiles::Linear::new(
+                egui_tiles::LinearDir::Horizontal,
+                vec![explorer_id, editor0_id, editor1_id],
+            );
+            linear.shares.set_share(explorer_id, 0.15);
+            linear.shares.set_share(editor0_id, 0.425);
+            linear.shares.set_share(editor1_id, 0.425);
+            let root = tiles.insert_container(egui_tiles::Container::Linear(linear));
+            state.layout = egui_tiles::Tree::new("crabide_layout", root, tiles);
+            true
+        }
+        Action::SplitEditorDown => {
+            let new_group_idx = state.editor_groups.len();
+            let mut new_group = crate::state::EditorGroup::new();
+            if let Some(active_idx) = state.active_tab() {
+                let group = state.active_group_mut();
+                let tab = group.tabs.remove(active_idx);
+                group.active_tab = if group.tabs.is_empty() {
+                    None
+                } else {
+                    Some(active_idx.saturating_sub(1).min(group.tabs.len() - 1))
+                };
+                new_group.tabs.push(tab);
+                new_group.active_tab = Some(0);
+            }
+            state.editor_groups.push(new_group);
+
+            // Rebuild layout: Sidebar | Vertical(Editor(0), Editor(new))
+            let mut tiles = egui_tiles::Tiles::default();
+            let explorer_id = tiles.insert_pane(PaneKind::FileExplorer);
+            let editor0_id = tiles.insert_pane(PaneKind::EditorGroup(0));
+            let editor1_id = tiles.insert_pane(PaneKind::EditorGroup(new_group_idx));
+            let mut vert = egui_tiles::Linear::new(
+                egui_tiles::LinearDir::Vertical,
+                vec![editor0_id, editor1_id],
+            );
+            vert.shares.set_share(editor0_id, 0.5);
+            vert.shares.set_share(editor1_id, 0.5);
+            let vert_id = tiles.insert_container(egui_tiles::Container::Linear(vert));
+            let mut linear = egui_tiles::Linear::new(
+                egui_tiles::LinearDir::Horizontal,
+                vec![explorer_id, vert_id],
+            );
+            linear.shares.set_share(explorer_id, 0.2);
+            linear.shares.set_share(vert_id, 0.8);
+            let root = tiles.insert_container(egui_tiles::Container::Linear(linear));
+            state.layout = egui_tiles::Tree::new("crabide_layout", root, tiles);
+            true
+        }
+        Action::CloseEditor => {
+            // Close the split: remove the active editor group (if more than one).
+            if state.editor_groups.len() > 1 {
+                let closed_group = state.active_group;
+                // Move all tabs from the closing group to group 0.
+                let tabs_len = state.editor_groups[closed_group].tabs.len();
+                if tabs_len > 0 {
+                    let tabs = state.editor_groups[closed_group].tabs.split_off(0);
+                    state.editor_groups[0].tabs.extend(tabs);
+                }
+                state.editor_groups.remove(closed_group);
+                if state.active_group >= state.editor_groups.len() {
+                    state.active_group = state.editor_groups.len() - 1;
+                }
+                // Rebuild with single editor layout.
+                let mut tiles = egui_tiles::Tiles::default();
+                let explorer_id = tiles.insert_pane(PaneKind::FileExplorer);
+                let editor_id = tiles.insert_pane(PaneKind::EditorGroup(0));
+                let mut linear = egui_tiles::Linear::new(
+                    egui_tiles::LinearDir::Horizontal,
+                    vec![explorer_id, editor_id],
+                );
+                linear.shares.set_share(explorer_id, 0.2);
+                linear.shares.set_share(editor_id, 0.8);
+                let root = tiles.insert_container(egui_tiles::Container::Linear(linear));
+                state.layout = egui_tiles::Tree::new("crabide_layout", root, tiles);
+            }
+            true
+        }
+
         // ── Debugger enable / disable (like ToggleGit) ────────────────────────
         Action::ToggleDebug => {
             // Forward to app so it can start/stop DapClient.
@@ -1813,6 +1915,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
         _ => false,
     }
 }
+
+// ── Cursor movement implementation ────────────────────────────────────────────
 
 // ── Cursor movement implementation ────────────────────────────────────────────
 
