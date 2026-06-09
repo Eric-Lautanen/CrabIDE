@@ -1302,7 +1302,7 @@ impl fmt::Display for DapEvent {
                 description,
                 ..
             } => {
-                write!(f, "DAP exception info #{request_id}: {:?}", description)
+                write!(f, "DAP exception info #{request_id}: {description:?}")
             }
             DapEvent::ExceptionBreakpointsSet => write!(f, "DAP exception breakpoints set"),
             DapEvent::GotoTargetsReady {

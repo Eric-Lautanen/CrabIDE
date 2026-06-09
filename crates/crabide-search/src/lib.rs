@@ -1,3 +1,16 @@
+#![warn(clippy::pedantic)]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::doc_markdown,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::must_use_candidate,
+    clippy::struct_excessive_bools,
+    clippy::similar_names,
+)]
 //! `crabide-search` — fuzzy file finder + workspace grep.
 //!
 //! # Fuzzy file finder (Ctrl+P)
