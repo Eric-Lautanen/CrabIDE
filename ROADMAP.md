@@ -1,6 +1,6 @@
 # Crabide Codebase Audit Roadmap
 
-## Baseline (from 2026-06-09) — updated Session 7 (Phase 4 complete)
+## Baseline (from 2026-06-09) — updated Session 8 (Phase 5 complete)
 - `cargo check`: clean
 - `cargo clippy`: 1 error (`manual_repeat_n` in test) → **0 errors (all fixed)**
 - `cargo fmt --check`: 103 files need formatting → **0 diffs (all formatted)**
@@ -10,6 +10,7 @@
 - `clone()`: 498 calls → **hot-path Vec clones converted to Arc bumps (~20 sites)**
 - `#[allow]`: 5 → **0 (all removed or justified)** | Orphan `.rs.bak`: 1 → **deleted**
 - Outdated dep: `embedded-io` 0.4.0 → **not present (no longer a dependency)**
+- **Phase 5**: `let...else` deployed across 12+ sites; `#[derive(Default)]` for 3 structs; `Option<&T>` over `&Option<T>` in 2 places; `bool::then_some()` in 1 place; format_args_capture already in use; no `Box<dyn Fn>`/`&dyn Trait` in function signatures
 
 ---
 
@@ -67,14 +68,14 @@
 
 **Verification**: `cargo check` ✅ | `cargo clippy -D warnings` ✅ | `cargo fmt --check` ✅ | `cargo test` 1005 pass ✅
 
-## Phase 5 — Idiomatic Rust 2024/2026 🔲
-- Use `impl Trait` in argument position where dynamic dispatch isn't needed
-- Migrate closures to `impl Fn` where captured environment is small
-- Replace manual `Default` impls with `#[derive(Default)]` where possible
-- Use `let ... else` pattern where appropriate
-- Use `format_args_capture` for concise formatting
-- Replace `&Option<T>` → `Option<&T>` via `as_ref()`
-- Prefer `bool::then()` over `if ... { Some(...) } else { None }`
+## Phase 5 — Idiomatic Rust 2024/2026 ✅
+- [x] Use `impl Trait` in argument position where dynamic dispatch isn't needed — **no `Box<dyn Fn`/`&dyn Trait` in function signatures found**
+- [x] Migrate closures to `impl Fn` where captured environment is small — **already used in `map_cursors(impl FnMut)`; no forced dynamic dispatch**
+- [x] Replace manual `Default` impls with `#[derive(Default)]` where possible — **`ActionRegistry`, `RegistryClient`, `SnippetEngine` converted**
+- [x] Use `let ... else` pattern where appropriate — **applied across 12+ sites: `window_state.rs`, `syntax/engine.rs`, `syntax/highlight.rs`, `syntax/indent.rs`, `syntax/locals.rs`, `dap/client.rs`, `lsp/server_mgr.rs`, `extensions/host.rs`**
+- [x] Use `format_args_capture` for concise formatting — **already in use throughout the codebase (e.g. `format!("{var}")`)**
+- [x] Replace `&Option<T>` → `Option<&T>` via `as_ref()` — **`git/lib.rs` (`current_head`), `window_state.rs` (`with_json_file`)**
+- [x] Prefer `bool::then()` over `if ... { Some(...) } else { None }` — **`editor.rs` column_select_anchor converted to `then_some()`**
 
 ## Phase 6 — Code Redundancy 🔲
 - Deduplicate `TextEdit`/`Position`/`Range` conversion logic across LSP/DAP crates
