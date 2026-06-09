@@ -1411,7 +1411,7 @@ mod git_support {
         if let Ok(local) = repo.branches(Some(git2::BranchType::Local)) {
             for branch_result in local.flatten() {
                 let (branch, _type) = branch_result;
-                let info = make_branch_info(repo, &branch, true, &current_head);
+                let info = make_branch_info(repo, &branch, true, current_head.as_deref());
                 branches.push(info);
             }
         }
@@ -1420,7 +1420,7 @@ mod git_support {
         if let Ok(remotes) = repo.branches(Some(git2::BranchType::Remote)) {
             for branch_result in remotes.flatten() {
                 let (branch, _type) = branch_result;
-                let info = make_branch_info(repo, &branch, false, &current_head);
+                let info = make_branch_info(repo, &branch, false, current_head.as_deref());
                 branches.push(info);
             }
         }
@@ -1432,11 +1432,11 @@ mod git_support {
         repo: &git2::Repository,
         branch: &git2::Branch<'_>,
         is_local: bool,
-        current_head: &Option<String>,
+        current_head: Option<&str>,
     ) -> BranchInfo {
         let ref_name = branch.get().name().unwrap_or("").to_owned();
         let shorthand = branch.get().shorthand().unwrap_or("").to_owned();
-        let is_current = is_local && Some(&shorthand) == current_head.as_ref();
+        let is_current = is_local && Some(shorthand.as_str()) == current_head;
 
         let commit = branch
             .get()
