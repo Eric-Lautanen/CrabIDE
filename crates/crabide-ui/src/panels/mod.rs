@@ -4,6 +4,7 @@
 //! take a shared/mutable reference to `UiState` — they never own data.
 
 pub mod breadcrumbs;
+pub mod context_menu;
 pub mod debug_panel;
 pub mod debug_toolbar;
 pub mod editor;

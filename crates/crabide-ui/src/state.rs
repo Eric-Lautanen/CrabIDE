@@ -1755,6 +1755,48 @@ pub enum LspStatus {
     Error,
 }
 
+// ── Context Menu State ────────────────────────────────────────────────────────
+
+/// State for the right-click context menu popup.
+#[derive(Default)]
+pub struct ContextMenuState {
+    /// Whether the context menu is currently visible.
+    pub visible: bool,
+    /// Screen position where the menu should appear.
+    pub pos: egui::Pos2,
+    /// Items to display (built-in + extension contributions).
+    pub items: Vec<ContextMenuItem>,
+    /// Which context triggered the menu.
+    pub context: ContextMenuContext,
+}
+
+/// A single item in the context menu.
+#[derive(Clone)]
+pub struct ContextMenuItem {
+    pub label: String,
+    /// Action or command to execute when clicked.
+    pub action: ContextMenuAction,
+}
+
+/// What happens when a context menu item is activated.
+#[derive(Clone)]
+pub enum ContextMenuAction {
+    /// A built-in editor action (e.g. Cut, Copy, Paste).
+    Action(crabide_config::Action),
+    /// An extension command to execute.
+    Command(String),
+}
+
+/// Which surface triggered the context menu.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum ContextMenuContext {
+    #[default]
+    Editor,
+    FileExplorer,
+    TabBar,
+    Terminal,
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -1838,6 +1880,9 @@ pub struct UiState {
 
     // ── Minimap visibility ──────────────────────────────────────────────────
     pub minimap_visible: bool,
+
+    // ── Context menu state ─────────────────────────────────────────────────
+    pub context_menu: ContextMenuState,
 
     // ── Pending file open (set by file explorer or fuzzy finder) ─────────────
     /// App drains this each frame; it maps to `Action::OpenFile`.
@@ -1934,6 +1979,7 @@ impl UiState {
             pending_close_buffer: None,
             pending_scroll_line: None,
             minimap_visible: false,
+            context_menu: ContextMenuState::default(),
             problems_panel_open: false,
             extension_panels: IndexMap::new(),
             pending_navigate: None,

@@ -738,6 +738,32 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             state.caret_visible = true;
             state.last_blink_toggle = ui.input(|i| i.time);
         }
+        Some(PointerEvent::ContextMenu { screen_pos }) => {
+            // Build built-in context menu items for the editor context.
+            use crate::state::{ContextMenuAction as CMA, ContextMenuItem};
+            let builtins = vec![
+                ContextMenuItem {
+                    label: "Cut".into(),
+                    action: CMA::Action(crabide_config::Action::Cut),
+                },
+                ContextMenuItem {
+                    label: "Copy".into(),
+                    action: CMA::Action(crabide_config::Action::Copy),
+                },
+                ContextMenuItem {
+                    label: "Paste".into(),
+                    action: CMA::Action(crabide_config::Action::Paste),
+                },
+                ContextMenuItem {
+                    label: "Select All".into(),
+                    action: CMA::Action(crabide_config::Action::SelectAll),
+                },
+            ];
+            state.context_menu.items = builtins;
+            state.context_menu.pos = screen_pos;
+            state.context_menu.context = crate::state::ContextMenuContext::Editor;
+            state.context_menu.visible = true;
+        }
         None => {
             // When mouse is released (anywhere, including scrollbar), clear the drag anchor.
             let released = ui.input(|i| i.pointer.primary_released());
@@ -759,6 +785,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 crate::panels::minimap::show(ui, state);
             });
     }
+
+    // ── Context menu popup (right-click) ───────────────────────────────────
+    crate::panels::context_menu::show(ui, state);
 
     // ── LSP popup overlays (rendered after scroll area, positioned near cursor) ─
     if let Some(tab) = state.tabs.get(active_idx) {
@@ -840,6 +869,8 @@ enum PointerEvent {
     },
     /// Mouse held and dragged beyond the click threshold.  Extends selection.
     Drag { pos: Position },
+    /// Right-click at the given screen position.
+    ContextMenu { screen_pos: egui::Pos2 },
 }
 
 // ── Pointer detection ─────────────────────────────────────────────────────────
@@ -934,6 +965,12 @@ fn detect_row_pointer(
         drag_active && is_last && pp.y >= row_bottom && pp.x >= row_left && pp.x < content_right;
 
     if !row_hit && !drag_top && !drag_bot {
+        return;
+    }
+
+    // Detect right-click (secondary button press).
+    if ui.input(|i| i.pointer.secondary_pressed()) && row_hit && !pointer_blocked {
+        *pointer_event = Some(PointerEvent::ContextMenu { screen_pos: pp });
         return;
     }
 

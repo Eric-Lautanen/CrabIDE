@@ -21,7 +21,8 @@ pub mod state;
 
 pub use layout::PaneKind;
 pub use state::{
-    cfg_to_egui, BreadcrumbSegment, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
+    cfg_to_egui, BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem,
+    ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
     GitPanelState, LspStatus, SidebarPaneUiState, SidebarTab, SymbolOutlineEntry,
     SymbolOutlineState, TerminalInstance, TerminalPanelState, UiState,
@@ -1201,7 +1202,7 @@ fn egui_key_to_chord(key: egui::Key, mods: egui::Modifiers) -> KeyChord {
 /// Handle actions that are purely UI-internal.
 /// Returns `true` if the action was handled (do NOT forward to the app),
 /// `false` if the app must also handle it.
-fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
+pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
     match action {
         // ── Command palette / sidebar / zoom ──────────────────────────────────
         Action::CommandPalette => {
