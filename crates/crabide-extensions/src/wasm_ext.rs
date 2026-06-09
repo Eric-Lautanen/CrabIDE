@@ -23,9 +23,9 @@ use wasmtime::component::{Component, HasSelf, Linker};
 use wasmtime::{Config, Engine, Store};
 
 use crate::host::{
-    CommandResult, CompletionItem, CompletionKind, ExtensionCategory, ExtensionContext,
-    ExtensionDiagnostic, ExtensionManifest, ExtensionOutput, ExtensionSeverity, GutterMarker,
-    HoverResult, NativeExtension, TextEdit,
+    CommandResult, CompletionItem, CompletionKind, ExtensionCapabilities, ExtensionCategory,
+    ExtensionContext, ExtensionDiagnostic, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
+    GutterMarker, HoverResult, NativeExtension, TextEdit,
 };
 
 // ── WIT bindings ──────────────────────────────────────────────────────────────
@@ -87,10 +87,12 @@ pub struct HostState {
     pub pending: Vec<ExtensionOutput>,
     /// Extension id used to tag status bar / diagnostic outputs.
     pub ext_id: String,
+    /// Capabilities declared by this extension (checked before sensitive ops).
+    pub capabilities: ExtensionCapabilities,
 }
 
 impl HostState {
-    fn new(ext_id: String) -> Self {
+    fn new(ext_id: String, caps: ExtensionCapabilities) -> Self {
         Self {
             ctx_text: None,
             ctx_uri: None,
@@ -104,6 +106,7 @@ impl HostState {
             ctx_visible_panels: std::collections::HashSet::new(),
             pending: Vec::new(),
             ext_id,
+            capabilities: caps,
         }
     }
 }
@@ -161,13 +164,25 @@ impl crabide::extension::editor::Host for HostState {
                     Some(result)
                 }
             })
-        } else {
+        } else if self.capabilities.file_read {
             // For other documents, attempt to read from disk.
             let path = uri.strip_prefix("file://").unwrap_or(&uri);
             std::fs::read_to_string(path).ok()
+        } else {
+            log::info!(
+                "extension '{}' lacks file_read capability, denied get_document_slice for {uri}",
+                self.ext_id
+            );
+            None
         }
     }
     fn apply_edits(&mut self, uri: String, edits: Vec<wit::TextEdit>) -> Result<(), String> {
+        if !self.capabilities.file_write {
+            return Err(format!(
+                "extension '{}' lacks file_write capability",
+                self.ext_id
+            ));
+        }
         let our_edits = edits
             .into_iter()
             .map(|e| {
@@ -190,6 +205,12 @@ impl crabide::extension::editor::Host for HostState {
         Ok(())
     }
     fn insert_at_cursor(&mut self, text: String) -> Result<(), String> {
+        if !self.capabilities.file_write {
+            return Err(format!(
+                "extension '{}' lacks file_write capability",
+                self.ext_id
+            ));
+        }
         self.pending.push(ExtensionOutput::InsertAtCursor { text });
         Ok(())
     }
@@ -200,6 +221,12 @@ impl crabide::extension::editor::Host for HostState {
         })
     }
     fn set_cursor_position(&mut self, pos: wit::Position) -> Result<(), String> {
+        if !self.capabilities.file_write {
+            return Err(format!(
+                "extension '{}' lacks file_write capability",
+                self.ext_id
+            ));
+        }
         self.pending.push(ExtensionOutput::SetCursorPosition {
             line: pos.line,
             character: pos.character,
@@ -252,10 +279,22 @@ impl crabide::extension::workspace::Host for HostState {
         self.ctx_workspace_roots.clone()
     }
     fn read_file(&mut self, uri: String) -> Result<Vec<u8>, String> {
+        if !self.capabilities.file_read {
+            return Err(format!(
+                "extension '{}' lacks file_read capability",
+                self.ext_id
+            ));
+        }
         let path = uri.strip_prefix("file://").unwrap_or(&uri);
         std::fs::read(path).map_err(|e| e.to_string())
     }
     fn write_file(&mut self, uri: String, content: Vec<u8>) -> Result<(), String> {
+        if !self.capabilities.file_write {
+            return Err(format!(
+                "extension '{}' lacks file_write capability",
+                self.ext_id
+            ));
+        }
         let path = uri.strip_prefix("file://").unwrap_or(&uri);
         let text = String::from_utf8_lossy(&content).into_owned();
         self.pending.push(ExtensionOutput::WriteFile {
@@ -265,10 +304,19 @@ impl crabide::extension::workspace::Host for HostState {
         Ok(())
     }
     fn file_exists(&mut self, uri: String) -> bool {
+        if !self.capabilities.file_read {
+            return false;
+        }
         let path = uri.strip_prefix("file://").unwrap_or(&uri);
         std::path::Path::new(path).exists()
     }
     fn list_dir(&mut self, uri: String) -> Result<Vec<String>, String> {
+        if !self.capabilities.file_read {
+            return Err(format!(
+                "extension '{}' lacks file_read capability",
+                self.ext_id
+            ));
+        }
         let path = uri.strip_prefix("file://").unwrap_or(&uri);
         let result: Vec<String> = std::fs::read_dir(path)
             .map_err(|e| e.to_string())?
@@ -457,10 +505,24 @@ impl crabide::extension::status_bar::Host for HostState {
 
 impl crabide::extension::terminal::Host for HostState {
     fn send_to_terminal(&mut self, terminal_id: u32, data: Vec<u8>) {
+        if !self.capabilities.terminal {
+            log::info!(
+                "extension '{}' lacks terminal capability, denied send_to_terminal",
+                self.ext_id
+            );
+            return;
+        }
         self.pending
             .push(ExtensionOutput::SendToTerminal { terminal_id, data });
     }
     fn open_terminal(&mut self, title: String, command: Option<String>) -> u32 {
+        if !self.capabilities.terminal {
+            log::info!(
+                "extension '{}' lacks terminal capability, denied open_terminal",
+                self.ext_id
+            );
+            return 0;
+        }
         self.pending
             .push(ExtensionOutput::OpenTerminal { title, command });
         0
@@ -554,6 +616,7 @@ pub struct WasmExtension {
     store: Store<HostState>,
     bindings: CrabideExtension,
     manifest: ExtensionManifest,
+    capabilities: ExtensionCapabilities,
 }
 
 impl WasmExtension {
@@ -578,7 +641,7 @@ impl WasmExtension {
         CrabideExtension::add_to_linker::<_, HasSelf<_>>(&mut linker, |s| s)
             .map_err(|e| format!("add_to_linker: {e}"))?;
 
-        let state = HostState::new(stem.clone());
+        let state = HostState::new(stem.clone(), ExtensionCapabilities::default());
         let mut store = Store::new(eng, state);
 
         let bindings = CrabideExtension::instantiate(&mut store, &component, &linker)
@@ -603,10 +666,16 @@ impl WasmExtension {
             is_builtin: false,
         };
 
+        // Read capabilities from the manifest (defaults to all denied for now;
+        // the WIT manifest will be extended with a capabilities record in a
+        // future update).
+        let caps = ExtensionCapabilities::default();
+
         Ok(Box::new(WasmExtension {
             store,
             bindings,
             manifest,
+            capabilities: caps,
         }))
     }
 
@@ -641,6 +710,10 @@ impl WasmExtension {
 impl NativeExtension for WasmExtension {
     fn manifest(&self) -> &ExtensionManifest {
         &self.manifest
+    }
+
+    fn capabilities(&self) -> ExtensionCapabilities {
+        self.capabilities.clone()
     }
 
     fn activate(&mut self, ctx: &ExtensionContext) {

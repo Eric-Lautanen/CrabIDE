@@ -313,9 +313,9 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [x] Implement `panels::Host::is_panel_visible()`
 
 **Registry & lifecycle:**
-- [ ] Implement registry download (actual ureq HTTP download with checksum verification)
-- [ ] Implement `ExtensionHost::install_registry()` — actual download + verify + install flow
-- [ ] Add capability enforcement (check `ExtensionCapabilities` before granting resource access)
+- [x] Implement registry download (actual ureq HTTP download with checksum verification)
+- [x] Implement `ExtensionHost::install_registry()` — actual download + verify + install flow
+- [x] Add capability enforcement (check `ExtensionCapabilities` before granting resource access)
 - [ ] Add WASM engine resource limits (memory cap, fuel metering, execution timeout)
 - [ ] Add marketplace URL configuration
 

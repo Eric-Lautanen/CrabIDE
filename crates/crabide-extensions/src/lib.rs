@@ -27,11 +27,11 @@ pub mod registry;
 pub mod wasm_ext;
 
 pub use host::{
-    CommandResult, CompletionItem, CompletionKind, ContentBlock, ContextMenuContext,
-    ContextMenuContribution, ExtensionCapabilities, ExtensionCategory, ExtensionContext,
-    ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
-    ExtensionSource, GutterMarker, HoverResult, InstalledExtension, NativeExtension,
-    NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RowItem,
+    is_output_allowed, CommandResult, CompletionItem, CompletionKind, ContentBlock,
+    ContextMenuContext, ContextMenuContribution, ExtensionCapabilities, ExtensionCategory,
+    ExtensionContext, ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput,
+    ExtensionSeverity, ExtensionSource, GutterMarker, HoverResult, InstalledExtension,
+    NativeExtension, NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RowItem,
     SidebarPaneRegistration, StatusBarAlignment, TextEdit,
 };
 pub use registry::{DownloadResult, RegistryClient, RegistryExtension};

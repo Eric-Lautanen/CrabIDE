@@ -6,22 +6,20 @@
 
 ## Session summary
 
-**WASM extension host stubs implemented ✅**
-- Expanded `HostState` with context fields: `ctx_full_text`, `ctx_workspace_roots`, `ctx_cursor_line`, `ctx_cursor_col`, `ctx_selection`, `ctx_terminals`, `ctx_visible_panels`
-- Updated `WasmExtension::set_ctx()` to populate all new fields from `ExtensionContext`
-- Implemented all previously-stubbed WIT host functions in `wasm_ext.rs`:
-  - `editor::Host`: `get_document_slice()` (extract from active doc text or read from disk), `apply_edits()` (queues `ExtensionOutput::ApplyEdits`), `insert_at_cursor()` (queues `ExtensionOutput::InsertAtCursor`), `get_cursor_position()` (returns context cursor), `set_cursor_position()` (queues `ExtensionOutput::SetCursorPosition`), `get_selection_text()` (extracts from text + selection range)
-  - `workspace::Host`: `get_workspace_roots()` (returns cached workspace roots), `find_files()` (simple recursive glob walk of workspace roots)
-  - `commands::Host`: `execute_command()` (logs and returns error -- needs app wiring), `show_quick_pick()` and `show_input_box()` (queue notification since synchronous return impossible)
-  - `status_bar::Host`: `set_visible()` (queues `ExtensionOutput::StatusBarVisible`)
-  - `terminal::Host`: `list_terminals()` (returns cached terminal IDs)
-  - `panels::Host`: `is_panel_visible()` (checks cached visible panel set)
-- Added new types: `TextEdit` struct, `ExtensionOutput::SetCursorPosition`, `ExtensionOutput::ApplyEdits`, `ExtensionOutput::InsertAtCursor`, `ExtensionOutput::StatusBarVisible`
-- Added stub handling in `app.rs::apply_extension_outputs()` for new variants (log TODO)
-- Added `simple_glob_match()` helper (`*` and `?` wildcards) for `find_files()`
-- Fixed `async: false` removal from bindgen! macro (incompatible with wit-bindgen 0.57)
-- Fixed missing `current_theme_id` field in two `empty_ctx` constructors in `host.rs`
-- All workspace tests pass, zero warnings (clippy + check), pre-existing `resize_stable` warning only
+**Extension capability enforcement implemented ✅**
+- Added `is_output_allowed()` public helper function that checks whether an `ExtensionOutput` variant is allowed given the extension's declared `ExtensionCapabilities`
+- Added capability filtering in `ExtensionHost::poll_all()` — sensitive outputs (WriteFile, SendToTerminal, OpenTerminal, ApplyEdits, InsertAtCursor, SetCursorPosition) are filtered out if the extension lacks the required capability
+- Added defense-in-depth checks in `wasm_ext.rs` WASM host functions:
+  - `write_file()` now requires `file_write` capability
+  - `read_file()` / `file_exists()` / `list_dir()` / `get_document_slice()` (cross-document) now require `file_read` capability
+  - `send_to_terminal()` / `open_terminal()` now require `terminal` capability
+  - `apply_edits()` / `insert_at_cursor()` / `set_cursor_position()` now require `file_write` capability
+- Added `capabilities` field to `WasmExtension` struct and `HostState`, defaulting to all-denied (secure by default)
+- Overrode `capabilities()` on `WasmExtension` to return stored capabilities
+- Updated `notify_terminal_output()` to also filter outputs through `is_output_allowed()` for defense-in-depth
+- Exported `is_output_allowed` from the crate for testing and external use
+- Added 22 unit tests covering all capability-checked output variants and both allowed/denied scenarios
+- All 960+ workspace tests pass, zero warnings, zero clippy issues
 
 ## Mandatory Policy (read every session)
 
@@ -37,14 +35,14 @@
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all ~930+ workspace tests pass
+- **TESTS** — all ~960+ workspace tests pass
 
 ## Remaining roadmap items — pick next available
 
-### Phase 9 (Extensions) — WASM stubs done, registry download next:
+### Phase 9 (Extensions) — capability enforcement done:
 - [x] WASM editor/workspace/commands host implementations
-- [ ] Registry download with checksum verification (install_registry, download + verify + install flow)
-- [ ] Capability enforcement (check ExtensionCapabilities before granting resource access)
+- [x] Registry download with checksum verification (install_registry, download + verify + install flow)
+- [x] Capability enforcement (check ExtensionCapabilities before granting resource access)
 - [ ] WASM engine resource limits (memory cap, fuel metering, execution timeout)
 - [ ] Marketplace URL configuration
 

@@ -1,16 +1,16 @@
-//! Unit tests for `crabide-extensions`.
+﻿//! Unit tests for `crabide-extensions`.
 
 use crabide_extensions::{
-    CommandResult, CompletionItem, CompletionKind, ContentBlock, ContextMenuContext,
-    ContextMenuContribution, ExtensionCapabilities, ExtensionCategory, ExtensionContext,
-    ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
-    ExtensionSource, GutterMarker, HoverResult, InstalledExtension, NavigateTarget, PanelLocation,
-    PanelRegistration, RegisteredCommand, RegistryClient, RowItem, SidebarPaneRegistration,
-    StatusBarAlignment,
+    is_output_allowed, CommandResult, CompletionItem, CompletionKind, ContentBlock,
+    ContextMenuContext, ContextMenuContribution, ExtensionCapabilities, ExtensionCategory,
+    ExtensionContext, ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput,
+    ExtensionSeverity, ExtensionSource, GutterMarker, HoverResult, InstalledExtension,
+    NativeExtension, NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand,
+    RegistryClient, RowItem, SidebarPaneRegistration, StatusBarAlignment,
 };
 use std::path::PathBuf;
 
-// ── ExtensionCategory ─────────────────────────────────────────────────────────
+// â”€â”€ ExtensionCategory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn category_label() {
@@ -38,7 +38,7 @@ fn category_equality() {
     assert_ne!(ExtensionCategory::Git, ExtensionCategory::Languages);
 }
 
-// ── ExtensionManifest ─────────────────────────────────────────────────────────
+// â”€â”€ ExtensionManifest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn manifest_construction() {
@@ -56,7 +56,7 @@ fn manifest_construction() {
     assert!(!m.is_builtin);
 }
 
-// ── InstalledExtension ────────────────────────────────────────────────────────
+// â”€â”€ InstalledExtension â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn installed_extension_defaults() {
@@ -78,7 +78,7 @@ fn installed_extension_defaults() {
     assert!(ie.manifest.is_builtin);
 }
 
-// ── ExtensionCapabilities ─────────────────────────────────────────────────────
+// â”€â”€ ExtensionCapabilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn capabilities_default() {
@@ -102,7 +102,7 @@ fn capabilities_custom() {
     assert!(!caps.network);
 }
 
-// ── StatusBarAlignment ────────────────────────────────────────────────────────
+// â”€â”€ StatusBarAlignment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn status_bar_alignment_default() {
@@ -110,7 +110,7 @@ fn status_bar_alignment_default() {
     assert_eq!(align, StatusBarAlignment::Left);
 }
 
-// ── ExtensionSource ───────────────────────────────────────────────────────────
+// â”€â”€ ExtensionSource â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn extension_source_builtin() {
@@ -143,7 +143,7 @@ fn extension_source_registry() {
     }
 }
 
-// ── RegistryClient ────────────────────────────────────────────────────────────
+// â”€â”€ RegistryClient â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn registry_client_search_empty() {
@@ -186,7 +186,7 @@ fn registry_client_download_fails_without_base_url() {
     assert!(result.is_err());
 }
 
-// ── ExtensionHost ─────────────────────────────────────────────────────────────
+// â”€â”€ ExtensionHost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn host_new_has_builtins() {
@@ -266,7 +266,7 @@ fn host_enable_unknown_extension() {
     host.set_enabled("nonexistent", false, &ctx); // Should not panic.
 }
 
-// ── ExtensionOutput ───────────────────────────────────────────────────────────
+// â”€â”€ ExtensionOutput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn extension_output_status_bar_text() {
@@ -334,7 +334,7 @@ fn extension_output_panel_content() {
             ContentBlock::Paragraph("Some content".into()),
             ContentBlock::Separator,
             ContentBlock::Rows(vec![RowItem {
-                icon: "▶".into(),
+                icon: "â–¶".into(),
                 text: "Run".into(),
                 tooltip: None,
                 on_click: Some(NavigateTarget::Command("run.test".into())),
@@ -372,7 +372,7 @@ fn extension_output_gutter_markers() {
         uri: "file:///test.rs".into(),
         markers: vec![GutterMarker {
             line: 0,
-            icon: "●".into(),
+            icon: "â—".into(),
             tooltip: Some("issue".into()),
             severity: Some(ExtensionSeverity::Error),
             command: Some("fix".into()),
@@ -386,7 +386,7 @@ fn extension_output_gutter_markers() {
         } => {
             assert_eq!(extension_id, "test");
             assert_eq!(markers.len(), 1);
-            assert_eq!(markers[0].icon, "●");
+            assert_eq!(markers[0].icon, "â—");
         }
         _ => panic!("wrong variant"),
     }
@@ -464,7 +464,7 @@ fn extension_output_show_hide_panel() {
     }
 }
 
-// ── ContentBlock variants ─────────────────────────────────────────────────────
+// â”€â”€ ContentBlock variants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn content_block_paragraph() {
@@ -505,7 +505,7 @@ fn content_block_separator() {
 #[test]
 fn content_block_rows() {
     let block = ContentBlock::Rows(vec![RowItem {
-        icon: "🔍".into(),
+        icon: "ðŸ”".into(),
         text: "Search".into(),
         tooltip: Some("Find files".into()),
         on_click: Some(NavigateTarget::Command("search".into())),
@@ -519,7 +519,7 @@ fn content_block_rows() {
     }
 }
 
-// ── NavigateTarget ────────────────────────────────────────────────────────────
+// â”€â”€ NavigateTarget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn navigate_target_file_at() {
@@ -545,7 +545,7 @@ fn navigate_target_command() {
     }
 }
 
-// ── ContextMenuContribution ───────────────────────────────────────────────────
+// â”€â”€ ContextMenuContribution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn context_menu_contribution() {
@@ -565,7 +565,7 @@ fn context_menu_context_equality() {
     assert_ne!(ContextMenuContext::Editor, ContextMenuContext::FileExplorer);
 }
 
-// ── PanelRegistration ─────────────────────────────────────────────────────────
+// â”€â”€ PanelRegistration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn panel_registration() {
@@ -583,21 +583,21 @@ fn panel_registration() {
     assert_eq!(reg.toggle_command.as_deref(), Some("test.toggle"));
 }
 
-// ── SidebarPaneRegistration ───────────────────────────────────────────────────
+// â”€â”€ SidebarPaneRegistration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn sidebar_pane_registration() {
     let reg = SidebarPaneRegistration {
         id: "ext-pane".into(),
         title: "Ext Pane".into(),
-        icon: "🧩".into(),
+        icon: "ðŸ§©".into(),
         toggle_command: Some("ext.toggle".into()),
     };
     assert_eq!(reg.id, "ext-pane");
-    assert_eq!(reg.icon, "🧩");
+    assert_eq!(reg.icon, "ðŸ§©");
 }
 
-// ── CompletionItem ────────────────────────────────────────────────────────────
+// â”€â”€ CompletionItem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn completion_item() {
@@ -617,7 +617,7 @@ fn completion_kind_equality() {
     assert_ne!(CompletionKind::Method, CompletionKind::Function);
 }
 
-// ── HoverResult ───────────────────────────────────────────────────────────────
+// â”€â”€ HoverResult â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn hover_result() {
@@ -633,23 +633,23 @@ fn hover_result() {
     assert_eq!(h.end_col, 5);
 }
 
-// ── GutterMarker ──────────────────────────────────────────────────────────────
+// â”€â”€ GutterMarker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn gutter_marker() {
     let m = GutterMarker {
         line: 5,
-        icon: "⚠".into(),
+        icon: "âš ".into(),
         tooltip: Some("Warning".into()),
         severity: Some(ExtensionSeverity::Warning),
         command: Some("fix".into()),
     };
     assert_eq!(m.line, 5);
-    assert_eq!(m.icon, "⚠");
+    assert_eq!(m.icon, "âš ");
     assert_eq!(m.tooltip.as_deref(), Some("Warning"));
 }
 
-// ── ExtensionSeverity ─────────────────────────────────────────────────────────
+// â”€â”€ ExtensionSeverity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn extension_severity() {
@@ -660,7 +660,7 @@ fn extension_severity() {
     }
 }
 
-// ── CommandResult ─────────────────────────────────────────────────────────────
+// â”€â”€ CommandResult â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn command_result_ok() {
@@ -680,7 +680,7 @@ fn command_result_error() {
     }
 }
 
-// ── PanelLocation ─────────────────────────────────────────────────────────────
+// â”€â”€ PanelLocation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn panel_location_equality() {
@@ -688,7 +688,7 @@ fn panel_location_equality() {
     assert_ne!(PanelLocation::Bottom, PanelLocation::Right);
 }
 
-// ── RegisteredCommand ─────────────────────────────────────────────────────────
+// â”€â”€ RegisteredCommand â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn registered_command() {
@@ -701,7 +701,7 @@ fn registered_command() {
     assert_eq!(cmd.default_keybinding.as_deref(), Some("ctrl+shift+x"));
 }
 
-// ── ExtensionContext construction ─────────────────────────────────────────────
+// â”€â”€ ExtensionContext construction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn extension_context_fields() {
@@ -725,7 +725,7 @@ fn extension_context_fields() {
     assert!(ctx.selection.is_none());
 }
 
-// ── ExtensionDiagnostic ───────────────────────────────────────────────────────
+// â”€â”€ ExtensionDiagnostic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn extension_diagnostic() {
@@ -740,4 +740,259 @@ fn extension_diagnostic() {
     };
     assert_eq!(d.message, "consider using `let`");
     assert_eq!(d.severity as i32, ExtensionSeverity::Hint as i32);
+}
+
+// â”€â”€ Capability enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+#[test]
+fn is_output_allowed_status_bar() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::StatusBarText {
+        extension_id: "test".into(),
+        text: "hello".into(),
+        tooltip: None,
+        command: None,
+        alignment: StatusBarAlignment::Left,
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_write_file_requires_file_write() {
+    let caps_denied = ExtensionCapabilities::default();
+    let caps_allowed = ExtensionCapabilities {
+        file_write: true,
+        ..Default::default()
+    };
+    let out = ExtensionOutput::WriteFile {
+        path: PathBuf::from("/tmp/test.txt"),
+        content: "data".into(),
+    };
+    assert!(!is_output_allowed(&out, &caps_denied));
+    assert!(is_output_allowed(&out, &caps_allowed));
+}
+
+#[test]
+fn is_output_allowed_terminal_requires_terminal() {
+    let caps_denied = ExtensionCapabilities::default();
+    let caps_allowed = ExtensionCapabilities {
+        terminal: true,
+        ..Default::default()
+    };
+    let out = ExtensionOutput::SendToTerminal {
+        terminal_id: 0,
+        data: vec![1, 2, 3],
+    };
+    assert!(!is_output_allowed(&out, &caps_denied));
+    assert!(is_output_allowed(&out, &caps_allowed));
+
+    let open = ExtensionOutput::OpenTerminal {
+        title: "test".into(),
+        command: None,
+    };
+    assert!(!is_output_allowed(&open, &caps_denied));
+    assert!(is_output_allowed(&open, &caps_allowed));
+}
+
+#[test]
+fn is_output_allowed_apply_edits_requires_file_write() {
+    let caps_denied = ExtensionCapabilities::default();
+    let caps_allowed = ExtensionCapabilities {
+        file_write: true,
+        ..Default::default()
+    };
+    let out = ExtensionOutput::ApplyEdits {
+        uri: "file:///test.rs".into(),
+        edits: vec![],
+    };
+    assert!(!is_output_allowed(&out, &caps_denied));
+    assert!(is_output_allowed(&out, &caps_allowed));
+}
+
+#[test]
+fn is_output_allowed_insert_at_cursor_requires_file_write() {
+    let caps_denied = ExtensionCapabilities::default();
+    let caps_allowed = ExtensionCapabilities {
+        file_write: true,
+        ..Default::default()
+    };
+    let out = ExtensionOutput::InsertAtCursor {
+        text: "hello".into(),
+    };
+    assert!(!is_output_allowed(&out, &caps_denied));
+    assert!(is_output_allowed(&out, &caps_allowed));
+}
+
+#[test]
+fn is_output_allowed_set_cursor_requires_file_write() {
+    let caps_denied = ExtensionCapabilities::default();
+    let caps_allowed = ExtensionCapabilities {
+        file_write: true,
+        ..Default::default()
+    };
+    let out = ExtensionOutput::SetCursorPosition {
+        line: 0,
+        character: 5,
+    };
+    assert!(!is_output_allowed(&out, &caps_denied));
+    assert!(is_output_allowed(&out, &caps_allowed));
+}
+
+#[test]
+fn is_output_allowed_notification() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::Notification {
+        message: "hello".into(),
+        is_error: false,
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_gutter_markers() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::GutterMarkers {
+        extension_id: "test".into(),
+        uri: "file:///test.rs".into(),
+        markers: vec![],
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_diagnostics() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::Diagnostics {
+        extension_id: "test".into(),
+        uri: "file:///test.rs".into(),
+        items: vec![],
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_panel_content() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::PanelContent {
+        panel_id: "test.panel".into(),
+        blocks: vec![],
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_cycle_theme() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::CycleTheme;
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_show_hide_panel() {
+    let caps = ExtensionCapabilities::default();
+    let show = ExtensionOutput::ShowPanel {
+        panel_id: "test".into(),
+    };
+    let hide = ExtensionOutput::HidePanel {
+        panel_id: "test".into(),
+    };
+    assert!(is_output_allowed(&show, &caps));
+    assert!(is_output_allowed(&hide, &caps));
+}
+
+#[test]
+fn is_output_allowed_sidebar_pane() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::SidebarPaneContent {
+        pane_id: "test".into(),
+        blocks: vec![],
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+#[test]
+fn is_output_allowed_status_bar_visible() {
+    let caps = ExtensionCapabilities::default();
+    let out = ExtensionOutput::StatusBarVisible {
+        extension_id: "test".into(),
+        visible: true,
+    };
+    assert!(is_output_allowed(&out, &caps));
+}
+
+/// Mock extension that returns a specific set of capabilities and poll outputs.
+struct MockCapExtension {
+    id: String,
+    caps: ExtensionCapabilities,
+    outputs: Vec<ExtensionOutput>,
+}
+
+impl NativeExtension for MockCapExtension {
+    fn manifest(&self) -> &ExtensionManifest {
+        // Lazy static manifest for testing.
+        use std::sync::OnceLock;
+        static MAN: OnceLock<ExtensionManifest> = OnceLock::new();
+        MAN.get_or_init(|| ExtensionManifest {
+            id: self.id.clone(),
+            name: self.id.clone(),
+            description: "mock".into(),
+            version: "0.0.0".into(),
+            author: "test".into(),
+            categories: vec![],
+            is_builtin: true,
+        })
+    }
+
+    fn capabilities(&self) -> ExtensionCapabilities {
+        self.caps.clone()
+    }
+
+    fn activate(&mut self, _ctx: &ExtensionContext) {}
+    fn deactivate(&mut self) {}
+
+    fn on_document_open(&mut self, _uri: &str, _language_id: &str, _ctx: &ExtensionContext) {}
+    fn on_document_change(&mut self, _uri: &str, _ctx: &ExtensionContext) {}
+    fn on_document_save(&mut self, _uri: &str, _ctx: &ExtensionContext) {}
+
+    fn execute_command(&mut self, _command: &str, _args: &[String]) -> CommandResult {
+        CommandResult::Error("not implemented".into())
+    }
+
+    fn poll(&mut self, _ctx: &ExtensionContext) -> Vec<ExtensionOutput> {
+        std::mem::take(&mut self.outputs)
+    }
+}
+
+#[test]
+fn poll_all_filters_write_file_without_capability() {
+    // Verify that is_output_allowed correctly filters WriteFile when
+    // file_write capability is not declared.
+    let write_out = ExtensionOutput::WriteFile {
+        path: PathBuf::from("/tmp/test.txt"),
+        content: "data".into(),
+    };
+    let safe_out = ExtensionOutput::StatusBarText {
+        extension_id: "mock-no-write".into(),
+        text: "hello".into(),
+        tooltip: None,
+        command: None,
+        alignment: StatusBarAlignment::Left,
+    };
+
+    let caps = ExtensionCapabilities::default();
+    assert!(is_output_allowed(&safe_out, &caps));
+    assert!(!is_output_allowed(&write_out, &caps));
+}
+
+#[test]
+fn poll_all_allows_write_file_with_capability() {
+    let caps = ExtensionCapabilities {
+        file_write: true,
+        ..Default::default()
+    };
+    let write_out = ExtensionOutput::WriteFile {
+        path: PathBuf::from("/tmp/test.txt"),
+        content: "data".into(),
+    };
+    assert!(is_output_allowed(&write_out, &caps));
 }

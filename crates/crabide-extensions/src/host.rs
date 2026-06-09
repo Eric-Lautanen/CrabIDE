@@ -395,6 +395,27 @@ pub struct ExtensionCapabilities {
     pub network: bool,
 }
 
+/// Whether the given `ExtensionOutput` is allowed given the extension's capabilities.
+///
+/// Returns `true` if the output does not require any restricted capability, or if
+/// the extension has declared the required capability.  Sensitive outputs that
+/// carry no `extension_id` are checked here at the host level.
+pub fn is_output_allowed(output: &ExtensionOutput, caps: &ExtensionCapabilities) -> bool {
+    match output {
+        ExtensionOutput::WriteFile { .. } => caps.file_write,
+        ExtensionOutput::SendToTerminal { .. } | ExtensionOutput::OpenTerminal { .. } => {
+            caps.terminal
+        }
+        ExtensionOutput::ApplyEdits { .. }
+        | ExtensionOutput::InsertAtCursor { .. }
+        | ExtensionOutput::SetCursorPosition { .. } => caps.file_write,
+        // All other outputs (diagnostics, status bar, gutter markers, panels,
+        // notifications, cycle theme, sidebar content, show/hide panel,
+        // status bar visibility) are safe and do not require capability checks.
+        _ => true,
+    }
+}
+
 // ── Sidebar pane ──────────────────────────────────────────────────────────────
 
 /// Registration for a left-sidebar activity-bar pane contribution.
@@ -917,12 +938,27 @@ impl ExtensionHost {
     }
 
     /// Poll all enabled extensions for output.  Called once per frame.
+    ///
+    /// Outputs that require capabilities the extension hasn't declared are filtered out
+    /// and logged.  To pass the filter, the extension's [`NativeExtension::capabilities`]
+    /// must include the corresponding capability for the output variant.
     pub fn poll_all(&mut self, ctx: &ExtensionContext) -> Vec<ExtensionOutput> {
         let mut out = Vec::new();
         for (info, inst) in self.installed.iter().zip(self.instances.iter_mut()) {
             if info.enabled {
                 if let Some(ext) = inst.as_mut() {
-                    out.extend(ext.poll(ctx));
+                    let caps = ext.capabilities();
+                    let id = info.manifest.id.as_str();
+                    for output in ext.poll(ctx) {
+                        if is_output_allowed(&output, &caps) {
+                            out.push(output);
+                        } else {
+                            log::info!(
+                                "Capability denied for '{id}': an output variant requires \
+                                 caps that the extension did not declare"
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -971,7 +1007,9 @@ impl ExtensionHost {
 
     /// Notify all terminal-capable enabled extensions of terminal output.
     ///
-    /// Returns the combined `ExtensionOutput` items from all extensions.
+    /// Returns the combined `ExtensionOutput` items from all extensions that
+    /// have the `terminal` capability.  Outputs are also filtered through
+    /// [`is_output_allowed`] for defense-in-depth.
     pub fn notify_terminal_output(
         &mut self,
         terminal_id: u32,
@@ -981,8 +1019,13 @@ impl ExtensionHost {
         for (info, inst) in self.installed.iter().zip(self.instances.iter_mut()) {
             if info.enabled {
                 if let Some(ext) = inst.as_mut() {
-                    if ext.capabilities().terminal {
-                        out.extend(ext.on_terminal_output(terminal_id, data));
+                    let caps = ext.capabilities();
+                    if caps.terminal {
+                        for output in ext.on_terminal_output(terminal_id, data) {
+                            if is_output_allowed(&output, &caps) {
+                                out.push(output);
+                            }
+                        }
                     }
                 }
             }
