@@ -114,6 +114,13 @@ pub enum Action {
     GotoImplementation,
     GotoTypeDefinition,
     GotoReferences,
+    // Peek navigation (inline preview without navigating away)
+    PeekDefinition,
+    PeekDeclaration,
+    PeekImplementation,
+    PeekTypeDefinition,
+    PeekReferences,
+    ClosePeek,
     GotoSymbol,
     GoBack,
     GoForward,
@@ -806,6 +813,13 @@ fn map_vscode_command(cmd: &str) -> Action {
         "editor.action.goToImplementation" => Action::GotoImplementation,
         "editor.action.goToTypeDefinition" => Action::GotoTypeDefinition,
         "editor.action.goToReferences" => Action::GotoReferences,
+        // Peek commands
+        "editor.action.peekDefinition" => Action::PeekDefinition,
+        "editor.action.peekDeclaration" => Action::PeekDeclaration,
+        "editor.action.peekImplementation" => Action::PeekImplementation,
+        "editor.action.peekTypeDefinition" => Action::PeekTypeDefinition,
+        "editor.action.referenceSearch.trigger" => Action::PeekReferences,
+        "editor.action.peekCancel" => Action::ClosePeek,
         "workbench.action.gotoSymbol" => Action::GotoSymbol,
         "workbench.action.navigateBack" => Action::GoBack,
         "workbench.action.navigateForward" => Action::GoForward,
@@ -1267,7 +1281,9 @@ impl KeybindingEngine {
         self.bind("ctrl+shift+/", Action::ToggleBlockComment);
         self.bind("ctrl+g", Action::GotoLine);
         self.bind("f12", Action::GotoDefinition);
-        self.bind("alt+f12", Action::GotoReferences);
+        self.bind("alt+f12", Action::PeekDefinition);
+        self.bind("shift+f12", Action::PeekReferences);
+        self.bind("ctrl+shift+f12", Action::PeekReferences);
         self.bind("f8", Action::NextDiagnostic);
         self.bind("shift+f8", Action::PreviousDiagnostic);
         self.bind("alt+left", Action::GoBack);
@@ -1343,6 +1359,9 @@ impl KeybindingEngine {
         // ── Snippets ──────────────────────────────────────────────────────────
         self.bind("tab", Action::NextTabstop);
         self.bind("shift+tab", Action::PreviousTabstop);
+        // ── Peek ───────────────────────────────────────────────────────────────
+        self.bind("escape", Action::ClosePeek);
+        // ── Keep escape as close-peek (overrides other escape uses when peek is open)
     }
 }
 
@@ -1374,6 +1393,12 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     m.insert(Action::GotoImplementation, "Go: Go to Implementation");
     m.insert(Action::GotoTypeDefinition, "Go: Go to Type Definition");
     m.insert(Action::GotoReferences, "Go: Go to References");
+    m.insert(Action::PeekDefinition, "Peek: Peek Definition");
+    m.insert(Action::PeekDeclaration, "Peek: Peek Declaration");
+    m.insert(Action::PeekImplementation, "Peek: Peek Implementation");
+    m.insert(Action::PeekTypeDefinition, "Peek: Peek Type Definition");
+    m.insert(Action::PeekReferences, "Peek: Peek References");
+    m.insert(Action::ClosePeek, "Peek: Close Peek View");
     m.insert(Action::GotoSymbol, "Go: Go to Symbol in File...");
     m.insert(Action::GotoLine, "Go: Go to Line...");
     m.insert(Action::GoBack, "Go: Go Back");

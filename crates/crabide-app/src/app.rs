@@ -121,7 +121,7 @@ use crabide_search::{grep_buffers, grep_workspace, index_workspace_files, GrepAb
 use crabide_syntax::{grammar::grammar_registry, outline::SymbolOutline, queries, SyntaxEngine};
 use crabide_terminal::{TerminalManager, TerminalProfile};
 use crabide_ui::{
-    cfg_to_egui, BreadcrumbSegment, EditorTab, FileNode, GitDecoration, LspStatus,
+    cfg_to_egui, BreadcrumbSegment, EditorTab, FileNode, GitDecoration, LspStatus, PeekKind,
     SidebarPaneUiState, SymbolOutlineEntry, TerminalInstance, UiState,
 };
 use crabide_vfs::{LocalVfs, VfsWatcher};
@@ -1101,6 +1101,27 @@ impl crabideApp {
                 request_id: _,
                 locations,
             } => {
+                // Check if this response should be shown as a peek.
+                if let Some(_method) = self.ui_state.pending_peek_method.take() {
+                    if locations.is_empty() {
+                        self.ui_state.set_status("No locations found");
+                    } else {
+                        let kind = self.peek_kind_for_method(&_method);
+                        let origin_uri = self
+                            .ui_state
+                            .peek
+                            .origin_uri
+                            .clone()
+                            .unwrap_or_else(|| DocumentUri::parse("file:///unknown").unwrap());
+                        let origin_pos = self.ui_state.peek.origin_pos.unwrap_or(Position::ZERO);
+                        self.ui_state
+                            .peek
+                            .open(kind, locations, origin_uri, origin_pos);
+                        self.ui_state.set_status("Peek opened");
+                    }
+                    return;
+                }
+
                 if let Some(loc) = locations.first() {
                     if let Ok(path) = loc.uri.as_url().to_file_path() {
                         let line = loc.range.start.line as usize;
@@ -2299,6 +2320,26 @@ impl crabideApp {
             }
             Action::GotoTypeDefinition => {
                 self.lsp_goto("textDocument/typeDefinition");
+            }
+
+            // ── Peek navigation (show results inline) ──────────────────────────
+            Action::PeekDefinition => {
+                self.lsp_peek("textDocument/definition");
+            }
+            Action::PeekReferences => {
+                self.lsp_peek("textDocument/references");
+            }
+            Action::PeekImplementation => {
+                self.lsp_peek("textDocument/implementation");
+            }
+            Action::PeekDeclaration => {
+                self.lsp_peek("textDocument/declaration");
+            }
+            Action::PeekTypeDefinition => {
+                self.lsp_peek("textDocument/typeDefinition");
+            }
+            Action::ClosePeek => {
+                self.ui_state.peek.close();
             }
 
             Action::FormatDocument => {
@@ -3697,11 +3738,11 @@ impl crabideApp {
         };
         let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
         match method {
-            "textDocument/definition" => client.go_to_definition(uri, pos, req_id),
-            "textDocument/references" => client.references(uri, pos, req_id),
-            "textDocument/implementation" => client.implementation(uri, pos, req_id),
-            "textDocument/typeDefinition" => client.type_definition(uri, pos, req_id),
-            "textDocument/declaration" => client.declaration(uri, pos, req_id),
+            "textDocument/definition" => client.go_to_definition(uri.clone(), pos, req_id),
+            "textDocument/references" => client.references(uri.clone(), pos, req_id),
+            "textDocument/implementation" => client.implementation(uri.clone(), pos, req_id),
+            "textDocument/typeDefinition" => client.type_definition(uri.clone(), pos, req_id),
+            "textDocument/declaration" => client.declaration(uri.clone(), pos, req_id),
             _ => {
                 self.ui_state
                     .set_status(format!("Unknown LSP method: {method}"));
@@ -3709,6 +3750,60 @@ impl crabideApp {
             }
         }
         self.ui_state.set_status(format!("Requesting {method}…"));
+    }
+
+    /// Dispatch a peek LSP request — same as goto but stores results inline.
+    fn lsp_peek(&mut self, method: &'static str) {
+        let Some((uri, pos)) = self.active_uri_and_position() else {
+            self.ui_state.set_status("No active document");
+            return;
+        };
+        let Some(lang) = self.active_language() else {
+            self.ui_state.set_status("Unknown language");
+            return;
+        };
+        let Some(client) = self.lsp_manager.get_client(&lang) else {
+            self.ui_state
+                .set_status(format!("No language server running for {lang}"));
+            return;
+        };
+        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+        match method {
+            "textDocument/definition" => client.go_to_definition(uri.clone(), pos, req_id),
+            "textDocument/references" => client.references(uri.clone(), pos, req_id),
+            "textDocument/implementation" => client.implementation(uri.clone(), pos, req_id),
+            "textDocument/typeDefinition" => client.type_definition(uri.clone(), pos, req_id),
+            "textDocument/declaration" => client.declaration(uri.clone(), pos, req_id),
+            _ => {
+                self.ui_state
+                    .set_status(format!("Unknown LSP method: {method}"));
+                return;
+            }
+        }
+        // Set a flag in UiState so that the next LocationsReady event
+        // stores results in peek state instead of navigating immediately.
+        self.ui_state.peek.visible = false; // ensure clean state
+        self.ui_state.peek.kind = None;
+        self.ui_state.peek.locations.clear();
+        self.ui_state.peek.selected_idx = 0;
+        // Store origin URI/position for context.
+        self.ui_state.peek.origin_uri = Some(uri);
+        self.ui_state.peek.origin_pos = Some(pos);
+        // Use a simple flag stored temporarily.
+        self.ui_state.pending_peek_method = Some(method.to_owned());
+        self.ui_state.set_status(format!("Peeking {method}…"));
+    }
+
+    /// Map an LSP method name to the corresponding PeekKind.
+    fn peek_kind_for_method(&self, method: &str) -> PeekKind {
+        match method {
+            "textDocument/definition" => PeekKind::Definition,
+            "textDocument/declaration" => PeekKind::Declaration,
+            "textDocument/implementation" => PeekKind::Implementation,
+            "textDocument/typeDefinition" => PeekKind::TypeDefinition,
+            "textDocument/references" => PeekKind::References,
+            _ => PeekKind::Definition,
+        }
     }
 
     /// Request document formatting from the LSP server.

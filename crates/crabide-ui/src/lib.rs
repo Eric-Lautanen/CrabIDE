@@ -24,8 +24,9 @@ pub use state::{
     cfg_to_egui, BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem,
     ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
-    GitPanelState, LspStatus, OutputPanelState, SidebarPaneUiState, SidebarTab, SymbolOutlineEntry,
-    SymbolOutlineState, TerminalInstance, TerminalPanelState, UiState,
+    GitPanelState, LspStatus, OutputPanelState, PeekKind, PeekState, SidebarPaneUiState,
+    SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance, TerminalPanelState,
+    UiState,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -1908,6 +1909,20 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
         }
         Action::GitUnstageAll => {
             state.git_panel.pending_unstage_all = true;
+            false
+        }
+
+        // ── Peek view ──────────────────────────────────────────────────────────
+        Action::ClosePeek => {
+            state.peek.close();
+            true
+        }
+        Action::PeekDefinition
+        | Action::PeekDeclaration
+        | Action::PeekImplementation
+        | Action::PeekTypeDefinition
+        | Action::PeekReferences => {
+            // Forward to app for LSP request.
             false
         }
 

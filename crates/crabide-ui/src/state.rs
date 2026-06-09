@@ -15,8 +15,8 @@ use crabide_config::{Action, Color, ColorTheme, KeybindingEngine, WhenContext};
 use crabide_core::{
     event::{
         BlameLine, BranchInfo, CommitEntry, ConflictInfo, Diagnostic, DiffHunk, FileStatus,
-        FoldingRange, OutputCategory, RemoteInfo, StackFrame, StashEntry, SubmoduleInfo, TagInfo,
-        TerminalCell, TerminalColor, TerminalColorScheme, Variable,
+        FoldingRange, Location, OutputCategory, RemoteInfo, StackFrame, StashEntry, SubmoduleInfo,
+        TagInfo, TerminalCell, TerminalColor, TerminalColorScheme, Variable,
     },
     types::{BufferId, DocumentUri, Language, Position, Range},
 };
@@ -1889,6 +1889,86 @@ impl OutputPanelState {
     }
 }
 
+// ── PeekState ──────────────────────────────────────────────────────────────
+
+/// State for the peek view (inline definition/reference preview).
+#[derive(Default)]
+pub struct PeekState {
+    /// Whether the peek overlay is visible.
+    pub visible: bool,
+    /// The peek kind (definition, references, implementation, etc.).
+    pub kind: Option<PeekKind>,
+    /// All locations returned by the LSP server.
+    pub locations: Vec<Location>,
+    /// Index into `locations` for the currently selected location.
+    pub selected_idx: usize,
+    /// The URI this peek was triggered from (to track context).
+    pub origin_uri: Option<DocumentUri>,
+    /// The line/column this peek was triggered from.
+    pub origin_pos: Option<Position>,
+}
+
+/// The kind of peek view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeekKind {
+    Definition,
+    Declaration,
+    Implementation,
+    TypeDefinition,
+    References,
+}
+
+impl PeekState {
+    /// The currently selected location, if any.
+    pub fn selected_location(&self) -> Option<&Location> {
+        self.locations.get(self.selected_idx)
+    }
+
+    /// Navigate to the next location (wraps around).
+    pub fn next(&mut self) {
+        if !self.locations.is_empty() {
+            self.selected_idx = (self.selected_idx + 1) % self.locations.len();
+        }
+    }
+
+    /// Navigate to the previous location (wraps around).
+    pub fn prev(&mut self) {
+        if !self.locations.is_empty() {
+            self.selected_idx = if self.selected_idx == 0 {
+                self.locations.len() - 1
+            } else {
+                self.selected_idx - 1
+            };
+        }
+    }
+
+    /// Close the peek view and reset state.
+    pub fn close(&mut self) {
+        self.visible = false;
+        self.kind = None;
+        self.locations.clear();
+        self.selected_idx = 0;
+        self.origin_uri = None;
+        self.origin_pos = None;
+    }
+
+    /// Open a peek view with the given kind and locations.
+    pub fn open(
+        &mut self,
+        kind: PeekKind,
+        locations: Vec<Location>,
+        origin_uri: DocumentUri,
+        origin_pos: Position,
+    ) {
+        self.visible = true;
+        self.kind = Some(kind);
+        self.locations = locations;
+        self.selected_idx = 0;
+        self.origin_uri = Some(origin_uri);
+        self.origin_pos = Some(origin_pos);
+    }
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -2040,6 +2120,12 @@ pub struct UiState {
     pub pending_completion_insert: Option<String>,
     /// Pending code action index (set by popup, drained by app).
     pub pending_code_action_idx: Option<usize>,
+
+    // ── Peek view state ───────────────────────────────────────────────────
+    pub peek: PeekState,
+    /// When set, the next LocationsReady event will be treated as peek results
+    /// for the given LSP method. Drained by apply_lsp_event.
+    pub pending_peek_method: Option<String>,
 }
 
 impl UiState {
@@ -2094,6 +2180,8 @@ impl UiState {
             code_actions_selected_idx: 0,
             pending_completion_insert: None,
             pending_code_action_idx: None,
+            peek: PeekState::default(),
+            pending_peek_method: None,
         }
     }
 

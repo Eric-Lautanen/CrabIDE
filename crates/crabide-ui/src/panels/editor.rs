@@ -867,6 +867,9 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
     // ── Context menu popup (right-click) ───────────────────────────────────
     crate::panels::context_menu::show(ui, state);
 
+    // ── Peek view overlay ──────────────────────────────────────────────────
+    crate::panels::peek_view::show(ui, state, actions);
+
     // ── LSP popup overlays (rendered after scroll area, positioned near cursor) ─
     if let Some(tab) = state.tabs().get(active_idx) {
         let cursor_pos = tab.cursors.primary().pos();

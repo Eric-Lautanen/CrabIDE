@@ -12,17 +12,20 @@
 
 ## Session summary
 
-**Phase 4 UI: scrollbar annotations ✅**
-- Added scrollbar annotations painting on the vertical scrollbar track: diagnostic markers (error=red, warning=yellow, info=blue, hint=grey), find match markers (orange), and git hunk markers (green=added, red=removed, yellow=modified)
-- Captured `diagnostics`, `git_hunks` from active tab before the scroll area closure to avoid borrow clashes
-- Both word-wrap and virtual-row (show_rows) modes now render annotations after the scroll area is drawn
-- New `paint_scrollbar_annotations()` function computes the scrollbar track position relative to `inner_rect` and draws small colored rects proportional to the line position
-- All workspace builds clean (pre-existing `resize_stable` warning only), all ~1110+ tests pass
+**Phase 4 UI: peek view ✅**
+- Added peek view overlay (like VS Code Peek) for inline definition/reference preview
+- New `PeekState` / `PeekKind` types in `UiState` with open/close/next/prev/selected_location
+- New `peek_view` panel rendering a split overlay: location list (left) + code preview (right)
+- Added `PeekDefinition`, `PeekReferences`, `PeekImplementation`, `PeekTypeDefinition`, `PeekDeclaration`, `ClosePeek` actions
+- Default keybindings: `Alt+F12` peek definition, `Shift+F12` / `Ctrl+Shift+F12` peek references
+- Peek uses existing LSP `textDocument/definition` etc. methods but stores results in peek state
+- Working keyboard navigation (Up/Down/Enter/Escape), mouse click/double-click, close button
+- LSP `LocationsReady` handler checks `pending_peek_method` flag to decide peek vs navigate
 
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)
 - **CLIPPY** — zero warnings
-- **TESTS** — all ~1110+ workspace tests pass
+- **TESTS** — all workspace tests pass
 
 ## Cross-cutting
 - [ ] Feature flag matrix test

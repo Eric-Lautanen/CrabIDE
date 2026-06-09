@@ -16,6 +16,7 @@ pub mod git_panel;
 pub mod gutter;
 pub mod minimap;
 pub mod output_panel;
+pub mod peek_view;
 pub mod problems_panel;
 pub mod status_bar;
 pub mod symbol_outline;
