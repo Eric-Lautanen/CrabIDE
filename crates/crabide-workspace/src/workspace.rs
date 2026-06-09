@@ -11,17 +11,17 @@
 //!   (typically they just `tx.try_send(event)` on a crossbeam channel).
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use dashmap::DashMap;
 use parking_lot::RwLock;
 
 use crabide_buffer::{CursorSet, Document, EditHistory};
 use crabide_core::{
-    error::{crabideError, Result},
+    error::{Result, crabideError},
     traits::{DocumentObserver, TextBuffer, VirtualFileSystem},
-    types::{language_from_extension, BufferId, DocumentUri, Language, TextEdit},
+    types::{BufferId, DocumentUri, Language, TextEdit, language_from_extension},
 };
 
 // ── DocumentEntry ─────────────────────────────────────────────────────────────

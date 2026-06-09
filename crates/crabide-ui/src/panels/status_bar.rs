@@ -6,7 +6,7 @@
 use crabide_config::Action;
 use crabide_extensions::StatusBarAlignment;
 
-use crate::state::{cfg_to_egui, LspStatus, StatusBarItem, UiState};
+use crate::state::{LspStatus, StatusBarItem, UiState, cfg_to_egui};
 
 /// Height of the status bar in logical pixels.
 pub const STATUS_BAR_HEIGHT: f32 = 22.0;

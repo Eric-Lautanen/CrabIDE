@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use crabide_core::traits::{DirEntry, DirEntryKind, VirtualFileSystem};
 use crabide_core::types::DocumentUri;
 
@@ -271,12 +271,16 @@ mod tests {
 
         let entries = vfs.read_dir(&root_uri).await.unwrap();
         assert_eq!(entries.len(), 2);
-        assert!(entries
-            .iter()
-            .any(|e| e.name == "src" && e.kind == DirEntryKind::Directory));
-        assert!(entries
-            .iter()
-            .any(|e| e.name == "README.md" && e.kind == DirEntryKind::File));
+        assert!(
+            entries
+                .iter()
+                .any(|e| e.name == "src" && e.kind == DirEntryKind::Directory)
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|e| e.name == "README.md" && e.kind == DirEntryKind::File)
+        );
     }
 
     #[tokio::test]

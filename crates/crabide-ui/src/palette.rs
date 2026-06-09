@@ -7,9 +7,9 @@
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32String};
 
-use crabide_config::{all_actions_with, Action, ActionRegistry};
+use crabide_config::{Action, ActionRegistry, all_actions_with};
 
-use crate::state::{cfg_to_egui, CommandPaletteState, PaletteEntry, UiState};
+use crate::state::{CommandPaletteState, PaletteEntry, UiState, cfg_to_egui};
 
 /// Maximum number of results shown in the palette list.
 const MAX_RESULTS: usize = 10;

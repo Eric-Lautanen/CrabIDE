@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use portable_pty::{Child, CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use tokio::runtime::Handle;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crabide_core::event::{EditorEvent, TerminalEvent};
 use crossbeam_channel::Sender;

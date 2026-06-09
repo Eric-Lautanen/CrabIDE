@@ -16,13 +16,13 @@
 //! its normal editor bindings and calls `encode_key` here to convert
 //! egui key events into PTY escape sequences.
 
-use egui::{pos2, vec2, Color32, FontId, Key, Modifiers, Rect, Ui, Vec2};
+use egui::{Color32, FontId, Key, Modifiers, Rect, Ui, Vec2, pos2, vec2};
 
 use crabide_config::Action;
 use crabide_core::event::{CellAttrs, TerminalColor, TerminalColorScheme};
 use crabide_terminal::{
-    encode_mouse_motion, encode_mouse_press, encode_mouse_release, encode_mouse_scroll,
-    MouseButton, ScrollDirection,
+    MouseButton, ScrollDirection, encode_mouse_motion, encode_mouse_press, encode_mouse_release,
+    encode_mouse_scroll,
 };
 
 use crate::state::UiState;

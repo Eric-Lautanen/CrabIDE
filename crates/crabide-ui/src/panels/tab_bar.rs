@@ -1,9 +1,9 @@
 //! Tab bar: open document tabs with dirty indicator, close button,
 //! and drag-and-drop reordering.
 
-use egui::{vec2, Color32, Rect, Sense};
+use egui::{Color32, Rect, Sense, vec2};
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 pub enum TabBarAction {
     Activate(usize),

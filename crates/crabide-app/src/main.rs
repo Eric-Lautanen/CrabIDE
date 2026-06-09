@@ -46,6 +46,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 struct CountingAlloc;
 
+// SAFETY: `CountingAlloc` delegates entirely to `mimalloc::MiMalloc`, a correct
+// `GlobalAlloc` implementation, and adds atomic allocation counting that does
+// not affect memory safety.  The wrapped allocator is well-tested, correctly
+// aligned, and handles zero-size layouts.
 unsafe impl std::alloc::GlobalAlloc for CountingAlloc {
     // SAFETY: `mimalloc::MiMalloc` is a correct `GlobalAlloc` implementation;
     // it returns a valid, properly aligned pointer for the given layout.
@@ -70,7 +74,9 @@ unsafe impl std::alloc::GlobalAlloc for CountingAlloc {
         ALLOCATED.fetch_sub(layout.size() as u64, Ordering::Relaxed);
         // SAFETY: Same contract as `alloc` — the pointer/layout pair must match
         // a previous allocation from `mimalloc::MiMalloc`.
-        unsafe { mimalloc::MiMalloc.dealloc(ptr, layout); }
+        unsafe {
+            mimalloc::MiMalloc.dealloc(ptr, layout);
+        }
     }
 
     // SAFETY: The caller guarantees that `ptr` was returned by a previous

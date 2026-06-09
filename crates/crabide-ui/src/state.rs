@@ -29,7 +29,7 @@ use crabide_search::{FuzzyFileFinder, GrepAbortHandle, GrepMatch};
 use crabide_syntax::HighlightSpan;
 use indexmap::IndexMap;
 
-use crate::layout::{default_layout, PaneKind};
+use crate::layout::{PaneKind, default_layout};
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

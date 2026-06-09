@@ -34,6 +34,6 @@ pub use resolver::{VfsKind, VfsResolver};
 pub use watcher::VfsWatcher;
 
 // Re-export core VFS types for convenience.
-pub use crabide_core::error::{crabideError, Result};
+pub use crabide_core::error::{Result, crabideError};
 pub use crabide_core::event::VfsEvent;
 pub use crabide_core::traits::{DirEntry, DirEntryKind, VirtualFileSystem};

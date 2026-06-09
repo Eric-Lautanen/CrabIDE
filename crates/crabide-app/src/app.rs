@@ -95,7 +95,7 @@ mod breadcrumb_tests {
     }
 }
 
-use eframe::{egui, CreationContext};
+use eframe::{CreationContext, egui};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as AtomicOrdering;
@@ -111,18 +111,18 @@ use crabide_core::{
     traits::TextBuffer,
     types::{BufferId, DocumentUri, Language, Position, Range, TextEdit},
 };
-use crabide_dap::{load_launch_configs, DapClient};
+use crabide_dap::{DapClient, load_launch_configs};
 use crabide_extensions::{
     ExtensionContext, ExtensionHost, ExtensionOutput, ExtensionSeverity, RegistryClient,
 };
 use crabide_git::GitService;
 use crabide_lsp::LspServerManager;
-use crabide_search::{grep_buffers, grep_workspace, index_workspace_files, GrepAbortHandle};
-use crabide_syntax::{grammar::grammar_registry, outline::SymbolOutline, queries, SyntaxEngine};
+use crabide_search::{GrepAbortHandle, grep_buffers, grep_workspace, index_workspace_files};
+use crabide_syntax::{SyntaxEngine, grammar::grammar_registry, outline::SymbolOutline, queries};
 use crabide_terminal::{TerminalManager, TerminalProfile};
 use crabide_ui::{
-    cfg_to_egui, BreadcrumbSegment, EditorTab, FileNode, GitDecoration, LspStatus, PeekKind,
-    SidebarPaneUiState, SymbolOutlineEntry, TerminalInstance, UiState,
+    BreadcrumbSegment, EditorTab, FileNode, GitDecoration, LspStatus, PeekKind, SidebarPaneUiState,
+    SymbolOutlineEntry, TerminalInstance, UiState, cfg_to_egui,
 };
 use crabide_vfs::{LocalVfs, VfsWatcher};
 use crabide_workspace::Workspace;
@@ -130,6 +130,12 @@ use crabide_workspace::Workspace;
 // ── crabideApp ────────────────────────────────────────────────────────────────
 
 /// Top-level application struct handed to eframe.
+///
+/// Named `crabideApp` (lowercase 'c') to match the project's
+/// branding convention, consistent with `crabideError` in
+/// `crabide-core`. Renaming to `CrabideApp` would break the
+/// eframe entry point and all internal references with no
+/// functional benefit.
 #[allow(non_camel_case_types)]
 pub struct crabideApp {
     /// Handle to the background Tokio runtime.
@@ -352,8 +358,7 @@ impl crabideApp {
         let stage_file = self.ui_state.git_panel.pending_stage_file.take();
         let unstage_file = self.ui_state.git_panel.pending_unstage_file.take();
         let stage_all = std::mem::take(&mut self.ui_state.git_panel.pending_stage_all);
-        let unstage_all =
-            std::mem::take(&mut self.ui_state.git_panel.pending_unstage_all);
+        let unstage_all = std::mem::take(&mut self.ui_state.git_panel.pending_unstage_all);
         let do_commit = std::mem::take(&mut self.ui_state.git_panel.pending_commit);
         let commit_msg = if do_commit {
             let m = self.ui_state.git_panel.commit_message.clone();
@@ -448,20 +453,14 @@ impl crabideApp {
     /// Drain all pending debug panel actions and forward them to the DAP client.
     fn drain_dap_pending(&mut self) {
         let pending_launch = std::mem::take(&mut self.ui_state.dap_panel.pending_launch);
-        let pending_continue =
-            std::mem::take(&mut self.ui_state.dap_panel.pending_continue);
-        let pending_step_over =
-            std::mem::take(&mut self.ui_state.dap_panel.pending_step_over);
-        let pending_step_in =
-            std::mem::take(&mut self.ui_state.dap_panel.pending_step_in);
-        let pending_step_out =
-            std::mem::take(&mut self.ui_state.dap_panel.pending_step_out);
+        let pending_continue = std::mem::take(&mut self.ui_state.dap_panel.pending_continue);
+        let pending_step_over = std::mem::take(&mut self.ui_state.dap_panel.pending_step_over);
+        let pending_step_in = std::mem::take(&mut self.ui_state.dap_panel.pending_step_in);
+        let pending_step_out = std::mem::take(&mut self.ui_state.dap_panel.pending_step_out);
         let pending_stop = std::mem::take(&mut self.ui_state.dap_panel.pending_stop);
-        let pending_restart =
-            std::mem::take(&mut self.ui_state.dap_panel.pending_restart);
+        let pending_restart = std::mem::take(&mut self.ui_state.dap_panel.pending_restart);
         let pending_pause = std::mem::take(&mut self.ui_state.dap_panel.pending_pause);
-        let pending_stack_trace =
-            std::mem::take(&mut self.ui_state.dap_panel.pending_stack_trace);
+        let pending_stack_trace = std::mem::take(&mut self.ui_state.dap_panel.pending_stack_trace);
         let pending_expand_var = self.ui_state.dap_panel.pending_expand_var.take();
         let pending_bps: Vec<(std::path::PathBuf, Vec<u32>)> =
             std::mem::take(&mut self.ui_state.dap_panel.pending_set_breakpoints);
@@ -481,16 +480,19 @@ impl crabideApp {
                     &config.adapter_args,
                     self.event_tx.clone(),
                     self.rt.clone(),
-                ) { Some(client) => {
-                    client.initialize();
-                    client.launch(&config);
-                    self.ui_state.dap_panel.session_active = true;
-                    self.ui_state
-                        .set_status(format!("Debugger started: {}", config.name));
-                    self.dap_client = Some(client);
-                } _ => {
-                    self.ui_state.set_status("Failed to start debug adapter");
-                }}
+                ) {
+                    Some(client) => {
+                        client.initialize();
+                        client.launch(&config);
+                        self.ui_state.dap_panel.session_active = true;
+                        self.ui_state
+                            .set_status(format!("Debugger started: {}", config.name));
+                        self.dap_client = Some(client);
+                    }
+                    _ => {
+                        self.ui_state.set_status("Failed to start debug adapter");
+                    }
+                }
             } else {
                 self.ui_state.set_status("No launch configuration selected");
             }
@@ -602,9 +604,8 @@ impl crabideApp {
         }
 
         // ── Collect all pending actions from the panel state ──────────────────
-        let install_local = std::mem::take(
-            &mut self.ui_state.extensions_panel.pending_install_local,
-        );
+        let install_local =
+            std::mem::take(&mut self.ui_state.extensions_panel.pending_install_local);
         let toggle_id = self.ui_state.extensions_panel.pending_toggle.take();
         let uninstall_id = self.ui_state.extensions_panel.pending_uninstall.take();
         let search_query = self.ui_state.extensions_panel.pending_search.take();
@@ -1146,12 +1147,11 @@ impl crabideApp {
                         self.ui_state.set_status("No locations found");
                     } else {
                         let kind = self.peek_kind_for_method(&_method);
-                        let origin_uri = self
-                            .ui_state
-                            .peek
-                            .origin_uri
-                            .clone()
-                            .unwrap_or_else(|| DocumentUri::parse("file:///unknown").unwrap());
+                        let origin_uri =
+                            self.ui_state.peek.origin_uri.clone().unwrap_or_else(|| {
+                                DocumentUri::parse("file:///unknown")
+                                    .expect("hardcoded URI is always valid")
+                            });
                         let origin_pos = self.ui_state.peek.origin_pos.unwrap_or(Position::ZERO);
                         self.ui_state
                             .peek
@@ -1877,10 +1877,10 @@ impl crabideApp {
             // ── File operations ───────────────────────────────────────────────
             Action::NewFile => {
                 let id = self.workspace.new_untitled(None);
-                let uri = self
-                    .workspace
-                    .uri(id)
-                    .unwrap_or_else(|| DocumentUri::parse("untitled://Untitled").unwrap());
+                let uri = self.workspace.uri(id).unwrap_or_else(|| {
+                    DocumentUri::parse("untitled://Untitled")
+                        .expect("hardcoded URI is always valid")
+                });
                 let title = uri
                     .to_string()
                     .rsplit("//")
@@ -2570,14 +2570,17 @@ impl crabideApp {
                         .next()
                         .or_else(|| std::env::current_dir().ok())
                         .unwrap_or_else(|| PathBuf::from("."));
-                    match GitService::start(start_path, self.event_tx.clone()) { Some(svc) => {
-                        svc.refresh();
-                        self.git_service = Some(svc);
-                        self.ui_state.set_status("Git enabled");
-                    } _ => {
-                        self.ui_state
-                            .set_status("Git enabled — open a folder to start tracking");
-                    }}
+                    match GitService::start(start_path, self.event_tx.clone()) {
+                        Some(svc) => {
+                            svc.refresh();
+                            self.git_service = Some(svc);
+                            self.ui_state.set_status("Git enabled");
+                        }
+                        _ => {
+                            self.ui_state
+                                .set_status("Git enabled — open a folder to start tracking");
+                        }
+                    }
                 }
             }
 
@@ -2804,7 +2807,10 @@ impl crabideApp {
 
         // Auto-close bracket pairs for single-character insertions.
         if text.chars().count() == 1 {
-            let ch = text.chars().next().unwrap();
+            let ch = text
+                .chars()
+                .next()
+                .expect("text.chars().count() == 1 guarantees a char");
             if let Some(close_ch) = bracket_close_pair(ch) {
                 if self.ui_state.tabs_mut()[active_idx].cursors.count() == 1 {
                     let cursor_pos = self.ui_state.tabs_mut()[active_idx].cursors.primary().pos();
@@ -4026,15 +4032,18 @@ impl crabideApp {
             if let Some(idx) = self.ui_state.active_tab() {
                 let tab = &self.ui_state.tabs_mut()[idx];
                 let lang = tab.language.clone();
-                match self.lsp_manager.get_client(&lang) { Some(client) => {
-                    let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-                    client.execute_command(cmd.clone(), vec![], req_id);
-                    self.ui_state
-                        .set_status(format!("Executing: {}", action.title));
-                } _ => {
-                    self.ui_state
-                        .set_status("No language server for code action");
-                }}
+                match self.lsp_manager.get_client(&lang) {
+                    Some(client) => {
+                        let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
+                        client.execute_command(cmd.clone(), vec![], req_id);
+                        self.ui_state
+                            .set_status(format!("Executing: {}", action.title));
+                    }
+                    _ => {
+                        self.ui_state
+                            .set_status("No language server for code action");
+                    }
+                }
             } else {
                 self.ui_state
                     .set_status("No active document for code action");
@@ -5468,7 +5477,7 @@ mod tests {
             } else {
                 "/tmp/test.rs"
             })
-            .unwrap(),
+            .expect("hardcoded test path is always valid"),
             Language::RUST,
         );
         tab.lines = lines;

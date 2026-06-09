@@ -272,7 +272,10 @@ impl Parser {
     fn parse_uint(&mut self) -> u32 {
         let mut s = String::new();
         while self.peek().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-            s.push(self.advance().unwrap());
+            s.push(
+                self.advance()
+                    .expect("peek() returned Some, so advance() must too"),
+            );
         }
         s.parse().unwrap_or(0)
     }
@@ -284,7 +287,10 @@ impl Parser {
             .map(|c| c.is_ascii_alphanumeric() || c == '_')
             .unwrap_or(false)
         {
-            s.push(self.advance().unwrap());
+            s.push(
+                self.advance()
+                    .expect("peek() returned Some, so advance() must too"),
+            );
         }
         s
     }
@@ -328,11 +334,17 @@ impl Parser {
                 Some('}') if depth <= 0 => break,
                 Some('{') => {
                     depth += 1;
-                    s.push(self.advance().unwrap());
+                    s.push(
+                        self.advance()
+                            .expect("peek() returned Some, so advance() must too"),
+                    );
                 }
                 Some('}') => {
                     depth -= 1;
-                    s.push(self.advance().unwrap());
+                    s.push(
+                        self.advance()
+                            .expect("peek() returned Some, so advance() must too"),
+                    );
                 }
                 Some('\\') => {
                     self.advance();
@@ -342,7 +354,10 @@ impl Parser {
                     }
                 }
                 _ => {
-                    s.push(self.advance().unwrap());
+                    s.push(
+                        self.advance()
+                            .expect("peek() returned Some, so advance() must too"),
+                    );
                 }
             }
         }
@@ -365,7 +380,10 @@ impl Parser {
             .map(|c| c.is_ascii_alphabetic())
             .unwrap_or(false)
         {
-            s.push(self.advance().unwrap());
+            s.push(
+                self.advance()
+                    .expect("peek() returned Some, so advance() must too"),
+            );
         }
         s
     }

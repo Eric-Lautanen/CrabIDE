@@ -25,7 +25,7 @@ use crabide_core::event::EditorEvent;
 use crabide_core::types::DocumentUri;
 
 // Re-export core error types for downstream convenience.
-pub use crabide_core::error::{crabideError, Result};
+pub use crabide_core::error::{Result, crabideError};
 
 // ── GitService public API (always compiled) ───────────────────────────────────
 
@@ -375,7 +375,7 @@ impl Drop for GitService {
 // ── Full git2-backed implementation (feature = "git-support") ─────────────────
 
 #[cfg(feature = "git-support")]
-use crossbeam_channel::{bounded, Receiver};
+use crossbeam_channel::{Receiver, bounded};
 
 #[cfg(feature = "git-support")]
 use log::{debug, warn};
@@ -1999,15 +1999,18 @@ mod git_support {
                     return;
                 }
             }
-        } else { match repo.head() { Ok(head) => {
-            head.target().unwrap_or_else(|| unreachable!())
-        } _ => {
-            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
-                operation: format!("create tag {name}"),
-                error: "no HEAD to tag".into(),
-            }));
-            return;
-        }}};
+        } else {
+            match repo.head() {
+                Ok(head) => head.target().expect("HEAD should have a target Oid"),
+                _ => {
+                    let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                        operation: format!("create tag {name}"),
+                        error: "no HEAD to tag".into(),
+                    }));
+                    return;
+                }
+            }
+        };
 
         let target_obj = match repo.find_object(target_oid, None) {
             Ok(o) => o,

@@ -1,6 +1,6 @@
 //! VFS resolver: selects the appropriate VFS implementation based on URI scheme.
 
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use crabide_core::traits::VirtualFileSystem;
 use crabide_core::types::DocumentUri;
 

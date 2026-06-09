@@ -3,7 +3,7 @@
 //! The menu shows built-in actions (Cut, Copy, Paste, Select All) plus
 //! extension-contributed items from `registered_context_menus`.
 
-use crate::state::{cfg_to_egui, ContextMenuAction, UiState};
+use crate::state::{ContextMenuAction, UiState, cfg_to_egui};
 
 /// Height of each context menu item row in pixels.
 const ITEM_H: f32 = 24.0;

@@ -32,7 +32,7 @@ use crabide_core::types::Position;
 use crabide_syntax::highlight::scope_to_vscode;
 
 use crate::panels::{gutter, tab_bar};
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Returns `true` if `line_idx` is hidden by a collapsed fold range.
 /// A fold range hides lines strictly between `start_line` and `end_line`

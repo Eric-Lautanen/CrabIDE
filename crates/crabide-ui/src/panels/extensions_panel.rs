@@ -20,7 +20,7 @@ use egui::{Align, Color32, FontId, Frame, Layout, Margin, RichText, ScrollArea, 
 
 use crabide_extensions::{InstalledExtension, RegistryExtension};
 
-use crate::state::{cfg_to_egui, ExtensionsPanelTab, UiState};
+use crate::state::{ExtensionsPanelTab, UiState, cfg_to_egui};
 
 // ── Theme colour helpers ───────────────────────────────────────────────────────
 

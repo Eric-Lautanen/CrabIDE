@@ -7,7 +7,7 @@
 
 use crabide_core::event::{Diagnostic, DiagnosticSeverity, DiffHunk, FoldingRange, HunkKind};
 
-use crate::state::{cfg_to_egui, EditorTab, UiState};
+use crate::state::{EditorTab, UiState, cfg_to_egui};
 
 /// Width of the gutter column in logical pixels.
 /// Extended to accommodate the breakpoint circle and fold controls.

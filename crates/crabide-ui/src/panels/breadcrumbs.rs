@@ -14,7 +14,7 @@
 
 use crabide_config::Color;
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Render the breadcrumb bar above the editor content.
 ///

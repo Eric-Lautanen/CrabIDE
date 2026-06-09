@@ -25,4 +25,4 @@ pub use config::LspServerConfig;
 pub use server_mgr::LspServerManager;
 pub use transport::LspTransport;
 
-pub use crabide_core::error::{crabideError, Result};
+pub use crabide_core::error::{Result, crabideError};

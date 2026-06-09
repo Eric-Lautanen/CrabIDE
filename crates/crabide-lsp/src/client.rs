@@ -14,15 +14,15 @@
 use std::collections::HashMap;
 
 use std::sync::{
-    atomic::{AtomicBool, AtomicU8, Ordering},
     Arc,
+    atomic::{AtomicBool, AtomicU8, Ordering},
 };
 
 use parking_lot::RwLock;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crabide_core::{
-    error::{crabideError, Result},
+    error::{Result, crabideError},
     event::{EditorEvent, LspEvent},
     types::{DocumentUri, Language, Position, Range, TextEdit},
 };
@@ -280,7 +280,10 @@ impl LspClient {
                 log::debug!("LSP server requested workspace/applyEdit; not supported yet");
                 // Respond with `applied: false` if we have a request id.
                 if let Some(id) = &msg_id {
-                    let _ = self.inner.transport.respond(id, serde_json::json!({ "applied": false }));
+                    let _ = self
+                        .inner
+                        .transport
+                        .respond(id, serde_json::json!({ "applied": false }));
                 }
             }
             "workspace/configuration" => {

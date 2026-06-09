@@ -5,9 +5,9 @@ use std::time::Duration;
 
 use notify::RecommendedWatcher;
 use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileIdMap};
+use notify_debouncer_full::{DebounceEventResult, Debouncer, FileIdMap, new_debouncer};
 
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use crabide_core::event::VfsEvent;
 
 /// A debounced file watcher that sends [`VfsEvent`]s to a channel.

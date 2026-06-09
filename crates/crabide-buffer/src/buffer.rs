@@ -10,10 +10,10 @@
 //! The `TextBuffer` trait is implemented on `&Document` (read-only). Write
 //! operations (`apply_edit`, `apply_edits`) are called under exclusive lock.
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use crabide_core::{
     traits::TextBuffer,
-    types::{language_from_extension, BufferId, DocumentUri, Language, Position, Range, TextEdit},
+    types::{BufferId, DocumentUri, Language, Position, Range, TextEdit, language_from_extension},
 };
 use ropey::Rope;
 

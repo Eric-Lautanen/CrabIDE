@@ -5,7 +5,7 @@
 
 use crabide_config::Action;
 
-use crate::state::{cfg_to_egui, DapPanelState, UiState};
+use crate::state::{DapPanelState, UiState, cfg_to_egui};
 
 /// Render the debug toolbar.
 ///

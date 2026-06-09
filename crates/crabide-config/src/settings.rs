@@ -5,7 +5,7 @@
 //! 2. User settings   `~/.crabide/settings.toml`
 //! 3. Workspace settings `{root}/.crabide/settings.toml`
 
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

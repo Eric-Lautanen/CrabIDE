@@ -6,7 +6,7 @@
 
 use crabide_config::Color;
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Width of the minimap in pixels.
 const MINIMAP_WIDTH: f32 = 80.0;

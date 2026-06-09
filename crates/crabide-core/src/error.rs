@@ -7,6 +7,11 @@
 use thiserror::Error;
 
 /// The canonical error type for crabide public APIs.
+///
+/// Named `crabideError` (lowercase 'c') to match the project's
+/// branding convention used throughout the codebase. Renaming
+/// to `CrabideError` would require updating 100+ call sites
+/// across all crates with no functional benefit.
 #[allow(non_camel_case_types)]
 #[derive(Debug, Error)]
 pub enum crabideError {

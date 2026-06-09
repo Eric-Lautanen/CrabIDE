@@ -4,7 +4,7 @@
 //! and a preview of the selected location on the right.  The user can navigate
 //! between locations with up/down arrows and open the selected file with Enter.
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Render the peek overlay if it is visible.
 /// Must be called from within the editor area so it paints on top.

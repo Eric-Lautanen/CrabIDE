@@ -19,6 +19,6 @@ pub mod client;
 pub mod transport;
 pub mod types;
 
-pub use client::{resolve_adapter, DapClient};
-pub use crabide_core::error::{crabideError, Result};
-pub use types::{load_launch_configs, parse_launch_json, LaunchConfig};
+pub use client::{DapClient, resolve_adapter};
+pub use crabide_core::error::{Result, crabideError};
+pub use types::{LaunchConfig, load_launch_configs, parse_launch_json};

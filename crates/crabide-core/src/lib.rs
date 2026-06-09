@@ -9,7 +9,7 @@ pub mod traits;
 pub mod types;
 
 // Re-export the most commonly used items at the crate root
-pub use error::{crabideError, Result};
+pub use error::{Result, crabideError};
 pub use types::{
     BufferId, DocumentId, DocumentUri, ExtensionId, Language, Position, Range, Selection, TextEdit,
     WorkspaceId,

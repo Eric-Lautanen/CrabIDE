@@ -3,7 +3,7 @@
 //! Renders as a central overlay with a searchable table of all actions
 //! and their assigned key combinations.
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Render the keybindings editor overlay.
 pub fn show(ui: &mut egui::Ui, state: &mut UiState) {

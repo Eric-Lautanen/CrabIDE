@@ -45,12 +45,12 @@ pub mod queries;
 
 pub use engine::SyntaxEngine;
 pub use fold::{FoldKind, FoldingRange};
-pub use grammar::{grammar_registry, GrammarEntry, GrammarRegistry, REGISTRY};
-pub use highlight::{scope_to_vscode, HighlightEngine, HighlightSpan};
+pub use grammar::{GrammarEntry, GrammarRegistry, REGISTRY, grammar_registry};
+pub use highlight::{HighlightEngine, HighlightSpan, scope_to_vscode};
 pub use indent::{IndentEngine, LineIndent};
 pub use locals::{LocalScopeInfo, LocalsEngine, ResolvedScope};
 pub use outline::{SymbolKind, SymbolOutline};
 pub use queries::highlights_query_for;
 
-pub use crabide_core::error::{crabideError, Result};
+pub use crabide_core::error::{Result, crabideError};
 pub use crabide_core::types::{BufferId, Language};

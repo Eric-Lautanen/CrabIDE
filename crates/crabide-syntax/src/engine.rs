@@ -22,7 +22,7 @@
 use std::sync::Arc;
 
 use crabide_core::{
-    error::{crabideError, Result},
+    error::{Result, crabideError},
     traits::DocumentObserver,
     types::{BufferId, DocumentUri, Language, TextEdit},
 };
@@ -343,14 +343,13 @@ impl SyntaxEngine {
             None => return Vec::new(),
         };
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
-        self.highlighter
-            .compute_highlights_with_injections(
-                &cached.language,
-                &entry,
-                source,
-                &cached.tree,
-                self.registry,
-            )
+        self.highlighter.compute_highlights_with_injections(
+            &cached.language,
+            &entry,
+            source,
+            &cached.tree,
+            self.registry,
+        )
     }
 
     /// Extract folding ranges for a document. Returns `[]` if not parsed.
@@ -546,7 +545,10 @@ mod tests {
         // Parse with a language not in registry
         engine.parse_document(id, &Language::new("nonexistent"), "test", 1);
         let spans = engine.highlights(id);
-        assert!(spans.is_empty(), "unknown language should yield no highlights");
+        assert!(
+            spans.is_empty(),
+            "unknown language should yield no highlights"
+        );
     }
 
     #[test]

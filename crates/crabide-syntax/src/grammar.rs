@@ -15,7 +15,7 @@ use parking_lot::Mutex;
 use std::sync::OnceLock;
 
 use crabide_core::{
-    error::{crabideError, Result},
+    error::{Result, crabideError},
     types::Language,
 };
 

@@ -1,12 +1,12 @@
 //! Unit tests for `crabide-extensions`.
 
 use crabide_extensions::{
-    is_output_allowed, CommandResult, CompletionItem, CompletionKind, ContentBlock,
-    ContextMenuContext, ContextMenuContribution, ExtensionCapabilities, ExtensionCategory,
-    ExtensionContext, ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput,
-    ExtensionSeverity, ExtensionSource, GutterMarker, HoverResult, InstalledExtension,
-    NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RegistryClient, RowItem,
-    SidebarPaneRegistration, StatusBarAlignment,
+    CommandResult, CompletionItem, CompletionKind, ContentBlock, ContextMenuContext,
+    ContextMenuContribution, ExtensionCapabilities, ExtensionCategory, ExtensionContext,
+    ExtensionDiagnostic, ExtensionHost, ExtensionManifest, ExtensionOutput, ExtensionSeverity,
+    ExtensionSource, GutterMarker, HoverResult, InstalledExtension, NavigateTarget, PanelLocation,
+    PanelRegistration, RegisteredCommand, RegistryClient, RowItem, SidebarPaneRegistration,
+    StatusBarAlignment, is_output_allowed,
 };
 use std::path::PathBuf;
 

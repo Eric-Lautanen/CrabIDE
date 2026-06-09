@@ -17,7 +17,7 @@
 //! A `-` prefix on `command` (e.g. `-editor.action.commentLine`) removes an existing binding.
 
 use bitflags::bitflags;
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -325,7 +325,11 @@ pub fn parse_chord(s: &str) -> Result<KeyChord> {
         });
     }
     let mut modifiers = Modifiers::empty();
-    let key_str = parts.last().unwrap().trim().to_lowercase();
+    let key_str = parts
+        .last()
+        .expect("non-empty due to early return above")
+        .trim()
+        .to_lowercase();
     for part in &parts[..parts.len() - 1] {
         match part.trim().to_lowercase().as_str() {
             "ctrl" | "control" => modifiers |= Modifiers::CTRL,
@@ -336,7 +340,7 @@ pub fn parse_chord(s: &str) -> Result<KeyChord> {
                 return Err(crabideError::ConfigParse {
                     file: "keybindings".into(),
                     message: format!("unknown modifier: {unknown:?}"),
-                })
+                });
             }
         }
     }
@@ -364,7 +368,9 @@ fn parse_key(s: &str) -> Result<Key> {
         "space" => Key::Space,
         // Single character keys must be matched before the "f" prefix check so
         // that "ctrl+f" (the letter f) is not mistakenly parsed as a function key.
-        s if s.chars().count() == 1 => Key::Char(s.chars().next().unwrap()),
+        s if s.chars().count() == 1 => {
+            Key::Char(s.chars().next().expect("count == 1 guarantees a character"))
+        }
         s if s.starts_with('f') => {
             let n: u8 = s[1..].parse().map_err(|_| crabideError::ConfigParse {
                 file: "keybindings".into(),
@@ -653,7 +659,10 @@ fn parse_vscode_chord(s: &str) -> Result<KeyChord> {
     }
 
     let mut modifiers = Modifiers::empty();
-    let key_str = parts.last().unwrap().trim();
+    let key_str = parts
+        .last()
+        .expect("non-empty due to early return above")
+        .trim();
     for part in &parts[..parts.len() - 1] {
         match part.trim().to_lowercase().as_str() {
             "ctrl" | "control" => modifiers |= Modifiers::CTRL,
@@ -664,7 +673,7 @@ fn parse_vscode_chord(s: &str) -> Result<KeyChord> {
                 return Err(crabideError::ConfigParse {
                     file: "keybindings".into(),
                     message: format!("unknown modifier: {unknown:?}"),
-                })
+                });
             }
         }
     }
@@ -716,7 +725,10 @@ fn map_vscode_key(s: &str) -> Result<Key> {
                 "numpad_decimal" => '.',
                 "numpad_enter" => return Ok(Key::Enter),
                 "numpad_separator" => ',',
-                _ => unreachable!(),
+                _ => {
+                    // All numpad operator names are handled above; this is exhaustive.
+                    unreachable!("unhandled numpad operator: {lower}")
+                }
             };
             Ok(Key::Char(ch))
         }

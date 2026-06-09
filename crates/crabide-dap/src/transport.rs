@@ -7,12 +7,12 @@
 //! Architecture: identical to `crabide_lsp::transport` — a writer Tokio task
 //! and a reader Tokio task, with a DashMap for pending requests.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use dashmap::DashMap;
 use serde_json::Value;
 use std::sync::{
-    atomic::{AtomicU32, Ordering},
     Arc,
+    atomic::{AtomicU32, Ordering},
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -223,20 +223,23 @@ async fn run_reader(
                     continue;
                 }
             };
-            match pending.remove(&req_seq) { Some((_, req)) => {
-                let outcome = if msg.success.unwrap_or(false) {
-                    Ok(msg.body)
-                } else {
-                    Err(anyhow!(
-                        "DAP error (cmd {:?}): {}",
-                        msg.command,
-                        msg.message.as_deref().unwrap_or("unknown error")
-                    ))
-                };
-                let _ = req.respond.send(outcome);
-            } _ => {
-                log::warn!("DAP reader: response for unknown seq {req_seq}");
-            }}
+            match pending.remove(&req_seq) {
+                Some((_, req)) => {
+                    let outcome = if msg.success.unwrap_or(false) {
+                        Ok(msg.body)
+                    } else {
+                        Err(anyhow!(
+                            "DAP error (cmd {:?}): {}",
+                            msg.command,
+                            msg.message.as_deref().unwrap_or("unknown error")
+                        ))
+                    };
+                    let _ = req.respond.send(outcome);
+                }
+                _ => {
+                    log::warn!("DAP reader: response for unknown seq {req_seq}");
+                }
+            }
         } else {
             // Event or reverse-request — forward to the client.
             if in_tx.send(msg).is_err() {

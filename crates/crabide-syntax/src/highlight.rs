@@ -20,7 +20,7 @@ use smol_str::SmolStr;
 use streaming_iterator::StreamingIterator as _;
 
 use crabide_core::{
-    error::{crabideError, Result},
+    error::{Result, crabideError},
     types::{Language, Position, Range},
 };
 

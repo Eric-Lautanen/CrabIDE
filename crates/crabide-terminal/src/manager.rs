@@ -13,7 +13,7 @@ use crabide_core::event::EditorEvent;
 
 use crabide_core::event::TerminalColorScheme;
 
-use crate::pty::{spawn_pty, PtyHandle};
+use crate::pty::{PtyHandle, spawn_pty};
 
 // ── TerminalProfile ───────────────────────────────────────────────────────────
 

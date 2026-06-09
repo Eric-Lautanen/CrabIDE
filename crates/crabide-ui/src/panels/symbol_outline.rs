@@ -17,7 +17,7 @@ use crabide_config::{Action, Color};
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32String};
 
-use crate::state::{cfg_to_egui, SymbolOutlineEntry, UiState};
+use crate::state::{SymbolOutlineEntry, UiState, cfg_to_egui};
 
 /// Maximum number of results shown.
 const MAX_RESULTS: usize = 20;

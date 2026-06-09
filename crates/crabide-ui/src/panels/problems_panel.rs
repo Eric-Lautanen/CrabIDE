@@ -6,7 +6,7 @@
 use crabide_core::event::DiagnosticSeverity;
 use crabide_core::types::Position;
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Minimum panel height in logical pixels.
 pub const MIN_HEIGHT: f32 = 80.0;

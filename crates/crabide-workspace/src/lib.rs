@@ -23,5 +23,5 @@ pub mod workspace;
 pub use workspace::{CloseResult, DocumentEntry, Workspace};
 
 pub use crabide_buffer::Document;
-pub use crabide_core::error::{crabideError, Result};
+pub use crabide_core::error::{Result, crabideError};
 pub use crabide_core::types::{BufferId, DocumentUri, Language};

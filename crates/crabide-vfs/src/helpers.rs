@@ -1,6 +1,6 @@
 //! URI ↔ filesystem path helpers and canonicalization.
 
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use crabide_core::types::DocumentUri;
 use std::path::{Path, PathBuf};
 

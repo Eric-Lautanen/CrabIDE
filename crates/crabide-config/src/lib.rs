@@ -13,8 +13,8 @@ pub mod settings;
 pub mod theme;
 
 pub use keybindings::{
-    all_actions, all_actions_with, parse_chord, Action, ActionRegistry, Key, KeyBinding, KeyChord,
-    KeybindingEngine, Modifiers, WhenCondition, WhenContext,
+    Action, ActionRegistry, Key, KeyBinding, KeyChord, KeybindingEngine, Modifiers, WhenCondition,
+    WhenContext, all_actions, all_actions_with, parse_chord,
 };
 pub use settings::{
     AutoSave, CursorBlinking, CursorStyle, EditorSettings, ExtensionsSettings, GitSettings,
@@ -22,8 +22,8 @@ pub use settings::{
     SettingsLoader, SidebarLocation, TerminalSettings, UiSettings,
 };
 pub use theme::{
-    builtin_themes, parse_vscode_theme, parse_vscode_theme_str, Color, ColorTheme, FontStyle,
-    ThemeType, TokenColorRule, TokenStyle,
+    Color, ColorTheme, FontStyle, ThemeType, TokenColorRule, TokenStyle, builtin_themes,
+    parse_vscode_theme, parse_vscode_theme_str,
 };
 
 use indexmap::IndexMap;
@@ -140,7 +140,11 @@ impl ConfigManager {
             .get(&guard.active_theme_id)
             .or_else(|| guard.themes.get("crabide-dark"))
             .cloned()
-            .unwrap_or_else(|| builtin_themes().swap_remove("crabide-dark").unwrap())
+            .unwrap_or_else(|| {
+                builtin_themes()
+                    .swap_remove("crabide-dark")
+                    .expect("crabide-dark is always in builtin_themes")
+            })
     }
 
     pub fn themes(&self) -> IndexMap<String, ColorTheme> {
@@ -237,7 +241,8 @@ impl ConfigManager {
                 }
 
                 if reload_settings {
-                    inner.write().settings = Arc::new(SettingsLoader::load(workspace_root_owned.as_deref()));
+                    inner.write().settings =
+                        Arc::new(SettingsLoader::load(workspace_root_owned.as_deref()));
                     let _ = tx.try_send(ConfigEvent::SettingsChanged);
                 }
                 if reload_keybindings {

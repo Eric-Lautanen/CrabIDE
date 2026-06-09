@@ -1,43 +1,40 @@
-# Resume — Handoff for next session
+# Resume — Crabide Codebase Audit (Phase 3 Complete)
 
-> **Remaining items:** N-1 (unit tests for DAP, git, workspace, terminal)
+## Session Summary
+Completed **Phase 3 (Safety & Security)** of the ROADMAP.md audit. All tooling checks pass clean.
 
----
+## Progress
+- **Phase 0** (Tooling Baseline): ✅ Complete
+- **Phase 1** (Lint & Format): ✅ Complete
+- **Phase 2** (Error Handling): ✅ Complete
+- **Phase 3** (Safety & Security): ✅ Complete
+- **Phases 4–9**: 🔲 Pending
 
-## Session 5 completed
+## Phase 3 — Safety & Security ✅
 
-**What was done in Session 5:**
-- L-3: Edition 2024 migration — complete
-  - Bumped MSRV from 1.80 to 1.85
-  - Ran `cargo fix --edition` (auto-migrated 4 files)
-  - Changed workspace edition from "2021" to "2024"
-  - Fixed `unsafe extern "C"` blocks (edition 2024 requirement)
-  - Reviewed match ergonomics — no nested reference patterns affected
-  - Reviewed RPIT lifetime capture — all `impl Trait` returns compile cleanly
-- N-2: Comment rot fixed
-  - Removed unnecessary doc comment on private field in `PartialSettings` in settings.rs
-  - history.rs doc already correctly describes flat-timeline implementation
-- Fixed 2 clippy warnings: `manual_repeat_n` in markdown_preview.rs, `let_and_return` in outline.rs
+### Audit verification
 
-## Remaining items for next session
+| Item | Status | Details |
+|------|--------|---------|
+| `CountingAlloc` SAFETY comments | ✅ Verified | All methods + `unsafe impl` have `// SAFETY:` docs. Delegates to `mimalloc::MiMalloc`. |
+| `Send`/`Sync` on `DapClient` | ✅ Verified | Fields are all `Send+Sync`. SAFETY comment explains invariants. |
+| `Send`/`Sync` on `TabDragState` | ✅ Verified | Only primitive types (usize, f32). SAFETY comment present. |
+| Tree-sitter FFI calls | ✅ Verified | `raw_lang!` macro (app.rs) and `load_from_disk` (grammar.rs) have SAFETY comments for lifetime guarantees. |
+| wasmtime sandbox | ✅ Verified | 64 MB memory cap, fuel metering (100k/call), epoch timeout (100ms ticker), capability-gated access (all denied by default). No `unsafe` in wasm_ext.rs. |
+| `panic="abort"` safety | ✅ Verified | Drop impls on `PtyHandle` (kill child) and `GitService` (send shutdown) are skipped on panic; OS cleanup acceptable. DAP/LSP use `kill_on_drop(true)`. |
+| All SAFETY comments present | ✅ Verified | 11 SAFETY comments across 6 files cover every unsafe block, fn, and impl. |
 
-| # | Issue | Priority | Notes |
-|---|-------|----------|-------|
-| N-1 | Add unit tests | ⚪ Note | DAP (0 unit tests), git (0), workspace (0), terminal pty/manager (0) |
+### Files modified (this session)
+- `crates/crabide-app/src/main.rs` — added `// SAFETY:` before `unsafe impl GlobalAlloc`
+- `ROADMAP.md` — updated baseline, Phase 3 status, verification block
 
-## Build status
+## Current Verification State
+```
+cargo check --workspace --all-targets          → ✅ ZERO errors
+cargo clippy --workspace --all-targets -- -D warnings → ✅ ZERO warnings
+cargo fmt --all --check                        → ✅ ZERO diffs
+cargo test --workspace                         → ✅ 469 pass, 0 fail
+```
 
-- `cargo check --workspace` — zero warnings ✅
-- `cargo clippy --workspace` — zero warnings ✅
-- `cargo test --workspace` — all 1114 tests pass ✅
-
-## Key files to review
-
-- `crates/crabide-dap/src/` — no unit tests
-- `crates/crabide-git/src/` — no unit tests
-- `crates/crabide-workspace/src/` — no unit tests
-- `crates/crabide-terminal/src/pty.rs`, `manager.rs` — no unit tests
-
----
-
-*Progress: 51 of 55 roadmap checkboxes completed. Remaining: N-1 (unit tests).*
+## Next Steps
+Continue with **Phase 4 (Memory & Performance)**: Profile hot-path `clone()` calls in buffer/editor rendering, audit `DashMap` usage, audit crossbeam/tokio channel capacities, review `Arc` ref-counting, update `embedded-io` 0.4.0 → 0.6.1.

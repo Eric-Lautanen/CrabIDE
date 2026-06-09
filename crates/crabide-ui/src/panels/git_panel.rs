@@ -6,7 +6,7 @@
 
 use crabide_core::event::{FileStatus, StatusKind};
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Render the git / source-control panel.
 pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
@@ -219,11 +219,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
 
                         // Status icon
                         let icon = if sm.cloned {
-                            if sm.has_changes {
-                                "✱"
-                            } else {
-                                "✓"
-                            }
+                            if sm.has_changes { "✱" } else { "✓" }
                         } else if sm.initialized {
                             "◌"
                         } else {

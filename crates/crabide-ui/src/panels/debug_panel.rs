@@ -7,7 +7,7 @@ use crabide_config::Action;
 use crabide_core::event::OutputCategory;
 
 use super::debug_toolbar;
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Minimum height of the debug panel in pixels.
 pub const MIN_HEIGHT: f32 = 120.0;

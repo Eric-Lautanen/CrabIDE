@@ -4,7 +4,7 @@
 //! Built-in themes: `"crabide-dark"` and `"crabide-light"`.
 
 use bitflags::bitflags;
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::fmt;

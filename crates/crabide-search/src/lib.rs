@@ -18,15 +18,15 @@
 //! `target/`, `node_modules/`, etc.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use nucleo::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo::{Config, Matcher, Utf32String};
 use rayon::prelude::*;
 use regex::Regex;
 
-pub use crabide_core::error::{crabideError, Result};
+pub use crabide_core::error::{Result, crabideError};
 
 /// Maximum number of fuzzy-finder results displayed in the overlay.
 pub const FUZZY_MAX_RESULTS: usize = 15;
@@ -726,9 +726,7 @@ mod tests {
 
     #[test]
     fn grep_buffers_max_results() {
-        let lines: Vec<String> = std::iter::repeat("line with x".to_string())
-            .take(100)
-            .collect();
+        let lines: Vec<String> = std::iter::repeat_n("line with x".to_string(), 100).collect();
         let buffers = [(PathBuf::from("big.rs"), &lines[..])];
         let results = grep_buffers(&buffers, "x", false, true, 10, None);
         assert_eq!(results.len(), 10);

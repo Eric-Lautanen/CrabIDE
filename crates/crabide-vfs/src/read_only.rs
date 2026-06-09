@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 
-use crabide_core::error::{crabideError, Result};
+use crabide_core::error::{Result, crabideError};
 use crabide_core::traits::{DirEntry, VirtualFileSystem};
 use crabide_core::types::DocumentUri;
 

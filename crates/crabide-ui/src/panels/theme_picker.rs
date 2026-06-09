@@ -4,7 +4,7 @@
 //! When the user clicks a theme, the selection is communicated back to the
 //! app via `state.theme_picker.pending_theme_id`.
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 /// Render the theme picker overlay.
 pub fn show(ui: &mut egui::Ui, state: &mut UiState) {

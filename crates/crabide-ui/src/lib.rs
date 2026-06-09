@@ -21,13 +21,13 @@ pub mod state;
 
 pub use layout::PaneKind;
 pub use state::{
-    cfg_to_egui, BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem,
-    ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
-    ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, FrameProfiler,
-    GitDecoration, GitPanelState, KeybindingsEditorState, LspLatencyTracker, LspStatus,
-    OutputPanelState, PeekKind, PeekState, SettingsField, SettingsFieldType, SettingsPanelState,
-    SidebarPaneUiState, SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance,
-    TerminalPanelState, ThemePickerState, UiState,
+    BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem, ContextMenuState,
+    DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState, ExtensionsPanelState,
+    ExtensionsPanelTab, FileExplorerState, FileNode, FrameProfiler, GitDecoration, GitPanelState,
+    KeybindingsEditorState, LspLatencyTracker, LspStatus, OutputPanelState, PeekKind, PeekState,
+    SettingsField, SettingsFieldType, SettingsPanelState, SidebarPaneUiState, SidebarTab,
+    SymbolOutlineEntry, SymbolOutlineState, TerminalInstance, TerminalPanelState, ThemePickerState,
+    UiState, cfg_to_egui,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -465,8 +465,8 @@ fn menu_row(ui: &mut egui::Ui, label: &str, shortcut: &str) -> bool {
     // Row is wide enough for label + gap + shortcut, with side padding.
     let gap = if shortcut.is_empty() { 0.0 } else { 24.0 };
     let min_w = label_w + gap + key_w + 24.0; // 12px each side
-                                              // All rows in the same menu share the available width so the shortcut column
-                                              // aligns. The menu popup width is capped by set_max_width in each menu closure.
+    // All rows in the same menu share the available width so the shortcut column
+    // aligns. The menu popup width is capped by set_max_width in each menu closure.
     let w = ui.available_width().max(min_w);
 
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, 22.0), egui::Sense::click());
@@ -2530,7 +2530,7 @@ mod tests {
                 10 => egui::Key::F10,
                 11 => egui::Key::F11,
                 12 => egui::Key::F12,
-                _ => unreachable!(),
+                _ => unreachable!("F-key out of range 1..=12: {i}"),
             };
             let chord = egui_key_to_chord(egui_key, egui::Modifiers::default());
             assert_eq!(chord, KeyChord::new(Modifiers::empty(), Key::F(i)));

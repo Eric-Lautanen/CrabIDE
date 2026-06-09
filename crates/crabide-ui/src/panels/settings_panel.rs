@@ -2,7 +2,7 @@
 //!
 //! Renders as a central overlay with grouped settings fields.
 
-use crate::state::{cfg_to_egui, SettingsFieldType, UiState};
+use crate::state::{SettingsFieldType, UiState, cfg_to_egui};
 
 /// Render the settings editor overlay.
 pub fn show(ui: &mut egui::Ui, state: &mut UiState) {

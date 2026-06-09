@@ -1330,7 +1330,7 @@ mod tests {
         let mut g = Grid::new(5, 2);
         g.feed(b"12345"); // fill line 0
         g.feed(b"67890"); // fill line 1, line 0 scrolls up
-                          // Cursor should be at row 1 (the last line after scroll)
+        // Cursor should be at row 1 (the last line after scroll)
         assert_eq!(g.cursor_row, 1);
         // Scrollback should have the first line
         assert_eq!(g.scrollback.len(), 1);
@@ -1481,7 +1481,7 @@ mod tests {
         g.feed(b"\x1b[91mX"); // bright red fg (90+1=91)
         assert_eq!(g.screen[0][0].fg, Color::Named(NamedColor::BrightRed));
         g.feed(b"\x1b[104mY"); // bright cyan bg (100+4=104 → BrightBlue? No...)
-                               // 104 - 100 = 4 → named_bright_fg(4) = BrightBlue
+        // 104 - 100 = 4 → named_bright_fg(4) = BrightBlue
         assert_eq!(g.screen[0][1].bg, Color::Named(NamedColor::BrightBlue));
     }
 
@@ -1539,7 +1539,7 @@ mod tests {
         // cursor is now at row 3 (after Row3), col 4
         g.feed(b"\x1b[2H"); // CUP to row 2 (1-based) → row=1, col=0
         g.feed(b"\x1b[J"); // ED 0: erase from cursor to end
-                           // Row 0 should be untouched
+        // Row 0 should be untouched
         assert_eq!(g.screen[0][0].ch, 'R');
         assert_eq!(g.screen[0][1].ch, 'o');
         // Rows 1-4 should be erased (blank)
@@ -1883,7 +1883,7 @@ mod tests {
         g.cursor_row = 3;
         g.cursor_col = 0;
         g.feed(b"\n"); // LF at bottom of region should scroll region up
-                       // Row 1 (was 'B') should be gone, replaced by row 2 ('C')
+        // Row 1 (was 'B') should be gone, replaced by row 2 ('C')
         assert_eq!(g.screen[1][0].ch, 'C', "row 1 should now be 'C' (was 'B')");
         // Row 2 (was 'C') should now be 'D'
         assert_eq!(g.screen[2][0].ch, 'D', "row 2 should now be 'D' (was 'C')");
@@ -1915,7 +1915,7 @@ mod tests {
         g.cursor_row = 1;
         g.cursor_col = 0;
         g.feed(b"\x1b[L"); // Insert 1 line at row 1
-                           // Row 1 should now be blank
+        // Row 1 should now be blank
         assert_eq!(g.screen[1][0].ch, ' ', "row 1 should be blank (inserted)");
         // Row 2 should now be 'B' (was row 1)
         assert_eq!(g.screen[2][0].ch, 'B', "row 2 should be 'B' (shifted down)");
@@ -1945,7 +1945,7 @@ mod tests {
         g.cursor_row = 1;
         g.cursor_col = 0;
         g.feed(b"\x1b[M"); // Delete 1 line at row 1
-                           // Row 1 should now be 'C' (was row 2)
+        // Row 1 should now be 'C' (was row 2)
         assert_eq!(g.screen[1][0].ch, 'C', "row 1 should be 'C' (shifted up)");
         // Row 2 should now be 'D'
         assert_eq!(g.screen[2][0].ch, 'D', "row 2 should be 'D' (shifted up)");
@@ -2456,7 +2456,7 @@ mod tests {
     fn sgr_unknown_parameters_ignored() {
         let mut g = grid_24x80();
         g.feed(b"\x1b[65;73;81mX"); // non-standard SGR codes
-                                    // Should not crash, cell should be default
+        // Should not crash, cell should be default
         let cell = g.screen[0][0].clone();
         assert_eq!(cell.attrs, Attrs::empty());
         assert_eq!(cell.fg, Color::Default);
@@ -2481,7 +2481,7 @@ mod tests {
         g.cursor_row = 3;
         g.cursor_col = 2;
         g.feed(b"\x1b[1J"); // ED 1: erase from start to cursor
-                            // Row 0 and 1 should be entirely blank
+        // Row 0 and 1 should be entirely blank
         for row in 0..2 {
             for col in 0..5 {
                 assert_eq!(
@@ -2826,7 +2826,7 @@ mod tests {
     fn esc_m_at_top_of_screen_no_scroll() {
         let mut g = grid_24x80();
         g.feed(b"\x1bM"); // RI at row 0, top of default scroll region
-                          // Should scroll the default region down
+        // Should scroll the default region down
         assert_eq!(g.cursor_row, 0);
     }
 
@@ -2962,7 +2962,7 @@ mod tests {
     fn unknown_csi_ignored() {
         let mut g = grid_24x80();
         g.feed(b"\x1b[?9999h"); // unknown DECSET mode
-                                // Should not crash or affect known modes
+        // Should not crash or affect known modes
         assert!(!g.mouse_x10);
         assert!(!g.mouse_sgr);
     }
@@ -2971,7 +2971,7 @@ mod tests {
     fn unknown_esc_sequence_ignored() {
         let mut g = grid_24x80();
         g.feed(b"\x1b(0"); // unknown SCS sequence (ESC ( )
-                           // Should not crash
+        // Should not crash
         assert_eq!(g.cursor_col, 0);
     }
 

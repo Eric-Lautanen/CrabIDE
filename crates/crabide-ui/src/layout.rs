@@ -8,7 +8,7 @@
 use egui_tiles::{SimplificationOptions, TileId, UiResponse};
 
 use crate::panels;
-use crate::state::{cfg_to_egui, SidebarTab, UiState};
+use crate::state::{SidebarTab, UiState, cfg_to_egui};
 
 // ── PaneKind ─────────────────────────────────────────────────────────────────
 

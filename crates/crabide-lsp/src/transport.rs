@@ -15,12 +15,12 @@
 //!
 //! The framing is the same in both directions (client→server and server→client).
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::{
-    atomic::{AtomicU32, Ordering},
     Arc,
+    atomic::{AtomicU32, Ordering},
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -467,29 +467,32 @@ async fn run_reader(
                 }
             };
 
-            match pending.remove(&id) { Some((_, req)) => {
-                let elapsed = req.sent_at.elapsed();
-                let dur_us = elapsed.as_micros() as u64;
-                let outcome = if let Some(err) = msg.error {
-                    Err(anyhow!("LSP error {}: {}", err.code, err.message))
-                } else {
-                    Ok(msg.result.unwrap_or(Value::Null))
-                };
-                if elapsed > std::time::Duration::from_millis(100) {
-                    log::debug!(
-                        "LSP request completed in {:.1} ms (id={})",
-                        elapsed.as_secs_f64() * 1000.0,
-                        id
-                    );
+            match pending.remove(&id) {
+                Some((_, req)) => {
+                    let elapsed = req.sent_at.elapsed();
+                    let dur_us = elapsed.as_micros() as u64;
+                    let outcome = if let Some(err) = msg.error {
+                        Err(anyhow!("LSP error {}: {}", err.code, err.message))
+                    } else {
+                        Ok(msg.result.unwrap_or(Value::Null))
+                    };
+                    if elapsed > std::time::Duration::from_millis(100) {
+                        log::debug!(
+                            "LSP request completed in {:.1} ms (id={})",
+                            elapsed.as_secs_f64() * 1000.0,
+                            id
+                        );
+                    }
+                    // Emit latency event if a channel was provided (best-effort).
+                    if let Some(ref tx) = latency_tx {
+                        let _ = tx.send((dur_us, req.method.clone()));
+                    }
+                    let _ = req.respond.send(outcome);
                 }
-                // Emit latency event if a channel was provided (best-effort).
-                if let Some(ref tx) = latency_tx {
-                    let _ = tx.send((dur_us, req.method.clone()));
+                _ => {
+                    log::warn!("LSP reader: response for unknown request id {id}");
                 }
-                let _ = req.respond.send(outcome);
-            } _ => {
-                log::warn!("LSP reader: response for unknown request id {id}");
-            }}
+            }
         } else {
             // Notification or server→client request — forward to LSP client
             if in_tx.send(msg).is_err() {

@@ -20,7 +20,7 @@ use crabide_config::{Action, Color};
 use crabide_core::types::{Position, Range};
 use regex::Regex;
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 // ── Public entry point ────────────────────────────────────────────────────────
 

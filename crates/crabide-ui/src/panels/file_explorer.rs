@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use crate::state::{cfg_to_egui, FileNode, GitDecoration, UiState};
+use crate::state::{FileNode, GitDecoration, UiState, cfg_to_egui};
 
 /// Render the file-explorer sidebar.
 ///

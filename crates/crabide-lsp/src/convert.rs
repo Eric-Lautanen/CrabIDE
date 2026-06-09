@@ -41,14 +41,17 @@ pub fn from_lsp_range(r: lsp_types::Range) -> Range {
 // lsp-types 0.97 uses its own `Uri` type (backed by fluent_uri), not url::Url.
 
 pub fn to_lsp_uri(uri: &DocumentUri) -> lsp_types::Uri {
-    uri.as_str()
-        .parse::<lsp_types::Uri>()
-        .unwrap_or_else(|_| "untitled://error".parse::<lsp_types::Uri>().unwrap())
+    uri.as_str().parse::<lsp_types::Uri>().unwrap_or_else(|_| {
+        "untitled://error"
+            .parse::<lsp_types::Uri>()
+            .expect("hardcoded fallback URI is always valid")
+    })
 }
 
 pub fn from_lsp_uri(uri: lsp_types::Uri) -> DocumentUri {
-    DocumentUri::parse(uri.as_str())
-        .unwrap_or_else(|_| DocumentUri::parse("untitled://error").unwrap())
+    DocumentUri::parse(uri.as_str()).unwrap_or_else(|_| {
+        DocumentUri::parse("untitled://error").expect("hardcoded fallback URI is always valid")
+    })
 }
 
 // ── TextEdit ──────────────────────────────────────────────────────────────────
@@ -133,8 +136,8 @@ pub fn from_lsp_completion_item(item: lsp_types::CompletionItem) -> CompletionIt
 }
 
 fn from_lsp_completion_kind(k: lsp_types::CompletionItemKind) -> CompletionKind {
-    use lsp_types::CompletionItemKind as L;
     use CompletionKind as V;
+    use lsp_types::CompletionItemKind as L;
     match k {
         L::TEXT => V::Text,
         L::METHOD => V::Method,

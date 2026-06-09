@@ -17,7 +17,7 @@ use parking_lot::RwLock;
 use tokio::process::Command;
 
 use crabide_core::{
-    error::{crabideError, Result},
+    error::{Result, crabideError},
     event::{EditorEvent, LspEvent},
     types::Language,
 };

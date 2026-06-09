@@ -5,7 +5,7 @@
 
 use crabide_config::Color;
 
-use crate::state::{cfg_to_egui, UiState};
+use crate::state::{UiState, cfg_to_egui};
 
 pub const MIN_HEIGHT: f32 = 80.0;
 
