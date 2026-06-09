@@ -747,6 +747,19 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
         }
     }
 
+    // ── Minimap (right side of editor content) ──────────────────────────────
+    if state.minimap_visible {
+        egui::Panel::right("minimap_panel")
+            .resizable(true)
+            .default_size(80.0)
+            .min_size(40.0)
+            .max_size(200.0)
+            .frame(egui::Frame::NONE)
+            .show_inside(ui, |ui| {
+                crate::panels::minimap::show(ui, state);
+            });
+    }
+
     // ── LSP popup overlays (rendered after scroll area, positioned near cursor) ─
     if let Some(tab) = state.tabs.get(active_idx) {
         let cursor_pos = tab.cursors.primary().pos();

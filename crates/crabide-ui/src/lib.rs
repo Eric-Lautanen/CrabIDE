@@ -1375,8 +1375,11 @@ fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
         // ── Panel toggles (stub — return false so app can handle / log) ───────
         Action::TogglePanel | Action::ToggleOutputPanel => false,
 
-        // ── Minimap (stub — no-op for now) ────────────────────────────────────
-        Action::ToggleMinimap => true,
+        // ── Minimap ───────────────────────────────────────────────────────────
+        Action::ToggleMinimap => {
+            state.minimap_visible = !state.minimap_visible;
+            true
+        }
 
         // ── Debugger enable / disable (like ToggleGit) ────────────────────────
         Action::ToggleDebug => {

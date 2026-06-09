@@ -1836,6 +1836,9 @@ pub struct UiState {
     // ── Word wrap ─────────────────────────────────────────────────────────────
     pub word_wrap: bool,
 
+    // ── Minimap visibility ──────────────────────────────────────────────────
+    pub minimap_visible: bool,
+
     // ── Pending file open (set by file explorer or fuzzy finder) ─────────────
     /// App drains this each frame; it maps to `Action::OpenFile`.
     pub pending_open_path: Option<PathBuf>,
@@ -1930,6 +1933,7 @@ impl UiState {
             pending_open_path: None,
             pending_close_buffer: None,
             pending_scroll_line: None,
+            minimap_visible: false,
             problems_panel_open: false,
             extension_panels: IndexMap::new(),
             pending_navigate: None,

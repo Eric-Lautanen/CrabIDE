@@ -78,9 +78,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> bool {
 
         // Scale line width to minimap.
         let char_count = line_text.chars().count() as f32;
-        let bar_w = (char_count / 100.0 * MINIMAP_WIDTH)
-            .min(MINIMAP_WIDTH - 4.0)
-            .max(2.0);
+        let bar_w = (char_count / 100.0 * MINIMAP_WIDTH).clamp(2.0, MINIMAP_WIDTH - 4.0);
         let bar_rect = egui::Rect::from_min_size(
             egui::pos2(rect.left() + 2.0, y),
             egui::vec2(bar_w, MINIMAP_LINE_H),
