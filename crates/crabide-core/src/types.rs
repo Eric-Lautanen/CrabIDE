@@ -16,6 +16,7 @@ use uuid::Uuid;
 pub struct WorkspaceId(Uuid);
 
 impl WorkspaceId {
+    #[must_use]
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
@@ -32,10 +33,12 @@ impl Default for WorkspaceId {
 pub struct BufferId(Uuid);
 
 impl BufferId {
+    #[must_use]
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
 
+    #[must_use]
     pub fn uuid(&self) -> Uuid {
         self.0
     }
@@ -62,6 +65,7 @@ impl fmt::Display for BufferId {
 pub struct DocumentUri(url::Url);
 
 impl DocumentUri {
+    #[must_use]
     pub fn from_file_path(path: impl AsRef<std::path::Path>) -> Option<Self> {
         url::Url::from_file_path(path).ok().map(DocumentUri)
     }
@@ -70,19 +74,23 @@ impl DocumentUri {
         Ok(DocumentUri(url::Url::parse(s)?))
     }
 
+    #[must_use]
     pub fn as_url(&self) -> &url::Url {
         &self.0
     }
 
+    #[must_use]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 
     /// Returns the file path if this is a `file://` URI.
+    #[must_use]
     pub fn to_file_path(&self) -> Option<std::path::PathBuf> {
         self.0.to_file_path().ok()
     }
 
+    #[must_use]
     pub fn is_untitled(&self) -> bool {
         self.0.scheme() == "untitled"
     }
@@ -102,6 +110,7 @@ pub struct DocumentId {
 }
 
 impl DocumentId {
+    #[must_use]
     pub fn new(uri: DocumentUri) -> Self {
         Self {
             uri,
@@ -125,6 +134,7 @@ pub struct ExtensionId {
 }
 
 impl ExtensionId {
+    #[must_use]
     pub fn new(publisher: &str, name: &str, version: &str) -> Self {
         Self {
             publisher: SmolStr::new(publisher),
@@ -155,6 +165,7 @@ pub struct Position {
 }
 
 impl Position {
+    #[must_use]
     pub const fn new(line: u32, character: u32) -> Self {
         Self { line, character }
     }
@@ -179,11 +190,13 @@ pub struct Range {
 }
 
 impl Range {
+    #[must_use]
     pub fn new(start: Position, end: Position) -> Self {
         debug_assert!(start <= end, "Range start must not exceed end");
         Self { start, end }
     }
 
+    #[must_use]
     pub fn point(pos: Position) -> Self {
         Self {
             start: pos,
@@ -191,14 +204,17 @@ impl Range {
         }
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
 
+    #[must_use]
     pub fn contains(&self, pos: Position) -> bool {
         pos >= self.start && pos < self.end
     }
 
+    #[must_use]
     pub fn contains_inclusive(&self, pos: Position) -> bool {
         pos >= self.start && pos <= self.end
     }
@@ -216,6 +232,7 @@ pub struct Selection {
 }
 
 impl Selection {
+    #[must_use]
     pub fn cursor(pos: Position) -> Self {
         Self {
             anchor: pos,
@@ -223,11 +240,13 @@ impl Selection {
         }
     }
 
+    #[must_use]
     pub fn new(anchor: Position, active: Position) -> Self {
         Self { anchor, active }
     }
 
     /// Returns the range covered by this selection, normalized so start <= end.
+    #[must_use]
     pub fn as_range(&self) -> Range {
         if self.anchor <= self.active {
             Range::new(self.anchor, self.active)
@@ -236,10 +255,12 @@ impl Selection {
         }
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.anchor == self.active
     }
 
+    #[must_use]
     pub fn is_reversed(&self) -> bool {
         self.active < self.anchor
     }
@@ -254,6 +275,7 @@ pub struct TextEdit {
 }
 
 impl TextEdit {
+    #[must_use]
     pub fn insert(pos: Position, text: String) -> Self {
         Self {
             range: Range::point(pos),
@@ -261,6 +283,7 @@ impl TextEdit {
         }
     }
 
+    #[must_use]
     pub fn delete(range: Range) -> Self {
         Self {
             range,
@@ -268,6 +291,7 @@ impl TextEdit {
         }
     }
 
+    #[must_use]
     pub fn replace(range: Range, new_text: String) -> Self {
         Self { range, new_text }
     }
@@ -277,6 +301,7 @@ impl TextEdit {
     /// This is a rough estimate: for single-line ranges this is exact
     /// (`end.character - start.character`). For multi-line ranges the
     /// count is approximate (line delta × average line length).
+    #[must_use]
     pub fn range_len_chars(&self) -> usize {
         if self.range.start.line == self.range.end.line {
             (self.range.end.character - self.range.start.character) as usize
@@ -347,6 +372,7 @@ impl From<&str> for Language {
 }
 
 /// Guess the language from a file extension.
+#[must_use]
 pub fn language_from_extension(ext: &str) -> Language {
     match ext {
         "rs" => Language::RUST,

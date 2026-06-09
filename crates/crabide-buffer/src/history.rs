@@ -165,14 +165,17 @@ impl EditHistory {
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
+    #[must_use]
     pub fn can_undo(&self) -> bool {
         self.cursor > 0
     }
 
+    #[must_use]
     pub fn can_redo(&self) -> bool {
         self.cursor + 1 < self.entries.len()
     }
 
+    #[must_use]
     pub fn undo_label(&self) -> Option<&str> {
         if self.cursor == 0 {
             return None;
@@ -180,14 +183,17 @@ impl EditHistory {
         self.entries.get(self.cursor).map(|e| e.label.as_str())
     }
 
+    #[must_use]
     pub fn redo_label(&self) -> Option<&str> {
         self.entries.get(self.cursor + 1).map(|e| e.label.as_str())
     }
 
+    #[must_use]
     pub fn history_len(&self) -> usize {
         self.entries.len()
     }
 
+    #[must_use]
     pub fn current_cursor(&self) -> usize {
         self.cursor
     }

@@ -152,9 +152,11 @@ impl Document {
 
     // ── Accessors ────────────────────────────────────────────────────────────
 
+    #[must_use]
     pub fn version(&self) -> u32 {
         self.version
     }
+    #[must_use]
     pub fn is_dirty(&self) -> bool {
         self.is_dirty
     }
@@ -170,6 +172,7 @@ impl Document {
 
     /// A cheap O(1) clone of the internal Rope (Arc sharing).
     /// Used by `EditHistory` to snapshot state without copying bytes.
+    #[must_use]
     pub fn rope_snapshot(&self) -> Rope {
         self.rope.clone()
     }

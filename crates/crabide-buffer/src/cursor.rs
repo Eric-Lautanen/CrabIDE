@@ -30,6 +30,7 @@ pub struct Cursor {
 
 impl Cursor {
     /// Create a cursor at the given position with no selection.
+    #[must_use]
     pub fn at(pos: Position) -> Self {
         Self {
             selection: Selection::cursor(pos),
@@ -38,15 +39,18 @@ impl Cursor {
     }
 
     /// Current cursor position (the "active" end of the selection).
+    #[must_use]
     pub fn pos(&self) -> Position {
         self.selection.active
     }
 
     /// The normalised selection range (start <= end).
+    #[must_use]
     pub fn range(&self) -> Range {
         self.selection.as_range()
     }
 
+    #[must_use]
     pub fn has_selection(&self) -> bool {
         !self.selection.is_empty()
     }
@@ -123,6 +127,7 @@ impl CursorSet {
 
     /// The "primary" cursor — the last one added, which controls scroll
     /// position and status bar display.
+    #[must_use]
     pub fn primary(&self) -> &Cursor {
         self.cursors
             .last()
@@ -135,6 +140,7 @@ impl CursorSet {
             .expect("CursorSet always has at least one cursor")
     }
 
+    #[must_use]
     pub fn all(&self) -> &[Cursor] {
         &self.cursors
     }
@@ -143,10 +149,12 @@ impl CursorSet {
         &mut self.cursors
     }
 
+    #[must_use]
     pub fn count(&self) -> usize {
         self.cursors.len()
     }
 
+    #[must_use]
     pub fn mode(&self) -> SelectionMode {
         self.mode
     }
