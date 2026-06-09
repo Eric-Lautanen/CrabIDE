@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   # Cache key — bump to force fresh cache
-  CACHE_VERSION: v2
+  CACHE_VERSION: v3
 
 jobs:
   # ── Check + Clippy ──────────────────────────────────────────────────────────
@@ -107,6 +107,92 @@ jobs:
 
       - name: cargo test --doc
         run: cargo test --workspace --doc
+
+  # ── cargo-nextest (parallel test execution) ─────────────────────────────────
+  nextest:
+    name: Nextest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libclang-dev libgtk-3-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+            libssl-dev libgit2-dev pkg-config
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-nextest-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ env.CACHE_VERSION }}-${{ runner.os }}-nextest-
+
+      - name: cargo nextest run (CI profile)
+        run: cargo nextest run --workspace --profile ci
+
+  # ── cargo-miri (unsafe code validation) ───────────────────────────────────
+  miri:
+    name: Miri (unsafe validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      - name: Install Linux system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libclang-dev libgtk-3-dev libxcb-render0-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev \
+            libssl-dev libgit2-dev pkg-config mold
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ env.CACHE_VERSION }}-miri-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: cargo miri setup
+        run: cargo miri setup
+
+      - name: cargo miri test (crates with unsafe code)
+        run: |
+          cargo miri test --package crabide-app
+          cargo miri test --package crabide-dap
+          cargo miri test --package crabide-syntax
+          cargo miri test --package crabide-ui
 
   # ── cargo-deny ──────────────────────────────────────────────────────────────
   deny:

@@ -1,0 +1,59 @@
+[package]
+name = "crabide-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.crabide-lsp]
+path = "../crates/crabide-lsp"
+
+[dependencies.crabide-dap]
+path = "../crates/crabide-dap"
+
+[dependencies.serde_json]
+version = "1"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_target_1"
+path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lsp_message"
+path = "fuzz_targets/lsp_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dap_message"
+path = "fuzz_targets/dap_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lsp_frame"
+path = "fuzz_targets/lsp_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dap_frame"
+path = "fuzz_targets/dap_frame.rs"
+test = false
+doc = false
+bench = false
