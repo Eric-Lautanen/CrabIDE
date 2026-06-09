@@ -1852,10 +1852,46 @@ impl EditorGroup {
     }
 }
 
+// ── OutputPanelState ──────────────────────────────────────────────────────────
+
+/// State for the output panel (shows text output from tasks, extensions, etc.).
+#[derive(Default)]
+pub struct OutputPanelState {
+    /// Whether the panel is visible.
+    pub visible: bool,
+    /// The currently selected output channel name (e.g. "Tasks", "Extension Host").
+    pub active_channel: String,
+    /// Available channel names.
+    pub channels: Vec<String>,
+    /// Lines of text for each channel, keyed by channel name.
+    pub channel_lines: indexmap::IndexMap<String, Vec<String>>,
+    /// When true, auto-scroll to bottom on new output.
+    pub auto_scroll: bool,
+    /// Set to true to force scroll-to-bottom next frame.
+    pub scroll_to_bottom: bool,
+}
+
+impl OutputPanelState {
+    /// Append a line to a named channel, creating it if needed.
+    pub fn append_line(&mut self, channel: &str, line: String) {
+        if !self.channels.contains(&channel.to_owned()) {
+            self.channels.push(channel.to_owned());
+        }
+        let lines = self.channel_lines.entry(channel.to_owned()).or_default();
+        // Cap to 5000 lines per channel to avoid unbounded memory.
+        if lines.len() >= 5000 {
+            lines.remove(0);
+        }
+        lines.push(line);
+        if self.auto_scroll {
+            self.scroll_to_bottom = true;
+        }
+    }
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
-///
 /// All render functions borrow this mutably so they can update scroll
 /// positions, cursor state, palette input, etc. in the same frame they render.
 pub struct UiState {
@@ -1958,6 +1994,9 @@ pub struct UiState {
     /// True when the Problems bottom panel is visible.
     pub problems_panel_open: bool,
 
+    // ── Output panel (toggle via ToggleOutputPanel) ───────────────────────────
+    pub output_panel: OutputPanelState,
+
     // ── Dynamic extension panels ──────────────────────────────────────────────
     /// All dynamically-registered extension panels, keyed by panel id.
     pub extension_panels: IndexMap<String, ExtensionPanelUiState>,
@@ -2039,6 +2078,7 @@ impl UiState {
             minimap_visible: false,
             context_menu: ContextMenuState::default(),
             problems_panel_open: false,
+            output_panel: OutputPanelState::default(),
             extension_panels: IndexMap::new(),
             pending_navigate: None,
             action_registry: crabide_config::ActionRegistry::new(),

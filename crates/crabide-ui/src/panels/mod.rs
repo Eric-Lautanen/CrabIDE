@@ -15,6 +15,7 @@ pub mod fuzzy_finder;
 pub mod git_panel;
 pub mod gutter;
 pub mod minimap;
+pub mod output_panel;
 pub mod problems_panel;
 pub mod status_bar;
 pub mod symbol_outline;

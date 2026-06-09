@@ -2596,7 +2596,6 @@ impl crabideApp {
             Action::TogglePanel
             | Action::ToggleGitPanel
             | Action::ToggleExtensionsPanel
-            | Action::ToggleOutputPanel
             | Action::ToggleDebugPanel => {}
 
             // ── FuzzyFindSymbol — open command palette for now ────────────────

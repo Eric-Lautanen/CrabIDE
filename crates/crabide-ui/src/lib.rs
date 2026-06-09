@@ -24,7 +24,7 @@ pub use state::{
     cfg_to_egui, BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem,
     ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
-    GitPanelState, LspStatus, SidebarPaneUiState, SidebarTab, SymbolOutlineEntry,
+    GitPanelState, LspStatus, OutputPanelState, SidebarPaneUiState, SidebarTab, SymbolOutlineEntry,
     SymbolOutlineState, TerminalInstance, TerminalPanelState, UiState,
 };
 
@@ -151,6 +151,22 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
             .frame(egui::Frame::NONE.fill(panel_bg))
             .show_inside(ui, |ui| {
                 panels::problems_panel::show(ui, state);
+            });
+    }
+
+    // ── Output panel (bottom strip, shows task/extension output) ──────────────
+    if state.output_panel.visible {
+        let panel_bg = cfg_to_egui(state.theme.ui_or(
+            "sideBar.background",
+            crabide_config::Color::rgb(0x25, 0x25, 0x26),
+        ));
+        egui::Panel::bottom("output_panel")
+            .min_size(panels::output_panel::MIN_HEIGHT)
+            .max_size(350.0)
+            .resizable(true)
+            .frame(egui::Frame::NONE.fill(panel_bg))
+            .show_inside(ui, |ui| {
+                panels::output_panel::show(ui, state);
             });
     }
 
@@ -1376,8 +1392,11 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
 
-        // ── Panel toggles (stub — return false so app can handle / log) ───────
-        Action::TogglePanel | Action::ToggleOutputPanel => false,
+        // ── Output panel toggle ────────────────────────────────────────────────
+        Action::ToggleOutputPanel => {
+            state.output_panel.visible = !state.output_panel.visible;
+            true
+        }
 
         // ── Minimap ───────────────────────────────────────────────────────────
         Action::ToggleMinimap => {
@@ -2708,10 +2727,17 @@ mod tests {
     }
 
     #[test]
-    fn handle_toggle_panel_returns_false() {
+    fn handle_toggle_panel_behaviors() {
         let mut state = make_ui_state();
+        // TogglePanel is still unhandled (returns false) — it's a panel placeholder.
         assert!(!handle_ui_action(Action::TogglePanel, &mut state));
-        assert!(!handle_ui_action(Action::ToggleOutputPanel, &mut state));
+        // ToggleOutputPanel is now handled internally.
+        assert!(!state.output_panel.visible);
+        assert!(handle_ui_action(Action::ToggleOutputPanel, &mut state));
+        assert!(state.output_panel.visible);
+        // Toggle again to close
+        assert!(handle_ui_action(Action::ToggleOutputPanel, &mut state));
+        assert!(!state.output_panel.visible);
     }
 
     #[test]
