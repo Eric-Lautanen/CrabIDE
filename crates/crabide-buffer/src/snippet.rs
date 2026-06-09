@@ -703,6 +703,7 @@ fn apply_delta_to_range(range: &mut crabide_core::types::Range, offset: Position
 // ── SnippetEngine ─────────────────────────────────────────────────────────────
 
 /// Manages snippet expansion and tabstop cycling for one editor view.
+#[derive(Default)]
 pub struct SnippetEngine {
     active_expansion: Option<ActiveExpansion>,
 }
@@ -827,8 +828,4 @@ impl SnippetEngine {
     }
 }
 
-impl Default for SnippetEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
