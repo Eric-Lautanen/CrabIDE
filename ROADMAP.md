@@ -185,7 +185,7 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [x] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
 - [x] **Minimap**: scrollable code overview in sidebar
 - [x] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
-- [ ] **Split editor**: side-by-side file comparison / multi-pane layouts
+- [x] **Split editor**: side-by-side file comparison / multi-pane layouts
 - [ ] **Drag-and-drop tab reordering** in tab bar
 - [ ] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
 - [ ] **Peek view**: inline definition/reference preview (like VS Code peek)

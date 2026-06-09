@@ -6,12 +6,16 @@
 
 ## Session summary
 
-**Phase 4 UI: minimap, context menu, welcome screen interactive cards ✅**
-- Wired minimap panel into editor (registered module, added `minimap_visible` state, wired `ToggleMinimap` action, renders as right-side panel)
-- Implemented right-click context menu with built-in editor actions (Cut, Copy, Paste, Select All) at right-click position; added `ContextMenuState` to UiState; dismisses on Escape or outside click; supports extension contributions via `registered_context_menus`
-- Made welcome screen cards interactive: changed from `Sense::hover()` to `Sense::click()`, mapped card labels to actions (New File, Open File, Command Palette, etc.), cards now respond to clicks with proper action dispatch
+**Phase 4 UI: split editor (multi-pane layouts) ✅**
+- Added `EditorGroup` struct with its own tabs/active_tab, replaced single `tabs`/`active_tab` with `editor_groups: Vec<EditorGroup>` + `active_group: usize`
+- Added backward-compatible helper methods (`tabs()`, `tabs_mut()`, `active_tab()`, etc.)
+- Updated `PaneKind` to `EditorGroup(usize)` for identifying which group a tile displays
+- Wired `SplitEditorRight`, `SplitEditorDown`, `CloseEditor` actions in `handle_ui_action`
+- Split creates a new editor group, moves the active tab, and rebuilds the layout
+- CloseEditor merges tabs back to group 0 and restores single-editor layout
+- Editor panel `show_for_group()` renders per-pane content correctly
+- Updated all UI panels and app layer to use new accessor methods
 - All workspace builds clean, zero clippy warnings (pre-existing `resize_stable` only)
-
 ## Mandatory Policy (read every session)
 
 1. **Update RESUME.md** — overwrite this section with what was done. Never leave stale info.
