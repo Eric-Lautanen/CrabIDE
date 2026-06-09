@@ -1,6 +1,6 @@
 # Crabide Codebase Audit Roadmap
 
-## Baseline (from 2026-06-09) — updated Session 8 (Phase 5 complete)
+## Baseline (from 2026-06-09) — updated Session 9 (Phase 6 complete)
 - `cargo check`: clean
 - `cargo clippy`: 1 error (`manual_repeat_n` in test) → **0 errors (all fixed)**
 - `cargo fmt --check`: 103 files need formatting → **0 diffs (all formatted)**
@@ -11,6 +11,7 @@
 - `#[allow]`: 5 → **0 (all removed or justified)** | Orphan `.rs.bak`: 1 → **deleted**
 - Outdated dep: `embedded-io` 0.4.0 → **not present (no longer a dependency)**
 - **Phase 5**: `let...else` deployed across 12+ sites; `#[derive(Default)]` for 3 structs; `Option<&T>` over `&Option<T>` in 2 places; `bool::then_some()` in 1 place; format_args_capture already in use; no `Box<dyn Fn>`/`&dyn Trait` in function signatures
+- **Phase 6**: `language_id_from_uri()` removed (3 call sites → `tab.language.as_str()`); URI-extension language detection in `drain_extension_pending` replaced with `tab.language.as_str()`; `cargo check` zero warnings throughout
 
 ---
 
@@ -77,11 +78,13 @@
 - [x] Replace `&Option<T>` → `Option<&T>` via `as_ref()` — **`git/lib.rs` (`current_head`), `window_state.rs` (`with_json_file`)**
 - [x] Prefer `bool::then()` over `if ... { Some(...) } else { None }` — **`editor.rs` column_select_anchor converted to `then_some()`**
 
-## Phase 6 — Code Redundancy 🔲
-- Deduplicate `TextEdit`/`Position`/`Range` conversion logic across LSP/DAP crates
-- Extract shared event dispatch helpers from `crabide-app/src/app.rs`
-- Merge duplicate URI/path resolution patterns across VFS and workspace crates
-- Remove dead code paths (grep for unused `pub fn` in crate-private context)
+## Phase 6 — Code Redundancy ✅
+- ✅ Removed duplicate `language_id_from_uri()` function in `crabide-app` — replaced with `tab.language.as_str()` and `crabide_core::types::language_from_extension` (the core type already has comprehensive extension→language mapping)
+- ✅ Removed duplicate URI-based language detection in `drain_extension_pending` — was re-implementing `language_from_extension` logic inline; now uses `tab.language.as_str()`
+- 🔍 `TextEdit`/`Position`/`Range` conversion: LSP `convert.rs` and DAP types are fundamentally different (LSP uses `lsp_types`, DAP uses its own serde types); no shared conversion logic to deduplicate
+- 🔍 Event dispatch in `app.rs`: already factored into per-event-type methods (`apply_lsp_event`, `apply_git_event`, etc.); `drain_*_pending` methods follow similar patterns but dispatch to different service types — over-engineering to extract further
+- 🔍 URI/path helpers in `crabide-vfs::helpers` (`uri_to_path`, `path_to_uri`, `is_descendant`, etc.) are used internally within the VFS crate and re-exported; no external usage detected but they provide error-wrapping convenience over `DocumentUri` methods
+- 🔍 No dead code paths found — `cargo check` emits zero warnings across the workspace; no `#[allow(dead_code)]` or `#[allow(unused)]` annotations present
 
 ## Phase 7 — Test Coverage 🔲
 - Add error-path tests for buffer, LSP transport, DAP transport

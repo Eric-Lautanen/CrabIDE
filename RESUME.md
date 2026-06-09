@@ -1,7 +1,7 @@
-# Resume — Crabide Codebase Audit (Phase 5 Complete)
+# Resume — Crabide Codebase Audit (Phase 6 Complete)
 
 ## Session Summary
-Completed **Phase 5 (Idiomatic Rust 2024/2026)** of the ROADMAP.md audit. All tooling checks pass clean.
+Completed **Phase 6 (Code Redundancy)** of the ROADMAP.md audit. All tooling checks pass clean.
 
 ## Progress
 - **Phase 0** (Tooling Baseline): ✅ Complete
@@ -10,45 +10,32 @@ Completed **Phase 5 (Idiomatic Rust 2024/2026)** of the ROADMAP.md audit. All to
 - **Phase 3** (Safety & Security): ✅ Complete
 - **Phase 4** (Memory & Performance): ✅ Complete
 - **Phase 5** (Idiomatic Rust 2024/2026): ✅ Complete
-- **Phases 6–9**: 🔲 Pending
+- **Phase 6** (Code Redundancy): ✅ Complete
+- **Phases 7–9**: 🔲 Pending
 
-## Phase 5 — Idiomatic Rust 2024/2026 ✅
+## Phase 6 — Code Redundancy ✅
 
 ### Changes
-
 | Item | Status | Details |
 |------|--------|---------|
-| `impl Trait` in argument position | ✅ No-op | No `Box<dyn Fn`/`&dyn Trait` in function signatures found |
-| Closures → `impl Fn` | ✅ No-op | Already used in `map_cursors(impl FnMut)` |
-| Manual `Default` → `#[derive(Default)]` | ✅ Done | `ActionRegistry`, `RegistryClient`, `SnippetEngine` converted |
-| `let ... else` pattern | ✅ Done | Applied across 12+ sites in `window_state.rs`, `syntax/engine.rs`, `syntax/highlight.rs`, `syntax/indent.rs`, `syntax/locals.rs`, `dap/client.rs`, `lsp/server_mgr.rs`, `extensions/host.rs` |
-| `format_args_capture` | ✅ No-op | Already in use throughout the codebase |
-| `&Option<T>` → `Option<&T>` | ✅ Done | `git/lib.rs` (`current_head`), `window_state.rs` (`with_json_file`) |
-| `bool::then_some()` | ✅ Done | `editor.rs` column_select_anchor converted |
+| `language_id_from_uri()` removal | ✅ Done | Replaced with `tab.language.as_str()` (3 call sites) and `crabide_core::types::language_from_extension`; removed 18-line duplicate function |
+| URI-based language detection in `drain_extension_pending` | ✅ Done | Replaced inline URI-extension matching (`.ends_with(".rs")`, etc.) with `tab.language.as_str()` — removed 20 lines of duplicate logic |
+| LSP/DAP conversion dedup | 🔍 No-op | LSP `convert.rs` uses `lsp_types`; DAP uses its own serde types. No shared conversion logic to extract |
+| Event dispatch helpers | 🔍 No-op | Already factored into per-event-type methods; drain-pending methods dispatch to different service types |
+| URI/path helpers | 🔍 No-op | VFS `helpers.rs` functions (`uri_to_path`, `path_to_uri`, etc.) are internal convenience wrappers; no external usage but legitimately used within crate |
+| Dead code removal | 🔍 None found | `cargo check` zero warnings; no `#[allow(dead_code)]` or `#[allow(unused)]` annotations |
 
 ### Files modified (this session)
-- `crates/crabide-app/src/window_state.rs` — `let...else`, `Option<&PathBuf>`, `bool::then_some()`
-- `crates/crabide-ui/src/panels/editor.rs` — `bool::then_some()`
-- `crates/crabide-syntax/src/engine.rs` — `let...else` for cache/registry lookups
-- `crates/crabide-syntax/src/highlight.rs` — `let...else` for query lookups
-- `crates/crabide-syntax/src/indent.rs` — `let...else` for query lookups
-- `crates/crabide-syntax/src/locals.rs` — `let...else` for query lookups
-- `crates/crabide-dap/src/client.rs` — `let...else` for command extraction
-- `crates/crabide-lsp/src/server_mgr.rs` — `let...else` for transport extraction
-- `crates/crabide-extensions/src/host.rs` — `let...else` for extensions_dir
-- `crates/crabide-extensions/src/registry.rs` — `#[derive(Default)]`
-- `crates/crabide-config/src/keybindings.rs` — `#[derive(Default)]`
-- `crates/crabide-buffer/src/snippet.rs` — `#[derive(Default)]`
-- `crates/crabide-git/src/lib.rs` — `Option<&str>` over `&Option<String>`
-- `ROADMAP.md` — Updated baseline, Phase 5 status
+- `crates/crabide-app/src/app.rs` — Removed `language_id_from_uri()` function; replaced 3 call sites with `tab.language.as_str()`; replaced URI-matching language detection with `tab.language.as_str()` in `drain_extension_pending`
+- `ROADMAP.md` — Updated Phase 6 status
 
 ## Current Verification State
 ```
 cargo check --workspace --all-targets          → ✅ ZERO errors
 cargo clippy --workspace --all-targets -- -D warnings → ✅ ZERO warnings
 cargo fmt --all --check                        → ✅ ZERO diffs
-cargo test --workspace                         → ✅ 1005 pass, 0 fail
+cargo test --workspace                         → ✅ ALL pass (1005+)
 ```
 
 ## Next Steps
-Continue with **Phase 6 (Code Redundancy)**: Deduplicate TextEdit/Position/Range conversion logic across LSP/DAP crates, extract shared event dispatch helpers from app.rs, merge duplicate URI/path resolution patterns, remove dead code paths.
+Continue with **Phase 7 (Test Coverage)**: Add error-path tests for buffer, LSP transport, DAP transport; property-based tests for terminal grid; VFS watcher integration tests; syntax engine roundtrip tests; workspace manager tests; feature-flag matrix tests; `cargo test --doc`.
