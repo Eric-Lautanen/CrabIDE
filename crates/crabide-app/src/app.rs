@@ -3330,7 +3330,7 @@ impl crabideApp {
             .match_ranges
             .iter()
             .rev()
-            .cloned()
+            .copied()
             .collect();
         let count = matches.len();
         if count == 0 {
@@ -3383,7 +3383,7 @@ impl crabideApp {
         }
 
         // Find the next occurrence after the last cursor.
-        let last_cursor = tab.cursors.all().last().cloned();
+        let last_cursor = tab.cursors.all().last().copied();
         let start_pos = last_cursor
             .as_ref()
             .map(|c| {
