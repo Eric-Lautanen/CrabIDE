@@ -398,7 +398,6 @@ These aren't tied to any single phase:
 - [x] **Dead dependency cleanup**: Removed unused deps from individual crate `Cargo.toml`s (`once_cell` from config, `tokio`/`rayon`/`thiserror`/`anyhow` from git, `serde` from syntax, `uuid` from workspace)
 - [x] **Workspace-level dep cleanup**: `regex-lite` removed from workspace (commit `76cbbf0`). `crossbeam-channel` removed from `crabide-syntax` (same commit). Verified — no traces remain.
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
-- [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`) — ✅ done (see `.github/workflows/ci.yml` feature-matrix job, 9 combos)
+- [x] **Feature flag matrix test**: CI tests all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`) — see `.github/workflows/ci.yml` feature-matrix job, 9 combos
 - [x] **`docs/` directory**: Currently contains ARCHITECTURE.md, BUILD.md, README.md
 - [x] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
-- [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
