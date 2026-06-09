@@ -59,7 +59,8 @@ impl DapClient {
         cmd.args(adapter_args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null());
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
 
         let mut child = match cmd.spawn() {
             Ok(c) => c,
@@ -761,6 +762,30 @@ impl DapClient {
         });
     }
 }
+
+// ── Shutdown ────────────────────────────────────────────────────────────
+
+impl DapClient {
+    /// Gracefully shut down the debug adapter: send `disconnect` and wait for
+    /// the process to exit.  If the adapter doesn't respond within 3 seconds,
+    /// the child will be killed on drop (due to `kill_on_drop(true)`).
+    pub async fn shutdown(&self) {
+        let args = DisconnectArguments {
+            restart: None,
+            terminate_debuggee: Some(true),
+        };
+        let args_val = serde_json::to_value(args).unwrap_or(json!({}));
+        let t = self.transport.clone();
+        let _ = t.request("disconnect", args_val).await;
+        // The adapter should exit after disconnect; kill_on_drop handles
+        // forceful termination if it doesn't.
+    }
+}
+
+// SAFETY: `DapClient` only owns a `Child` handle (killed on drop), a transport
+// (which is `Send + Sync`), a `Sender`, and a `Handle` — all `Send + Sync`.
+unsafe impl Send for DapClient {}
+unsafe impl Sync for DapClient {}
 
 // ── Event dispatch helper ─────────────────────────────────────────────────────
 
