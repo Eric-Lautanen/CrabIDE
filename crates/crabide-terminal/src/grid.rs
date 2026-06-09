@@ -3010,15 +3010,18 @@ mod tests {
     struct FuzzRng(u64);
 
     impl FuzzRng {
+        #[allow(dead_code)]
         fn new(seed: u64) -> Self {
             Self(seed)
         }
+        #[allow(dead_code)]
         fn next_u8(&mut self) -> u8 {
             self.0 ^= self.0 << 13;
             self.0 ^= self.0 >> 7;
             self.0 ^= self.0 << 17;
             self.0 as u8
         }
+        #[allow(dead_code)]
         fn next_bytes(&mut self, buf: &mut [u8]) {
             for b in buf.iter_mut() {
                 *b = self.next_u8();

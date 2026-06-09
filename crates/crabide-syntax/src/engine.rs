@@ -614,7 +614,10 @@ fn main() {
         engine.parse_document(id, &Language::RUST, "fn a() {}", 1);
         assert!(engine.is_parsed(id));
         engine.close_document(id);
-        assert!(engine.version(id).is_none(), "cache entry should be removed");
+        assert!(
+            engine.version(id).is_none(),
+            "cache entry should be removed"
+        );
 
         // Re-parse after close
         engine.parse_document(id, &Language::RUST, "fn b() {}", 2);

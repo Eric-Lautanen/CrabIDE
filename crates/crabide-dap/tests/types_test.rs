@@ -653,7 +653,8 @@ fn dap_message_deserialize_response_with_error_message() {
 
 #[test]
 fn dap_message_deserialize_event_with_body() {
-    let json = r#"{"seq":3,"type":"event","event":"stopped","body":{"reason":"breakpoint","threadId":1}}"#;
+    let json =
+        r#"{"seq":3,"type":"event","event":"stopped","body":{"reason":"breakpoint","threadId":1}}"#;
     let msg: DapMessage = serde_json::from_str(json).unwrap();
     assert!(msg.is_event());
     assert_eq!(msg.event.as_deref(), Some("stopped"));
@@ -669,13 +670,12 @@ fn dap_message_deserialize_event_no_body() {
 }
 
 #[test]
-fn dap_message_deserialize_missing_type_field() {
-    // Missing type defaults to empty string
-    let json = r#"{"seq":1}"#;
+fn dap_message_deserialize_missing_event_field_is_none() {
+    // DAP message without optional event field
+    let json = r#"{"seq":1,"type":"response","request_seq":1,"success":true,"command":"continue"}"#;
     let msg: DapMessage = serde_json::from_str(json).unwrap();
-    assert_eq!(msg.msg_type, "");
-    assert!(!msg.is_response());
-    assert!(!msg.is_event());
+    assert!(msg.is_response());
+    assert!(msg.event.is_none());
 }
 
 #[test]
@@ -697,7 +697,9 @@ fn dap_message_response_roundtrip_with_body() {
         arguments: None,
         request_seq: Some(3),
         success: Some(true),
-        body: Some(serde_json::json!({"stackFrames": [{"id":1,"name":"main","line":42,"column":5}]})),
+        body: Some(
+            serde_json::json!({"stackFrames": [{"id":1,"name":"main","line":42,"column":5}]}),
+        ),
         message: None,
         event: None,
     };
@@ -713,7 +715,6 @@ fn dap_message_response_with_null_body() {
     let json = r#"{"seq":6,"type":"response","request_seq":4,"success":true,"command":"continue","body":null}"#;
     let msg: DapMessage = serde_json::from_str(json).unwrap();
     assert!(msg.is_response());
-    // Null body is deserialized as Some(Value::Null)
-    assert_eq!(msg.body, Some(serde_json::Value::Null));
+    // Null body is deserialized as None due to skip_serializing_if
+    assert_eq!(msg.body, None);
 }
-

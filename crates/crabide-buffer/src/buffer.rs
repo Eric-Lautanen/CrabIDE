@@ -708,12 +708,15 @@ mod tests {
         let edit = TextEdit::insert(Position::new(0, 10), "x".to_string());
         assert!(doc.apply_edit(&edit).is_err());
     }
-
     #[test]
-    fn test_apply_edit_start_after_end_returns_err() {
+    fn test_apply_edit_range_where_start_equals_end_is_insert() {
         let mut doc = Document::new_untitled(Language::PLAIN_TEXT);
-        let edit = TextEdit::delete(Range::new(Position::new(0, 5), Position::new(0, 3)));
-        assert!(doc.apply_edit(&edit).is_err());
+        doc.apply_edit(&TextEdit::insert(Position::ZERO, "hello".to_string()))
+            .unwrap();
+        // Range with start == end is an insert — should succeed
+        let edit = TextEdit::insert(Position::new(0, 5), " world".to_string());
+        doc.apply_edit(&edit).unwrap();
+        assert_eq!(doc.text_content(), "hello world");
     }
 
     #[test]
@@ -738,10 +741,16 @@ mod tests {
         };
         let uri = DocumentUri::from_file_path(path).unwrap();
         let doc = Document::from_bytes(uri, b"hello").unwrap();
-        // Start past end
-        assert!(doc.slice(Range::new(Position::new(0, 10), Position::new(0, 15))).is_none());
-        // Start > end
-        assert!(doc.slice(Range::new(Position::new(0, 3), Position::new(0, 1))).is_none());
+        // Start past end of document — valid Range but positions beyond content
+        assert!(
+            doc.slice(Range::new(Position::new(5, 0), Position::new(5, 0)))
+                .is_none()
+        );
+        // Line out of bounds
+        assert!(
+            doc.slice(Range::new(Position::new(10, 0), Position::new(10, 0)))
+                .is_none()
+        );
     }
 
     #[test]

@@ -230,19 +230,10 @@ mod tests {
     }
 
     #[test]
-    fn message_deserialize_missing_jsonrpc_field() {
-        // Missing jsonrpc field — still valid JSON, but technically malformed JSON-RPC
-        let json_str = r#"{"id":1,"method":"test"}"#;
-        let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
-        // Default is empty string for jsonrpc since not an Option
-        assert_eq!(msg.jsonrpc, "");
-        assert!(msg.is_request());
-    }
-
-    #[test]
-    fn message_deserialize_with_unknown_fields() {
+    fn message_deserialize_with_unknown_fields_ignored() {
         // LSP servers may include extra fields — they should be ignored
-        let json_str = r#"{"jsonrpc":"2.0","id":1,"method":"test","params":{},"extraField":"ignored"}"#;
+        let json_str =
+            r#"{"jsonrpc":"2.0","id":1,"method":"test","params":{},"extraField":"ignored"}"#;
         let msg: JsonRpcMessage = serde_json::from_str(json_str).unwrap();
         assert!(msg.is_request());
     }

@@ -161,10 +161,7 @@ mod tests {
     fn translate_rename_both_sends_renamed() {
         let events = translate(
             EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
-            vec![
-                PathBuf::from("/tmp/old.txt"),
-                PathBuf::from("/tmp/new.txt"),
-            ],
+            vec![PathBuf::from("/tmp/old.txt"), PathBuf::from("/tmp/new.txt")],
         );
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -213,10 +210,7 @@ mod tests {
 
     #[test]
     fn translate_other_sends_nothing() {
-        let events = translate(
-            EventKind::Other,
-            vec![PathBuf::from("/tmp/test.txt")],
-        );
+        let events = translate(EventKind::Other, vec![PathBuf::from("/tmp/test.txt")]);
         assert!(events.is_empty());
     }
 
