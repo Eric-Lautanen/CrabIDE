@@ -149,6 +149,7 @@ pub enum Action {
     ToggleExtensionsPanel,
     ToggleOutputPanel,
     ToggleMinimap,
+    ToggleThemePicker,
     ToggleWordWrap,
     ToggleProblemsPanel,
     ZoomIn,
@@ -1349,10 +1350,7 @@ impl KeybindingEngine {
         self.bind("ctrl+shift+/", Action::ToggleBlockComment);
         // ── View ──────────────────────────────────────────────────────────────
         self.bind("alt+z", Action::ToggleWordWrap);
-        self.bind(
-            "ctrl+k ctrl+t",
-            Action::Custom("theme-switcher.next-theme".to_owned()),
-        );
+        self.bind("ctrl+k ctrl+t", Action::ToggleThemePicker);
         self.bind("ctrl+=", Action::ZoomIn);
         self.bind("ctrl+-", Action::ZoomOut);
         self.bind("ctrl+0", Action::ZoomReset);
@@ -1429,6 +1427,7 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
         "View: Toggle Extensions Panel",
     );
     m.insert(Action::ToggleOutputPanel, "View: Toggle Output Panel");
+    m.insert(Action::ToggleThemePicker, "Preferences: Theme Picker");
     m.insert(Action::ToggleProblemsPanel, "View: Toggle Problems Panel");
     m.insert(Action::ToggleMinimap, "View: Toggle Minimap");
     m.insert(Action::ToggleWordWrap, "View: Toggle Word Wrap");

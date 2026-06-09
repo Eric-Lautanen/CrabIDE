@@ -1973,6 +1973,21 @@ impl PeekState {
     }
 }
 
+// ── ThemePickerState ───────────────────────────────────────────────────────────
+
+/// State for the theme picker panel.
+#[derive(Default)]
+pub struct ThemePickerState {
+    /// Whether the theme picker panel is visible.
+    pub visible: bool,
+    /// List of available themes as (id, display_name).
+    pub themes: Vec<(String, String)>,
+    /// Index of the currently selected theme in the list.
+    pub selected_idx: usize,
+    /// When set, the app should apply this theme. Drained by app each frame.
+    pub pending_theme_id: Option<String>,
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -2130,6 +2145,9 @@ pub struct UiState {
     /// When set, the next LocationsReady event will be treated as peek results
     /// for the given LSP method. Drained by apply_lsp_event.
     pub pending_peek_method: Option<String>,
+
+    // ── Theme picker state ───────────────────────────────────────────────
+    pub theme_picker: ThemePickerState,
 }
 
 impl UiState {
@@ -2186,6 +2204,7 @@ impl UiState {
             pending_code_action_idx: None,
             peek: PeekState::default(),
             pending_peek_method: None,
+            theme_picker: ThemePickerState::default(),
         }
     }
 

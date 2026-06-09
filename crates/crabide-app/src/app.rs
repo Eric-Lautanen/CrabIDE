@@ -4068,8 +4068,32 @@ impl eframe::App for crabideApp {
             self.ui_state.extensions_panel.pending_cycle_theme = false;
             self.apply_theme_cycle(&ctx);
         }
+
+        // Populate theme list for the theme picker.
+        if self.ui_state.theme_picker.themes.is_empty() {
+            let themes = self.config.themes();
+            self.ui_state.theme_picker.themes =
+                themes.into_iter().map(|(id, t)| (id, t.name)).collect();
+        }
+
         let actions = crabide_ui::render(ui, &mut self.ui_state);
         self.dispatch_actions(actions, &ctx);
+
+        // ── Theme picker selection ──────────────────────────────────────────────
+        if let Some(theme_id) = self.ui_state.theme_picker.pending_theme_id.take() {
+            self.config.set_active_theme(&theme_id);
+            self.ui_state.theme = self.config.active_theme();
+            configure_egui_style(&ctx, &self.ui_state);
+            let mut settings = self.config.settings();
+            settings.ui.color_theme = theme_id.clone();
+            if let Some(user_dir) = crabide_config::SettingsLoader::user_config_dir() {
+                let path = user_dir.join("settings.toml");
+                if let Err(e) = crabide_config::SettingsLoader::save(&settings, &path) {
+                    log::warn!("Failed to persist theme preference: {e}");
+                }
+            }
+            self.ui_state.set_status(format!("Theme: {}", theme_id));
+        }
 
         // ── LSP popup pending actions ─────────────────────────────────────────
         // Completion insert — convert to InsertText action.

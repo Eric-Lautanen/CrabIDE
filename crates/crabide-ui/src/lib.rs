@@ -26,7 +26,7 @@ pub use state::{
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
     GitPanelState, LspStatus, OutputPanelState, PeekKind, PeekState, SidebarPaneUiState,
     SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance, TerminalPanelState,
-    UiState,
+    ThemePickerState, UiState,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -316,6 +316,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
                 panels::editor::show(ui, state, &mut actions);
             }
         });
+
+    // ── Theme picker overlay ─────────────────────────────────────────────
+    panels::theme_picker::show(ui, state);
 
     actions
 }
@@ -1102,7 +1105,6 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
             }
         });
     }
-
     actions
 }
 
@@ -1396,6 +1398,12 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
         // ── Output panel toggle ────────────────────────────────────────────────
         Action::ToggleOutputPanel => {
             state.output_panel.visible = !state.output_panel.visible;
+            true
+        }
+
+        // ── Theme picker ──────────────────────────────────────────────────────
+        Action::ToggleThemePicker => {
+            state.theme_picker.visible = !state.theme_picker.visible;
             true
         }
 

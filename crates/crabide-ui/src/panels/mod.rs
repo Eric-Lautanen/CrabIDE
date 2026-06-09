@@ -22,4 +22,5 @@ pub mod status_bar;
 pub mod symbol_outline;
 pub mod tab_bar;
 pub mod terminal_panel;
+pub mod theme_picker;
 pub mod workspace_search;
