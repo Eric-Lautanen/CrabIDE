@@ -247,12 +247,13 @@ impl LspClient {
                 None => continue,
             };
             let params = msg.params.clone().unwrap_or(Value::Null);
-            self.handle_notification(&method, params);
+            let msg_id = msg.id.clone();
+            self.handle_notification(&method, params, msg_id);
         }
         log::debug!("LSP notification loop exited for {}", self.inner.language);
     }
 
-    fn handle_notification(&self, method: &str, params: Value) {
+    fn handle_notification(&self, method: &str, params: Value, msg_id: Option<Value>) {
         match method {
             "textDocument/publishDiagnostics" => {
                 self.handle_publish_diagnostics(params);
@@ -277,21 +278,15 @@ impl LspClient {
             // Server→client requests: respond with empty/unsupported.
             "workspace/applyEdit" => {
                 log::debug!("LSP server requested workspace/applyEdit; not supported yet");
-                // Respond with `applied: false` if we can extract the request id.
-                if let Some(id) = params.get("id") {
-                    let _ = self.inner.transport.notify(
-                        "workspace/applyEdit",
-                        serde_json::json!({ "id": id, "result": { "applied": false } }),
-                    );
+                // Respond with `applied: false` if we have a request id.
+                if let Some(id) = &msg_id {
+                    let _ = self.inner.transport.respond(id, serde_json::json!({ "applied": false }));
                 }
             }
             "workspace/configuration" => {
                 log::debug!("LSP server requested workspace/configuration; returning empty");
-                if let Some(id) = params.get("id") {
-                    let _ = self.inner.transport.notify(
-                        "workspace/configuration",
-                        serde_json::json!({ "id": id, "result": [] }),
-                    );
+                if let Some(id) = &msg_id {
+                    let _ = self.inner.transport.respond(id, serde_json::json!([]));
                 }
             }
             "client/registerCapability" => {
@@ -307,11 +302,8 @@ impl LspClient {
             "textDocument/willSaveWaitUntil" => {
                 // Server→client request: respond with empty edits.
                 log::debug!("LSP willSaveWaitUntil request; returning empty edits");
-                if let Some(id) = params.get("id") {
-                    let _ = self.inner.transport.notify(
-                        "textDocument/willSaveWaitUntil",
-                        serde_json::json!({ "id": id, "result": null }),
-                    );
+                if let Some(id) = &msg_id {
+                    let _ = self.inner.transport.respond(id, Value::Null);
                 }
             }
             _ => {

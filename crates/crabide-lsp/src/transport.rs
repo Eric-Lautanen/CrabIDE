@@ -346,6 +346,22 @@ impl LspTransport {
         self.send_raw(&msg)
     }
 
+    /// Send a response to a server→client request.
+    ///
+    /// `id` is the request id from the original `JsonRpcMessage`.
+    /// `result` is the response body (use `Value::Null` for empty).
+    pub fn respond(&self, id: &Value, result: Value) -> Result<()> {
+        let msg = JsonRpcMessage {
+            jsonrpc: "2.0".into(),
+            id: Some(id.clone()),
+            method: None,
+            params: None,
+            result: Some(result),
+            error: None,
+        };
+        self.send_raw(&msg)
+    }
+
     fn send_raw(&self, msg: &JsonRpcMessage) -> Result<()> {
         let json = serde_json::to_vec(msg).context("Serialising JSON-RPC message")?;
         let header = format!("Content-Length: {}\r\n\r\n", json.len());
