@@ -292,7 +292,7 @@ impl crabideApp {
         let session = crate::window_state::load_session();
         let existing: std::collections::HashSet<String> = app
             .ui_state
-            .tabs
+            .tabs()
             .iter()
             .filter_map(|t| {
                 t.uri
@@ -590,20 +590,20 @@ impl crabideApp {
         // ── Build context data from current UI state (owned, then borrowed) ───
         let active_text: Option<String> = self
             .ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .map(|t| t.lines.join("\n"));
 
         let active_uri: Option<String> = self
             .ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .map(|t| t.uri.to_string());
 
         let active_language: String = self
             .ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .map(|t| {
                 let uri = t.uri.to_string();
                 if uri.ends_with(".rs") {
@@ -629,15 +629,15 @@ impl crabideApp {
 
         let cursor_line: u32 = self
             .ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .map(|t| t.cursors.primary().pos().line)
             .unwrap_or(0);
 
         let cursor_col: u32 = self
             .ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .map(|t| t.cursors.primary().pos().character)
             .unwrap_or(0);
 
@@ -645,8 +645,8 @@ impl crabideApp {
 
         let blame_lines: Vec<(u32, String)> = self
             .ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .and_then(|t| t.uri.as_url().to_file_path().ok())
             .and_then(|p| self.ui_state.git_panel.blame_lines.get(&p))
             .map(|lines| {
@@ -1105,23 +1105,25 @@ impl crabideApp {
                     if let Ok(path) = loc.uri.as_url().to_file_path() {
                         let line = loc.range.start.line as usize;
                         if let Some(tab_idx) =
-                            self.ui_state.tabs.iter().position(|t| t.uri == loc.uri)
+                            self.ui_state.tabs().iter().position(|t| t.uri == loc.uri)
                         {
-                            self.ui_state.tabs[tab_idx]
+                            self.ui_state.tabs_mut()[tab_idx]
                                 .cursors
                                 .set_single(Position::new(
                                     loc.range.start.line,
                                     loc.range.start.character,
                                 ));
                             self.ui_state.pending_scroll_line = Some(line);
-                            self.ui_state.active_tab = Some(tab_idx);
+                            self.ui_state.active_group_mut().active_tab = Some(tab_idx);
                         } else {
                             self.open_path(path);
-                            if let Some(idx) = self.ui_state.active_tab {
-                                self.ui_state.tabs[idx].cursors.set_single(Position::new(
-                                    loc.range.start.line,
-                                    loc.range.start.character,
-                                ));
+                            if let Some(idx) = self.ui_state.active_tab() {
+                                self.ui_state.tabs_mut()[idx]
+                                    .cursors
+                                    .set_single(Position::new(
+                                        loc.range.start.line,
+                                        loc.range.start.character,
+                                    ));
                                 self.ui_state.pending_scroll_line = Some(line);
                             }
                         }
@@ -1510,18 +1512,18 @@ impl crabideApp {
                         let line = frame.line.saturating_sub(1) as usize;
                         if let Some(uri) = DocumentUri::from_file_path(path) {
                             if let Some(tab_idx) =
-                                self.ui_state.tabs.iter().position(|t| t.uri == uri)
+                                self.ui_state.tabs().iter().position(|t| t.uri == uri)
                             {
-                                self.ui_state.tabs[tab_idx]
+                                self.ui_state.tabs_mut()[tab_idx]
                                     .cursors
                                     .set_single(Position::new(line as u32, 0));
                                 self.ui_state.pending_scroll_line = Some(line);
-                                self.ui_state.active_tab = Some(tab_idx);
+                                self.ui_state.active_group_mut().active_tab = Some(tab_idx);
                             } else {
                                 // Open the source file if it's not already open.
                                 self.open_path(path.clone());
-                                if let Some(idx) = self.ui_state.active_tab {
-                                    self.ui_state.tabs[idx]
+                                if let Some(idx) = self.ui_state.active_tab() {
+                                    self.ui_state.tabs_mut()[idx]
                                         .cursors
                                         .set_single(Position::new(line as u32, 0));
                                     self.ui_state.pending_scroll_line = Some(line);
@@ -1827,7 +1829,7 @@ impl crabideApp {
                 self.ui_state.open_tab(tab);
                 // Nothing to parse for a blank untitled document, but still
                 // call update_highlights so the cache entry exists.
-                if let Some(idx) = self.ui_state.active_tab {
+                if let Some(idx) = self.ui_state.active_tab() {
                     self.update_highlights(idx);
                 }
             }
@@ -1845,8 +1847,8 @@ impl crabideApp {
             }
 
             Action::SaveFile => {
-                if let Some(idx) = self.ui_state.active_tab {
-                    if let Some(tab) = self.ui_state.tabs.get(idx) {
+                if let Some(idx) = self.ui_state.active_tab() {
+                    if let Some(tab) = self.ui_state.tabs().get(idx) {
                         let id = tab.buffer_id;
                         let uri = tab.uri.clone();
                         // Collect extension notification data while `tab` is live.
@@ -1861,12 +1863,12 @@ impl crabideApp {
                                 log::error!("save {uri}: {e}");
                             }
                         });
-                        self.ui_state.tabs[idx].is_dirty = false;
+                        self.ui_state.tabs_mut()[idx].is_dirty = false;
                         self.ui_state.set_status("File saved");
 
                         // Refresh git diff hunks for the saved file.
                         if let Some(svc) = &self.git_service {
-                            let tab = &self.ui_state.tabs[idx];
+                            let tab = &self.ui_state.tabs_mut()[idx];
                             if let Ok(path) = tab.uri.as_url().to_file_path() {
                                 svc.request_diff_hunks(tab.uri.clone(), path);
                             }
@@ -1895,7 +1897,7 @@ impl crabideApp {
                 // Collect per-tab save data before marking tabs dirty=false.
                 let save_docs: Vec<(String, &'static str, String, u32, u32)> = self
                     .ui_state
-                    .tabs
+                    .tabs()
                     .iter()
                     .map(|t| {
                         let uri_str = t.uri.to_string();
@@ -1906,7 +1908,7 @@ impl crabideApp {
                         (uri_str, lang_id, text, cursor_line, cursor_col)
                     })
                     .collect();
-                let ids: Vec<BufferId> = self.ui_state.tabs.iter().map(|t| t.buffer_id).collect();
+                let ids: Vec<BufferId> = self.ui_state.tabs().iter().map(|t| t.buffer_id).collect();
                 let ws = Arc::clone(&self.workspace);
                 self.rt.spawn(async move {
                     for id in ids {
@@ -1915,7 +1917,7 @@ impl crabideApp {
                         }
                     }
                 });
-                for tab in &mut self.ui_state.tabs {
+                for tab in self.ui_state.tabs_mut() {
                     tab.is_dirty = false;
                 }
                 self.ui_state.set_status("All files saved");
@@ -2006,8 +2008,8 @@ impl crabideApp {
 
             // ── Undo / redo ───────────────────────────────────────────────────
             Action::Undo => {
-                if let Some(idx) = self.ui_state.active_tab {
-                    let id = self.ui_state.tabs[idx].buffer_id;
+                if let Some(idx) = self.ui_state.active_tab() {
+                    let id = self.ui_state.tabs_mut()[idx].buffer_id;
                     match self.workspace.undo(id) {
                         Ok(true) => {
                             self.sync_tab_from_workspace(idx);
@@ -2019,8 +2021,8 @@ impl crabideApp {
                 }
             }
             Action::Redo => {
-                if let Some(idx) = self.ui_state.active_tab {
-                    let id = self.ui_state.tabs[idx].buffer_id;
+                if let Some(idx) = self.ui_state.active_tab() {
+                    let id = self.ui_state.tabs_mut()[idx].buffer_id;
                     match self.workspace.redo(id) {
                         Ok(true) => {
                             self.sync_tab_from_workspace(idx);
@@ -2034,8 +2036,8 @@ impl crabideApp {
 
             // ── Copy / Cut / Paste ────────────────────────────────────────────
             Action::Copy => {
-                if let Some(idx) = self.ui_state.active_tab {
-                    let maybe_text = selected_text(&self.ui_state.tabs[idx]);
+                if let Some(idx) = self.ui_state.active_tab() {
+                    let maybe_text = selected_text(&self.ui_state.tabs_mut()[idx]);
                     if let Some(text) = maybe_text {
                         self.clipboard = text.clone();
                         ctx.copy_text(self.clipboard.clone());
@@ -2043,9 +2045,9 @@ impl crabideApp {
                 }
             }
             Action::Cut => {
-                if let Some(idx) = self.ui_state.active_tab {
+                if let Some(idx) = self.ui_state.active_tab() {
                     // Capture text while holding the immutable borrow, then drop it.
-                    let maybe_text = selected_text(&self.ui_state.tabs[idx]);
+                    let maybe_text = selected_text(&self.ui_state.tabs_mut()[idx]);
                     if let Some(text) = maybe_text {
                         self.clipboard = text.clone();
                         ctx.copy_text(self.clipboard.clone());
@@ -2101,13 +2103,13 @@ impl crabideApp {
 
             // ── Close all tabs ────────────────────────────────────────────────
             Action::CloseAllTabs => {
-                let ids: Vec<BufferId> = self.ui_state.tabs.iter().map(|t| t.buffer_id).collect();
+                let ids: Vec<BufferId> = self.ui_state.tabs().iter().map(|t| t.buffer_id).collect();
                 for id in ids {
                     let _ = self.workspace.close(id, false);
                     self.syntax.close_document(id);
                 }
-                self.ui_state.tabs.clear();
-                self.ui_state.active_tab = None;
+                self.ui_state.tabs_mut().clear();
+                self.ui_state.active_group_mut().active_tab = None;
             }
 
             // ── Fuzzy file finder ─────────────────────────────────────────────
@@ -2143,7 +2145,7 @@ impl crabideApp {
                 // Collect open buffer data for in-memory grep.
                 let buffers: Vec<(PathBuf, Vec<String>)> = self
                     .ui_state
-                    .tabs
+                    .tabs()
                     .iter()
                     .filter_map(|tab| {
                         let path = tab.uri.as_url().to_file_path().ok()?;
@@ -2209,15 +2211,15 @@ impl crabideApp {
 
             // ── Go to line ────────────────────────────────────────────────────
             Action::GotoLine => {
-                if let Some(idx) = self.ui_state.active_tab {
-                    let max_lines = self.ui_state.tabs[idx].lines.len();
+                if let Some(idx) = self.ui_state.active_tab() {
+                    let max_lines = self.ui_state.tabs_mut()[idx].lines.len();
                     if let Some(line) = self.ui_state.goto_line.target_line(max_lines) {
-                        let col = self.ui_state.tabs[idx]
+                        let col = self.ui_state.tabs_mut()[idx]
                             .lines
                             .get(line)
                             .map(|_| 0u32)
                             .unwrap_or(0);
-                        self.ui_state.tabs[idx]
+                        self.ui_state.tabs_mut()[idx]
                             .cursors
                             .set_single(Position::new(line as u32, col));
                         self.ui_state.pending_scroll_line = Some(line);
@@ -2231,8 +2233,8 @@ impl crabideApp {
             // ── Go to symbol (Ctrl+Shift+O) ───────────────────────────────────
             Action::GotoSymbol => {
                 // Populate entries from the syntax engine if a tab is active
-                if let Some(idx) = self.ui_state.active_tab {
-                    if let Some(tab) = self.ui_state.tabs.get(idx) {
+                if let Some(idx) = self.ui_state.active_tab() {
+                    if let Some(tab) = self.ui_state.tabs().get(idx) {
                         let symbols = self.syntax.outline(tab.buffer_id);
                         self.ui_state.symbol_outline.entries = symbols
                             .into_iter()
@@ -2402,11 +2404,15 @@ impl crabideApp {
             }
 
             Action::ToggleBreakpoint => {
-                if let Some(idx) = self.ui_state.active_tab {
-                    let line = self.ui_state.tabs[idx].cursors.primary().pos().line;
-                    let tab_path = self.ui_state.tabs[idx].uri.as_url().to_file_path().ok();
+                if let Some(idx) = self.ui_state.active_tab() {
+                    let line = self.ui_state.tabs_mut()[idx].cursors.primary().pos().line;
+                    let tab_path = self.ui_state.tabs_mut()[idx]
+                        .uri
+                        .as_url()
+                        .to_file_path()
+                        .ok();
                     // Toggle the line in/out of the tab's breakpoint list.
-                    let tab = &mut self.ui_state.tabs[idx];
+                    let tab = &mut self.ui_state.tabs_mut()[idx];
                     if tab.breakpoints.contains(&line) {
                         tab.breakpoints.retain(|&l| l != line);
                     } else {
@@ -2414,7 +2420,7 @@ impl crabideApp {
                     }
                     // Sync with adapter if a session is active.
                     if let Some(path) = tab_path {
-                        let new_bps = self.ui_state.tabs[idx].breakpoints.clone();
+                        let new_bps = self.ui_state.tabs_mut()[idx].breakpoints.clone();
                         self.ui_state
                             .dap_panel
                             .pending_set_breakpoints
@@ -2457,7 +2463,7 @@ impl crabideApp {
                     self.ui_state.git_panel.unstaged_files.clear();
                     self.ui_state.git_panel.blame_lines.clear();
                     self.ui_state.git_panel.visible = false;
-                    for tab in &mut self.ui_state.tabs {
+                    for tab in self.ui_state.tabs_mut() {
                         tab.git_hunks.clear();
                     }
                     clear_explorer_git_status(&mut self.ui_state);
@@ -2616,11 +2622,11 @@ impl crabideApp {
     // ── Text insertion ────────────────────────────────────────────────────────
 
     fn handle_insert_text(&mut self, text: String, _ctx: &egui::Context) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
 
         // Build one edit per cursor in reverse (highest position first)
         // so that earlier positions are not invalidated by later edits.
@@ -2630,7 +2636,7 @@ impl crabideApp {
         }
 
         let ops: Vec<CursorOp> = {
-            let tab = &self.ui_state.tabs[active_idx];
+            let tab = &self.ui_state.tabs_mut()[active_idx];
             tab.cursors
                 .all()
                 .iter()
@@ -2683,7 +2689,7 @@ impl crabideApp {
         // Update cursor positions. ops were in reverse cursor order (highest → lowest),
         // so new_positions[0] corresponds to the last cursor (highest index).
         {
-            let tab = &mut self.ui_state.tabs[active_idx];
+            let tab = &mut self.ui_state.tabs_mut()[active_idx];
             let n = new_positions.len().min(tab.cursors.count());
             for i in 0..n {
                 let rev_i = n - 1 - i; // map back to ascending cursor order
@@ -2692,8 +2698,11 @@ impl crabideApp {
         }
 
         // Update snippet tabstop positions (edits were applied highest-first).
-        if self.ui_state.tabs[active_idx].snippet_engine.is_active() {
-            let tab = &mut self.ui_state.tabs[active_idx];
+        if self.ui_state.tabs_mut()[active_idx]
+            .snippet_engine
+            .is_active()
+        {
+            let tab = &mut self.ui_state.tabs_mut()[active_idx];
             // edits are in reverse cursor order (highest position first), matching
             // the order Workspace::apply_edits applied them.
             for edit in &edits {
@@ -2705,8 +2714,8 @@ impl crabideApp {
         if text.chars().count() == 1 {
             let ch = text.chars().next().unwrap();
             if let Some(close_ch) = bracket_close_pair(ch) {
-                if self.ui_state.tabs[active_idx].cursors.count() == 1 {
-                    let cursor_pos = self.ui_state.tabs[active_idx].cursors.primary().pos();
+                if self.ui_state.tabs_mut()[active_idx].cursors.count() == 1 {
+                    let cursor_pos = self.ui_state.tabs_mut()[active_idx].cursors.primary().pos();
                     let close_edit = TextEdit {
                         range: Range::new(cursor_pos, cursor_pos),
                         new_text: close_ch.to_string(),
@@ -2729,11 +2738,11 @@ impl crabideApp {
     // ── Deletion ──────────────────────────────────────────────────────────────
 
     fn handle_delete(&mut self, kind: DeleteKind) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
 
         struct CursorOp {
             edit: Option<TextEdit>,
@@ -2741,7 +2750,7 @@ impl crabideApp {
         }
 
         let ops: Vec<CursorOp> = {
-            let tab = &self.ui_state.tabs[active_idx];
+            let tab = &self.ui_state.tabs_mut()[active_idx];
             tab.cursors
                 .all()
                 .iter()
@@ -2789,7 +2798,7 @@ impl crabideApp {
 
         // Update cursor positions.
         {
-            let tab = &mut self.ui_state.tabs[active_idx];
+            let tab = &mut self.ui_state.tabs_mut()[active_idx];
             let n = new_positions.len().min(tab.cursors.count());
             for i in 0..n {
                 let rev_i = n - 1 - i;
@@ -2798,8 +2807,12 @@ impl crabideApp {
         }
 
         // Update snippet tabstop positions.
-        if self.ui_state.tabs[active_idx].snippet_engine.is_active() && !edits.is_empty() {
-            let tab = &mut self.ui_state.tabs[active_idx];
+        if self.ui_state.tabs_mut()[active_idx]
+            .snippet_engine
+            .is_active()
+            && !edits.is_empty()
+        {
+            let tab = &mut self.ui_state.tabs_mut()[active_idx];
             for edit in &edits {
                 tab.snippet_engine.apply_edit(edit);
             }
@@ -2811,12 +2824,16 @@ impl crabideApp {
     // ── Line operations ───────────────────────────────────────────────────────
 
     fn handle_duplicate_line(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
-        let line_idx = self.ui_state.tabs[active_idx].cursors.primary().pos().line as usize;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
+        let line_idx = self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .primary()
+            .pos()
+            .line as usize;
 
         let line_text = lines.get(line_idx).cloned().unwrap_or_default();
         let line_end_col = line_text.chars().count() as u32;
@@ -2834,16 +2851,22 @@ impl crabideApp {
         self.sync_tab_from_workspace(active_idx);
         // Cursor moves to the start of the duplicated line.
         let new_pos = Position::new(line_idx as u32 + 1, 0);
-        self.ui_state.tabs[active_idx].cursors.set_single(new_pos);
+        self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .set_single(new_pos);
     }
 
     fn handle_delete_line(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
-        let line_idx = self.ui_state.tabs[active_idx].cursors.primary().pos().line as usize;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
+        let line_idx = self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .primary()
+            .pos()
+            .line as usize;
         let n_lines = lines.len();
 
         // Range: from the start of this line to the start of the next line
@@ -2874,9 +2897,13 @@ impl crabideApp {
             return;
         }
         self.sync_tab_from_workspace(active_idx);
-        let new_line = (line_idx as u32)
-            .min(self.ui_state.tabs[active_idx].lines.len().saturating_sub(1) as u32);
-        self.ui_state.tabs[active_idx]
+        let new_line = (line_idx as u32).min(
+            self.ui_state.tabs_mut()[active_idx]
+                .lines
+                .len()
+                .saturating_sub(1) as u32,
+        );
+        self.ui_state.tabs_mut()[active_idx]
             .cursors
             .set_single(Position::new(new_line, 0));
     }
@@ -2884,15 +2911,15 @@ impl crabideApp {
     // ── Snippet tabstop cycling ───────────────────────────────────────────────
 
     fn handle_next_tabstop(&mut self) {
-        let Some(idx) = self.ui_state.active_tab else {
+        let Some(idx) = self.ui_state.active_tab() else {
             return;
         };
         let range = {
-            let tab = &mut self.ui_state.tabs[idx];
+            let tab = &mut self.ui_state.tabs_mut()[idx];
             tab.snippet_engine.next_tabstop().map(|ts| ts.range)
         };
         if let Some(range) = range {
-            let tab = &mut self.ui_state.tabs[idx];
+            let tab = &mut self.ui_state.tabs_mut()[idx];
             tab.cursors.set_single(range.start);
             if range.start != range.end {
                 tab.cursors.primary_mut().extend_to(range.end);
@@ -2901,15 +2928,15 @@ impl crabideApp {
     }
 
     fn handle_prev_tabstop(&mut self) {
-        let Some(idx) = self.ui_state.active_tab else {
+        let Some(idx) = self.ui_state.active_tab() else {
             return;
         };
         let range = {
-            let tab = &mut self.ui_state.tabs[idx];
+            let tab = &mut self.ui_state.tabs_mut()[idx];
             tab.snippet_engine.prev_tabstop().map(|ts| ts.range)
         };
         if let Some(range) = range {
-            let tab = &mut self.ui_state.tabs[idx];
+            let tab = &mut self.ui_state.tabs_mut()[idx];
             tab.cursors.set_single(range.start);
             if range.start != range.end {
                 tab.cursors.primary_mut().extend_to(range.end);
@@ -2918,13 +2945,17 @@ impl crabideApp {
     }
 
     fn handle_move_line(&mut self, direction: i32) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
         let n_lines = lines.len();
-        let line_idx = self.ui_state.tabs[active_idx].cursors.primary().pos().line as usize;
+        let line_idx = self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .primary()
+            .pos()
+            .line as usize;
 
         let target = if direction < 0 {
             if line_idx == 0 {
@@ -2978,18 +3009,22 @@ impl crabideApp {
             return;
         }
         self.sync_tab_from_workspace(active_idx);
-        self.ui_state.tabs[active_idx]
+        self.ui_state.tabs_mut()[active_idx]
             .cursors
             .set_single(Position::new(target as u32, 0));
     }
 
     fn handle_insert_newline_beside(&mut self, below: bool) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
-        let line_idx = self.ui_state.tabs[active_idx].cursors.primary().pos().line as usize;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
+        let line_idx = self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .primary()
+            .pos()
+            .line as usize;
 
         let (insert_pos, new_line_idx) = if below {
             let line_len = lines.get(line_idx).map(|l| l.chars().count()).unwrap_or(0) as u32;
@@ -3021,18 +3056,22 @@ impl crabideApp {
         }
         self.sync_tab_from_workspace(active_idx);
         let col = indent.chars().count() as u32;
-        self.ui_state.tabs[active_idx]
+        self.ui_state.tabs_mut()[active_idx]
             .cursors
             .set_single(Position::new(new_line_idx, col));
     }
 
     fn handle_indent(&mut self, indent: bool) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
-        let line_idx = self.ui_state.tabs[active_idx].cursors.primary().pos().line as usize;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
+        let line_idx = self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .primary()
+            .pos()
+            .line as usize;
 
         let line_text = lines.get(line_idx).cloned().unwrap_or_default();
         let edit = if indent {
@@ -3074,13 +3113,17 @@ impl crabideApp {
     }
 
     fn handle_toggle_line_comment(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
-        let lines = self.ui_state.tabs[active_idx].lines.clone();
-        let line_idx = self.ui_state.tabs[active_idx].cursors.primary().pos().line as usize;
-        let language = &self.ui_state.tabs[active_idx].language;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
+        let lines = self.ui_state.tabs_mut()[active_idx].lines.clone();
+        let line_idx = self.ui_state.tabs_mut()[active_idx]
+            .cursors
+            .primary()
+            .pos()
+            .line as usize;
+        let language = &self.ui_state.tabs_mut()[active_idx].language;
 
         let prefix = line_comment_prefix(language);
         let line_text = lines.get(line_idx).cloned().unwrap_or_default();
@@ -3127,14 +3170,14 @@ impl crabideApp {
         self.sync_tab_from_workspace(active_idx);
 
         // Adjust cursor column.
-        let col = self.ui_state.tabs[active_idx]
+        let col = self.ui_state.tabs_mut()[active_idx]
             .cursors
             .primary()
             .pos()
             .character as i32;
         let new_col = (col + char_delta).max(0) as u32;
         let line_idx_u32 = line_idx as u32;
-        self.ui_state.tabs[active_idx]
+        self.ui_state.tabs_mut()[active_idx]
             .cursors
             .primary_mut()
             .move_to(Position::new(line_idx_u32, new_col));
@@ -3145,25 +3188,27 @@ impl crabideApp {
     fn scroll_to_current_match(&mut self) {
         let current = self.ui_state.find_replace.current_match();
         if let Some(range) = current {
-            if let Some(idx) = self.ui_state.active_tab {
-                self.ui_state.tabs[idx].cursors.set_single(range.start);
+            if let Some(idx) = self.ui_state.active_tab() {
+                self.ui_state.tabs_mut()[idx]
+                    .cursors
+                    .set_single(range.start);
                 self.ui_state.pending_scroll_line = Some(range.start.line as usize);
             }
         }
     }
 
     fn handle_find_replace_current(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
 
         let Some(range) = self.ui_state.find_replace.current_match() else {
             return;
         };
         let replacement = self.ui_state.find_replace.replacement.clone();
         let matched_text = {
-            let lines = &self.ui_state.tabs[active_idx].lines;
+            let lines = &self.ui_state.tabs_mut()[active_idx].lines;
             extract_text(lines, range)
         };
         let new_text =
@@ -3179,10 +3224,10 @@ impl crabideApp {
     }
 
     fn handle_replace_all(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let id = self.ui_state.tabs[active_idx].buffer_id;
+        let id = self.ui_state.tabs_mut()[active_idx].buffer_id;
         let replacement = self.ui_state.find_replace.replacement.clone();
 
         // Collect all match ranges in reverse order.
@@ -3202,7 +3247,7 @@ impl crabideApp {
         let edits: Vec<TextEdit> = matches
             .iter()
             .map(|&range| {
-                let matched = extract_text(&self.ui_state.tabs[active_idx].lines, range);
+                let matched = extract_text(&self.ui_state.tabs_mut()[active_idx].lines, range);
                 TextEdit {
                     range,
                     new_text: crabide_ui::panels::find_replace::apply_replacement(
@@ -3226,10 +3271,10 @@ impl crabideApp {
     // ── Add next occurrence (Ctrl+D) ──────────────────────────────────────────
 
     fn handle_add_next_occurrence(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let tab = &self.ui_state.tabs[active_idx];
+        let tab = &self.ui_state.tabs_mut()[active_idx];
 
         // Get the word/text to search for.
         let search_text = if let Some(sel) = selected_text(tab) {
@@ -3260,7 +3305,7 @@ impl crabideApp {
             .unwrap_or(Position::new(0, 0));
 
         let lines = tab.lines.clone();
-        let tab_mut = &mut self.ui_state.tabs[active_idx];
+        let tab_mut = &mut self.ui_state.tabs_mut()[active_idx];
         if let Some(range) = find_next_occurrence(&lines, &search_text, start_pos) {
             tab_mut.cursors.add_cursor_at_range(range);
             self.ui_state
@@ -3280,10 +3325,10 @@ impl crabideApp {
     // ── Select all occurrences (Ctrl+Shift+L) ─────────────────────────────────
 
     fn handle_select_all_occurrences(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let tab = &self.ui_state.tabs[active_idx];
+        let tab = &self.ui_state.tabs_mut()[active_idx];
 
         let search_text = if let Some(sel) = selected_text(tab) {
             if sel.is_empty() {
@@ -3313,7 +3358,7 @@ impl crabideApp {
             return;
         }
         let count = ranges.len();
-        let tab_mut = &mut self.ui_state.tabs[active_idx];
+        let tab_mut = &mut self.ui_state.tabs_mut()[active_idx];
         tab_mut.cursors.set_multi_selection(&ranges);
         self.ui_state
             .set_status(format!("Selected {count} occurrences"));
@@ -3322,10 +3367,10 @@ impl crabideApp {
     // ── Trim trailing whitespace ───────────────────────────────────────────────
 
     fn handle_trim_trailing_whitespace(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let tab = &self.ui_state.tabs[active_idx];
+        let tab = &self.ui_state.tabs_mut()[active_idx];
         let id = tab.buffer_id;
 
         let edits: Vec<TextEdit> = tab
@@ -3365,10 +3410,10 @@ impl crabideApp {
     // ── Toggle block comment ───────────────────────────────────────────────────
 
     fn handle_toggle_block_comment(&mut self) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
-        let tab = &self.ui_state.tabs[active_idx];
+        let tab = &self.ui_state.tabs_mut()[active_idx];
         let id = tab.buffer_id;
         let lang = tab.language.clone();
 
@@ -3467,11 +3512,11 @@ impl crabideApp {
     // ── Jump to next / prev diagnostic ────────────────────────────────────────
 
     fn jump_to_diagnostic(&mut self, next: bool) {
-        let Some(active_idx) = self.ui_state.active_tab else {
+        let Some(active_idx) = self.ui_state.active_tab() else {
             return;
         };
         let (cur_line, diag_ranges_and_msgs): (u32, Vec<(Range, String)>) = {
-            let tab = &self.ui_state.tabs[active_idx];
+            let tab = &self.ui_state.tabs_mut()[active_idx];
             if tab.diagnostics.is_empty() {
                 self.ui_state.set_status("No diagnostics");
                 return;
@@ -3498,7 +3543,9 @@ impl crabideApp {
         };
         if let Some((range, msg)) = target {
             let pos = range.start;
-            self.ui_state.tabs[active_idx].cursors.move_primary_to(pos);
+            self.ui_state.tabs_mut()[active_idx]
+                .cursors
+                .move_primary_to(pos);
             self.ui_state.pending_scroll_line = Some(pos.line as usize);
             self.ui_state.set_status(format!(
                 "Diagnostic on line {}: {}",
@@ -3513,12 +3560,12 @@ impl crabideApp {
     /// Sync the active tab's `lines` snapshot from the workspace document,
     /// then re-parse and update syntax highlight spans.
     fn sync_tab_from_workspace(&mut self, tab_idx: usize) {
-        let Some(tab) = self.ui_state.tabs.get(tab_idx) else {
+        let Some(tab) = self.ui_state.tabs().get(tab_idx) else {
             return;
         };
         let id = tab.buffer_id;
         if let Ok(lines) = self.workspace.get_lines(id) {
-            if let Some(tab) = self.ui_state.tabs.get_mut(tab_idx) {
+            if let Some(tab) = self.ui_state.tabs_mut().get_mut(tab_idx) {
                 tab.lines = lines;
                 tab.is_dirty = self.workspace.is_dirty(id);
                 // After a buffer change (undo, redo, external edit) lines may be
@@ -3532,7 +3579,7 @@ impl crabideApp {
 
         // Queue a debounced document-change notification so extensions don't
         // receive one call per keystroke — they are batched after 300 ms idle.
-        if let Some(uri_str) = self.ui_state.tabs.get(tab_idx).map(|t| t.uri.to_string()) {
+        if let Some(uri_str) = self.ui_state.tabs().get(tab_idx).map(|t| t.uri.to_string()) {
             self.extension_host.queue_document_change(&uri_str);
         }
     }
@@ -3540,7 +3587,7 @@ impl crabideApp {
     /// Re-parse the document in `tab_idx` and store fresh highlight spans and
     /// folding ranges.
     fn update_highlights(&mut self, tab_idx: usize) {
-        let Some(tab) = self.ui_state.tabs.get(tab_idx) else {
+        let Some(tab) = self.ui_state.tabs().get(tab_idx) else {
             return;
         };
         let id = tab.buffer_id;
@@ -3555,7 +3602,7 @@ impl crabideApp {
         let folds = self.syntax.folding_ranges(id);
         let outline = self.syntax.outline(id);
         let breadcrumbs = compute_breadcrumbs(&outline, cursor_line);
-        if let Some(tab) = self.ui_state.tabs.get_mut(tab_idx) {
+        if let Some(tab) = self.ui_state.tabs_mut().get_mut(tab_idx) {
             tab.highlight_spans = spans;
             tab.folding_ranges = folds.into_iter().map(Into::into).collect();
             tab.breadcrumbs = breadcrumbs;
@@ -3564,17 +3611,17 @@ impl crabideApp {
 
     /// Open a file path as a new editor tab and immediately parse it.
     fn open_path(&mut self, path: PathBuf) {
-        let before = self.ui_state.tabs.len();
+        let before = self.ui_state.tabs().len();
         open_path_as_tab(&mut self.ui_state, &self.workspace, path.clone());
         // If a new tab was added, parse it for syntax highlighting.
-        if self.ui_state.tabs.len() > before {
-            if let Some(idx) = self.ui_state.active_tab {
+        if self.ui_state.tabs().len() > before {
+            if let Some(idx) = self.ui_state.active_tab() {
                 self.update_highlights(idx);
 
                 // Collect extension notification data before `path` is moved.
                 let lang_id = language_id_from_uri(&path.to_string_lossy());
-                let uri_str = self.ui_state.tabs[idx].uri.to_string();
-                let text = self.ui_state.tabs[idx].lines.join("\n");
+                let uri_str = self.ui_state.tabs_mut()[idx].uri.to_string();
+                let text = self.ui_state.tabs_mut()[idx].lines.join("\n");
 
                 // Request diff hunks for the newly opened file.
                 if let Some(svc) = &self.git_service {
@@ -3604,7 +3651,7 @@ impl crabideApp {
 
     /// Update the bracket match highlight for the active tab.
     fn update_bracket_match(&mut self, tab_idx: usize) {
-        let Some(tab) = self.ui_state.tabs.get_mut(tab_idx) else {
+        let Some(tab) = self.ui_state.tabs_mut().get_mut(tab_idx) else {
             return;
         };
         let pos = tab.cursors.primary().pos();
@@ -3621,15 +3668,15 @@ impl crabideApp {
     /// Get the language of the active tab, if any.
     fn active_language(&self) -> Option<Language> {
         self.ui_state
-            .active_tab
-            .and_then(|i| self.ui_state.tabs.get(i))
+            .active_tab()
+            .and_then(|i| self.ui_state.tabs().get(i))
             .map(|t| t.language.clone())
     }
 
     /// Get the URI and cursor position of the active tab.
     fn active_uri_and_position(&self) -> Option<(DocumentUri, Position)> {
-        self.ui_state.active_tab.and_then(|i| {
-            let tab = self.ui_state.tabs.get(i)?;
+        self.ui_state.active_tab().and_then(|i| {
+            let tab = self.ui_state.tabs().get(i)?;
             Some((tab.uri.clone(), tab.cursors.primary().pos()))
         })
     }
@@ -3744,10 +3791,10 @@ impl crabideApp {
 
     /// Request code actions from the LSP server.
     fn lsp_code_actions(&mut self) {
-        let Some(idx) = self.ui_state.active_tab else {
+        let Some(idx) = self.ui_state.active_tab() else {
             return;
         };
-        let tab = &self.ui_state.tabs[idx];
+        let tab = &self.ui_state.tabs_mut()[idx];
         let uri = tab.uri.clone();
         let pos = tab.cursors.primary().pos();
         let lang = tab.language.clone();
@@ -3784,8 +3831,8 @@ impl crabideApp {
         };
         let new_name = self
             .ui_state
-            .active_tab
-            .map(|i| word_at_cursor(&self.ui_state.tabs[i]))
+            .active_tab()
+            .map(|i| word_at_cursor(&self.ui_state.tabs_mut()[i]))
             .unwrap_or_default();
         if new_name.is_empty() {
             self.ui_state.set_status("No symbol under cursor");
@@ -3830,8 +3877,8 @@ impl crabideApp {
                 .set_status(format!("Applied: {}", action.title));
         } else if let Some(ref cmd) = action.command {
             // Execute the command via LSP.
-            if let Some(idx) = self.ui_state.active_tab {
-                let tab = &self.ui_state.tabs[idx];
+            if let Some(idx) = self.ui_state.active_tab() {
+                let tab = &self.ui_state.tabs_mut()[idx];
                 let lang = tab.language.clone();
                 if let Some(client) = self.lsp_manager.get_client(&lang) {
                     let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
@@ -3890,17 +3937,17 @@ impl eframe::App for crabideApp {
         // ── Populate keybinding when-context ────────────────────────────────
         {
             // Collect values from the UI state before mutating when_context.
-            let has_active_tab = self.ui_state.active_tab.is_some();
+            let has_active_tab = self.ui_state.active_tab().is_some();
             let has_selection = self
                 .ui_state
-                .active_tab
-                .and_then(|i| self.ui_state.tabs.get(i))
+                .active_tab()
+                .and_then(|i| self.ui_state.tabs().get(i))
                 .map(|t| t.cursors.primary().has_selection())
                 .unwrap_or(false);
             let active_lang: Option<String> = self
                 .ui_state
-                .active_tab
-                .and_then(|i| self.ui_state.tabs.get(i))
+                .active_tab()
+                .and_then(|i| self.ui_state.tabs().get(i))
                 .map(|t| t.language.clone())
                 .map(|l| l.as_str().to_owned());
             let sidebar_visible = self.ui_state.sidebar_visible;
@@ -3986,7 +4033,7 @@ impl eframe::App for crabideApp {
         // Save session: collect open file URIs as filesystem paths (skip untitled).
         let open_files: Vec<String> = self
             .ui_state
-            .tabs
+            .tabs()
             .iter()
             .filter_map(|tab| {
                 let uri = &tab.uri;
@@ -4006,7 +4053,7 @@ impl eframe::App for crabideApp {
 
 /// Return a mutable reference to the tab whose URI matches `uri`.
 fn tab_for_uri_mut<'a>(state: &'a mut UiState, uri: &DocumentUri) -> Option<&'a mut EditorTab> {
-    state.tabs.iter_mut().find(|t| &t.uri == uri)
+    state.tabs_mut().iter_mut().find(|t| &t.uri == uri)
 }
 
 /// Update file-explorer node `git_status` fields from the latest git status list.
@@ -4086,8 +4133,8 @@ fn open_path_as_tab(state: &mut UiState, workspace: &Arc<Workspace>, path: PathB
     };
 
     // Avoid opening the same file twice.
-    if let Some(idx) = state.tabs.iter().position(|t| t.uri == uri) {
-        state.active_tab = Some(idx);
+    if let Some(idx) = state.tabs().iter().position(|t| t.uri == uri) {
+        state.active_group_mut().active_tab = Some(idx);
         return;
     }
 

@@ -395,12 +395,12 @@ pub fn recompute_matches(state: &mut UiState) {
         Err(_) => return,
     };
 
-    let Some(active_idx) = state.active_tab else {
+    let Some(active_idx) = state.active_tab() else {
         return;
     };
     let mut new_ranges: Vec<Range> = Vec::new();
     {
-        let Some(tab) = state.tabs.get(active_idx) else {
+        let Some(tab) = state.tabs().get(active_idx) else {
             return;
         };
         for (line_idx, line) in tab.lines.iter().enumerate() {

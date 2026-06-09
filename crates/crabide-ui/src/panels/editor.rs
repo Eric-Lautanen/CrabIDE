@@ -62,7 +62,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     let tab_action = tab_bar::show(ui, state);
     match tab_action {
         tab_bar::TabBarAction::Activate(idx) => {
-            state.active_tab = Some(idx);
+            let group = state.active_group_mut();
+            group.active_tab = Some(idx);
         }
         tab_bar::TabBarAction::Close(idx) => {
             if let Some(id) = state.close_tab(idx) {
@@ -74,11 +75,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     }
 
     // ── No open document — show welcome screen ────────────────────────────────
-    let Some(active_idx) = state.active_tab else {
+    let group = state.active_group_ref();
+    let Some(active_idx) = group.active_tab else {
         show_welcome(ui, state, actions);
         return;
     };
-    if active_idx >= state.tabs.len() {
+    if active_idx >= group.tabs.len() {
         show_welcome(ui, state, actions);
         return;
     }
@@ -86,7 +88,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     // ── Markdown preview toolbar (visible when active tab is a .md file) ────────
     // This is the primary UX entry point for the markdown-preview extension.
     {
-        let uri = state.tabs[active_idx].uri.to_string();
+        let uri = group.tabs[active_idx].uri.to_string();
         let is_md = uri.ends_with(".md") || uri.ends_with(".markdown");
         if is_md {
             let toolbar_bg = cfg_to_egui(state.theme.ui_or(
@@ -201,35 +203,51 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     let caret_visible = state.caret_visible;
     let word_wrap = state.word_wrap;
 
-    let tab = &state.tabs[active_idx];
-    let n_lines = tab.lines.len().max(1);
-    let scroll_id = tab.scroll_id;
-
-    // Snapshot the data we need from the tab to avoid borrow checker friction
-    // inside the scroll closure.
-    let bracket_match = tab.bracket_match;
-    let active_tabstop = tab.active_tabstop();
-    let inlay_hints: Vec<crabide_core::event::InlayHint> = tab.inlay_hints.clone();
-    let find_matches: Vec<crabide_core::types::Range> = state.find_replace.match_ranges.clone();
-    let current_match = state.find_replace.current_match_idx;
-
-    // Snapshot selection ranges so we can embed them in TextFormat::background
-    // inside build_line_job (guarantees highlight renders BEHIND glyphs).
-    let cursor_sel_ranges: Vec<crabide_core::types::Range> = state.tabs[active_idx]
-        .cursors
-        .all()
-        .iter()
-        .filter(|c| c.has_selection())
-        .map(|c| c.range())
-        .collect();
+    // Snapshot the data we need from the active tab to avoid borrow clashes.
+    let (
+        n_lines,
+        scroll_id,
+        bracket_match,
+        active_tabstop,
+        inlay_hints,
+        find_matches,
+        current_match,
+        cursor_sel_ranges,
+        drag_active,
+        last_click_time,
+        last_click_pos,
+        prev_click_count,
+    );
+    {
+        let group = state.active_group_ref();
+        let tab = &group.tabs[active_idx];
+        n_lines = tab.lines.len().max(1);
+        scroll_id = tab.scroll_id;
+        bracket_match = tab.bracket_match;
+        active_tabstop = tab.active_tabstop();
+        inlay_hints = tab.inlay_hints.clone();
+        find_matches = state.find_replace.match_ranges.clone();
+        current_match = state.find_replace.current_match_idx;
+        cursor_sel_ranges = tab
+            .cursors
+            .all()
+            .iter()
+            .filter(|c| c.has_selection())
+            .map(|c| c.range())
+            .collect::<Vec<_>>();
+        drag_active = tab.drag_anchor.is_some();
+        last_click_time = tab.last_click_time;
+        last_click_pos = tab.last_click_pos;
+        prev_click_count = tab.click_count;
+    }
 
     // Collect pointer events here and apply after the scroll area closes.
     let mut pointer_event: Option<PointerEvent> = None;
-    // Snapshot per-tab flags before the scroll closures borrow `state`.
-    let drag_active = state.tabs[active_idx].drag_anchor.is_some();
-    let last_click_time = state.tabs[active_idx].last_click_time;
-    let last_click_pos = state.tabs[active_idx].last_click_pos;
-    let prev_click_count = state.tabs[active_idx].click_count;
+    // Breakpoint gutter clicks are collected here and applied to state.dap_panel
+    // AFTER the scroll closures so the closures don't need mutable state access.
+    let mut bp_gutter_click: Option<(std::path::PathBuf, Vec<u32>)> = None;
+    // Fold toggles are also collected and applied after the scroll area.
+    let mut unsorted_fold_toggles: Vec<usize> = Vec::new();
 
     // Determine once whether an overlay (egui::Window, Area, dialog) is
     // sitting on top of the editor at the current pointer position.
@@ -254,12 +272,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
 
     // ── Rendering (two paths: word-wrap vs virtual rows) ──────────────────────
 
-    // Breakpoint gutter clicks are collected here and applied to state.dap_panel
-    // AFTER the scroll closures so the closures don't need mutable state access.
-    let mut bp_gutter_click: Option<(std::path::PathBuf, Vec<u32>)> = None;
-    // Fold toggles are also collected and applied after the scroll area.
-    let mut unsorted_fold_toggles: Vec<usize> = Vec::new();
-
     if word_wrap {
         // ── Word-wrap mode: one label per line, all lines rendered ─────────────
         let mut scroll_area = egui::ScrollArea::vertical()
@@ -277,7 +289,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             scroll_area = scroll_area.scroll_offset(egui::vec2(0.0, offset_y));
         }
         scroll_area.show(ui, |ui| {
-            let tab = &state.tabs[active_idx];
+            let tab = &state.active_group_ref().tabs[active_idx];
             let theme = &state.theme;
             let n_vis = tab.lines.len();
             let clip = ui.clip_rect();
@@ -479,7 +491,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             scroll_area = scroll_area.scroll_offset(egui::vec2(0.0, offset_y));
         }
         scroll_area.show_rows(ui, line_height, n_lines, |ui, visible_range| {
-            let tab = &state.tabs[active_idx];
+            let tab = &state.active_group_ref().tabs[active_idx];
             let theme = &state.theme;
             let first_vis = visible_range.start;
             let last_vis = visible_range.end.saturating_sub(1);
@@ -661,7 +673,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     }
 
     // ── Apply fold toggles ──────────────────────────────────────────────────
-    if let Some(tab) = state.tabs.get_mut(active_idx) {
+    if let Some(tab) = state.tabs_mut().get_mut(active_idx) {
         for idx in unsorted_fold_toggles {
             if idx < tab.folding_ranges.len() {
                 if let Some(pos) = tab.collapsed_folds.iter().position(|&i| i == idx) {
@@ -689,7 +701,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
                 }
             });
             let now = ui.input(|i| i.time);
-            let tab = &mut state.tabs[active_idx];
+            let tab = &mut state.tabs_mut()[active_idx];
 
             // Update click-count tracking.
             tab.last_click_time = now;
@@ -727,7 +739,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             state.signature_help = None;
         }
         Some(PointerEvent::Drag { pos }) => {
-            let tab = &mut state.tabs[active_idx];
+            let tab = &mut state.tabs_mut()[active_idx];
             if let Some(anchor) = tab.drag_anchor {
                 // Extend the primary cursor's selection from anchor to pos.
                 let c = tab.cursors.primary_mut();
@@ -768,7 +780,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
             // When mouse is released (anywhere, including scrollbar), clear the drag anchor.
             let released = ui.input(|i| i.pointer.primary_released());
             if released {
-                state.tabs[active_idx].drag_anchor = None;
+                state.tabs_mut()[active_idx].drag_anchor = None;
             }
         }
     }
@@ -790,7 +802,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     crate::panels::context_menu::show(ui, state);
 
     // ── LSP popup overlays (rendered after scroll area, positioned near cursor) ─
-    if let Some(tab) = state.tabs.get(active_idx) {
+    if let Some(tab) = state.tabs().get(active_idx) {
         let cursor_pos = tab.cursors.primary().pos();
 
         // Compute approximate screen position for the popups.

@@ -13,14 +13,11 @@ use crate::state::{cfg_to_egui, SidebarTab, UiState};
 // ── PaneKind ─────────────────────────────────────────────────────────────────
 
 /// The identity of a renderable pane in the tile layout.
-///
-/// Variants carry no data — all data lives in `UiState` (accessed through
-/// the `UiBehavior` borrow). This keeps the `egui_tiles::Tree` small and
-/// avoids borrow-checker tangles between tree mutation and pane state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneKind {
-    /// The main editor area: tab bar + gutter + syntax-highlighted content.
-    Editor,
+    /// An editor group: tab bar + gutter + syntax-highlighted content.
+    /// The `usize` is the index into `UiState.editor_groups`.
+    EditorGroup(usize),
     /// The left sidebar: tab strip + file-system tree or extensions panel.
     FileExplorer,
 }
@@ -32,7 +29,7 @@ pub fn default_layout() -> egui_tiles::Tree<PaneKind> {
     let mut tiles = egui_tiles::Tiles::default();
 
     let explorer_id = tiles.insert_pane(PaneKind::FileExplorer);
-    let editor_id = tiles.insert_pane(PaneKind::Editor);
+    let editor_id = tiles.insert_pane(PaneKind::EditorGroup(0));
 
     let mut linear = egui_tiles::Linear::new(
         egui_tiles::LinearDir::Horizontal,
@@ -205,14 +202,21 @@ pub struct UiBehavior<'a> {
 impl<'a> egui_tiles::Behavior<PaneKind> for UiBehavior<'a> {
     fn tab_title_for_pane(&mut self, pane: &PaneKind) -> egui::WidgetText {
         match pane {
-            PaneKind::Editor => "Editor".into(),
+            PaneKind::EditorGroup(idx) => {
+                let group = &self.state.editor_groups[*idx];
+                let label = group
+                    .active_tab_ref()
+                    .map(|t| t.title.as_str())
+                    .unwrap_or("Editor");
+                label.into()
+            }
             PaneKind::FileExplorer => "Sidebar".into(),
         }
     }
 
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut PaneKind) -> UiResponse {
         match pane {
-            PaneKind::Editor => {
+            PaneKind::EditorGroup(_idx) => {
                 panels::editor::show(ui, self.state, self.actions);
             }
             PaneKind::FileExplorer => {

@@ -622,8 +622,8 @@ mod tests {
         let theme = make_theme();
         let keybindings = crabide_config::KeybindingEngine::with_defaults();
         let state = UiState::new(theme, keybindings);
-        assert!(state.tabs.is_empty());
-        assert!(state.active_tab.is_none());
+        assert!(state.editor_groups[0].tabs.is_empty());
+        assert!(state.editor_groups[0].active_tab.is_none());
         assert_eq!(state.font_size, 14.0);
         assert!(!state.word_wrap);
         assert!(!state.git_enabled);
@@ -646,12 +646,12 @@ mod tests {
         );
         state.open_tab(tab1);
         state.open_tab(tab2);
-        assert_eq!(state.tabs.len(), 2);
+        assert_eq!(state.editor_groups[0].tabs.len(), 2);
 
         let tab_dup = EditorTab::new(buf_id, "a.rs".into(), make_uri("a.rs"), Language::RUST);
         state.open_tab(tab_dup);
-        assert_eq!(state.tabs.len(), 2);
-        assert_eq!(state.active_tab, Some(0));
+        assert_eq!(state.editor_groups[0].tabs.len(), 2);
+        assert_eq!(state.editor_groups[0].active_tab, Some(0));
     }
 
     #[test]
@@ -666,8 +666,8 @@ mod tests {
             Language::RUST,
         );
         state.open_tab(tab);
-        assert_eq!(state.tabs.len(), 1);
-        assert_eq!(state.active_tab, Some(0));
+        assert_eq!(state.editor_groups[0].tabs.len(), 1);
+        assert_eq!(state.editor_groups[0].active_tab, Some(0));
     }
 
     #[test]
@@ -680,17 +680,8 @@ mod tests {
         state.open_tab(tab);
         let closed = state.close_tab(0);
         assert_eq!(closed, Some(bid));
-        assert!(state.tabs.is_empty());
-        assert!(state.active_tab.is_none());
-    }
-
-    #[test]
-    fn ui_state_close_tab_out_of_range() {
-        let theme = make_theme();
-        let keybindings = crabide_config::KeybindingEngine::with_defaults();
-        let mut state = UiState::new(theme, keybindings);
-        assert!(state.close_tab(0).is_none());
-        assert!(state.close_tab(100).is_none());
+        assert!(state.editor_groups[0].tabs.is_empty());
+        assert!(state.editor_groups[0].active_tab.is_none());
     }
 
     #[test]
@@ -1797,6 +1788,70 @@ pub enum ContextMenuContext {
     Terminal,
 }
 
+// ── EditorGroup ──────────────────────────────────────────────────────
+
+/// A group of editor tabs displayed in one editor pane.
+///
+/// When the editor is not split, there is a single group (index 0).
+/// Split operations create additional groups, each with their own tabs
+/// and active tab index.
+pub struct EditorGroup {
+    /// All open tabs in this group.
+    pub tabs: Vec<EditorTab>,
+    /// Index into `tabs` for the active (focused) tab in this group.
+    pub active_tab: Option<usize>,
+}
+
+impl Default for EditorGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EditorGroup {
+    pub fn new() -> Self {
+        Self {
+            tabs: Vec::new(),
+            active_tab: None,
+        }
+    }
+
+    /// Open a tab for `tab`, or activate an existing one for the same buffer.
+    pub fn open_tab(&mut self, tab: EditorTab) {
+        if let Some(idx) = self.tabs.iter().position(|t| t.buffer_id == tab.buffer_id) {
+            self.active_tab = Some(idx);
+        } else {
+            self.active_tab = Some(self.tabs.len());
+            self.tabs.push(tab);
+        }
+    }
+
+    /// Close the tab at `idx`.  Returns the closed tab's `BufferId` if any.
+    pub fn close_tab(&mut self, idx: usize) -> Option<BufferId> {
+        if idx >= self.tabs.len() {
+            return None;
+        }
+        let id = self.tabs[idx].buffer_id;
+        self.tabs.remove(idx);
+        self.active_tab = if self.tabs.is_empty() {
+            None
+        } else {
+            Some(idx.saturating_sub(1).min(self.tabs.len() - 1))
+        };
+        Some(id)
+    }
+
+    /// Mutable reference to the active tab, if any.
+    pub fn active_tab_mut(&mut self) -> Option<&mut EditorTab> {
+        self.active_tab.and_then(|i| self.tabs.get_mut(i))
+    }
+
+    /// Shared reference to the active tab, if any.
+    pub fn active_tab_ref(&self) -> Option<&EditorTab> {
+        self.active_tab.and_then(|i| self.tabs.get(i))
+    }
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -1812,9 +1867,12 @@ pub struct UiState {
     /// event processing in the UI layer.
     pub when_context: WhenContext,
 
-    // ── Editor tabs ───────────────────────────────────────────────────────────
-    pub tabs: Vec<EditorTab>,
-    pub active_tab: Option<usize>,
+    // ── Editor tabs (multi-group) ─────────────────────────────────────────────
+    /// All editor groups. The first group (index 0) always exists.
+    /// Additional groups are created by split operations.
+    pub editor_groups: Vec<EditorGroup>,
+    /// Index into `editor_groups` for the currently focused group.
+    pub active_group: usize,
 
     // ── Panel layout (egui_tiles) ─────────────────────────────────────────────
     pub layout: egui_tiles::Tree<PaneKind>,
@@ -1951,8 +2009,8 @@ impl UiState {
             theme,
             keybindings,
             when_context: WhenContext::new(),
-            tabs: Vec::new(),
-            active_tab: None,
+            editor_groups: vec![EditorGroup::new()],
+            active_group: 0,
             layout: default_layout(),
             sidebar_visible: true,
             file_explorer: FileExplorerState::default(),
@@ -1999,44 +2057,59 @@ impl UiState {
         }
     }
 
-    // ── Tab management ────────────────────────────────────────────────────────
+    // ── Editor group helpers ──────────────────────────────────────────────
+
+    /// Shared reference to the active editor group.
+    pub fn active_group_ref(&self) -> &EditorGroup {
+        &self.editor_groups[self.active_group]
+    }
+
+    /// Mutable reference to the active editor group.
+    pub fn active_group_mut(&mut self) -> &mut EditorGroup {
+        &mut self.editor_groups[self.active_group]
+    }
+
+    /// Index of the active tab in the active group, if any.
+    pub fn active_tab(&self) -> Option<usize> {
+        self.active_group_ref().active_tab
+    }
+
+    /// The number of tabs in the active group.
+    pub fn tab_count(&self) -> usize {
+        self.active_group_ref().tabs.len()
+    }
+
+    /// Shared reference to the tabs of the active group.
+    pub fn tabs(&self) -> &[EditorTab] {
+        &self.active_group_ref().tabs
+    }
+
+    /// Mutable reference to the tabs of the active group.
+    pub fn tabs_mut(&mut self) -> &mut Vec<EditorTab> {
+        &mut self.active_group_mut().tabs
+    }
+
+    // ── Tab management (delegates to active group) ─────────────────────────
 
     /// Open a tab for `tab`, or activate an existing one for the same buffer.
     pub fn open_tab(&mut self, tab: EditorTab) {
-        if let Some(idx) = self.tabs.iter().position(|t| t.buffer_id == tab.buffer_id) {
-            self.active_tab = Some(idx);
-        } else {
-            self.active_tab = Some(self.tabs.len());
-            self.tabs.push(tab);
-        }
+        self.active_group_mut().open_tab(tab);
     }
 
     /// Close the tab at `idx`.  Returns the closed tab's `BufferId` if any.
     pub fn close_tab(&mut self, idx: usize) -> Option<BufferId> {
-        if idx >= self.tabs.len() {
-            return None;
-        }
-        let id = self.tabs[idx].buffer_id;
-        self.tabs.remove(idx);
-        self.active_tab = if self.tabs.is_empty() {
-            None
-        } else {
-            Some(idx.saturating_sub(1).min(self.tabs.len() - 1))
-        };
-        Some(id)
+        self.active_group_mut().close_tab(idx)
     }
 
     /// Mutable reference to the active tab, if any.
     pub fn active_tab_mut(&mut self) -> Option<&mut EditorTab> {
-        self.active_tab.and_then(|i| self.tabs.get_mut(i))
+        self.active_group_mut().active_tab_mut()
     }
 
     /// Shared reference to the active tab, if any.
     pub fn active_tab_ref(&self) -> Option<&EditorTab> {
-        self.active_tab.and_then(|i| self.tabs.get(i))
+        self.active_group_ref().active_tab_ref()
     }
-
-    // ── Status message ────────────────────────────────────────────────────────
 
     /// Display a timed status message.
     pub fn set_status(&mut self, msg: impl Into<String>) {

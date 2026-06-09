@@ -18,10 +18,10 @@ const MINIMAP_LINE_H: f32 = 2.0;
 /// Returns `true` if the user clicked/dragged the minimap viewport handle
 /// (the caller should scroll the editor accordingly).
 pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> bool {
-    let Some(active_idx) = state.active_tab else {
+    let Some(active_idx) = state.active_tab() else {
         return false;
     };
-    let Some(tab) = state.tabs.get(active_idx) else {
+    let Some(tab) = state.tabs().get(active_idx) else {
         return false;
     };
 

@@ -48,13 +48,13 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
 
     // ── Count totals ──────────────────────────────────────────────────────────
     let total_errors: usize = state
-        .tabs
+        .tabs()
         .iter()
         .flat_map(|t| &t.diagnostics)
         .filter(|d| d.severity == DiagnosticSeverity::Error)
         .count();
     let total_warnings: usize = state
-        .tabs
+        .tabs()
         .iter()
         .flat_map(|t| &t.diagnostics)
         .filter(|d| d.severity == DiagnosticSeverity::Warning)
@@ -102,9 +102,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
             ui.spacing_mut().item_spacing.y = 0.0;
 
             // ── Per-tab diagnostics ───────────────────────────────────────────
-            let has_diagnostics = state.tabs.iter().any(|t| !t.diagnostics.is_empty());
+            let has_diagnostics = state.tabs().iter().any(|t| !t.diagnostics.is_empty());
             if has_diagnostics {
-                for (tab_idx, tab) in state.tabs.iter().enumerate() {
+                for (tab_idx, tab) in state.tabs().iter().enumerate() {
                     if tab.diagnostics.is_empty() {
                         continue;
                     }
@@ -218,12 +218,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
             }
         });
 
-    // ── Apply navigation (after borrow of state.tabs ends) ───────────────────
+    // ── Apply navigation (after borrow of tabs ends) ───────────────────────
     if let Some(Navigate::Diagnostic { tab_idx, line, col }) = navigate {
-        state.active_tab = Some(tab_idx);
+        state.active_group_mut().active_tab = Some(tab_idx);
         state.pending_scroll_line = Some(line as usize);
-        if tab_idx < state.tabs.len() {
-            state.tabs[tab_idx]
+        if tab_idx < state.tabs().len() {
+            state.tabs_mut()[tab_idx]
                 .cursors
                 .set_single(Position::new(line, col));
         }

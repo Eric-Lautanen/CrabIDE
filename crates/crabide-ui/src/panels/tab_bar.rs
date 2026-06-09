@@ -60,8 +60,8 @@ pub fn show(ui: &mut egui::Ui, state: &UiState) -> TabBarAction {
     egui::ScrollArea::horizontal()
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
         .show(&mut child_ui, |ui| {
-            for (idx, tab) in state.tabs.iter().enumerate() {
-                let is_active = state.active_tab == Some(idx);
+            for (idx, tab) in state.tabs().iter().enumerate() {
+                let is_active = state.active_tab() == Some(idx);
                 let tab_bg = if is_active {
                     tab_bg_active
                 } else {
@@ -167,7 +167,7 @@ pub fn show(ui: &mut egui::Ui, state: &UiState) -> TabBarAction {
                 }
 
                 // Thin right-edge divider between tabs (not after the last one)
-                if idx + 1 < state.tabs.len() {
+                if idx + 1 < state.tab_count() {
                     ui.painter().rect_filled(
                         Rect::from_min_size(
                             egui::pos2(tab_rect.max.x - 1.0, tab_rect.min.y + 4.0),

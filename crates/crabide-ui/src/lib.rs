@@ -50,7 +50,7 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
     let now = ctx.input(|i| i.time);
     let terminal_active =
         state.terminal.visible && state.terminal.has_focus && !state.terminal.instances.is_empty();
-    if state.active_tab.is_some() || terminal_active {
+    if state.active_tab().is_some() || terminal_active {
         state.tick_caret(now);
         ctx.request_repaint_after(std::time::Duration::from_millis(530));
     }
@@ -1012,8 +1012,8 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                         && !modifiers.command
                     {
                         let has_snippet = state
-                            .active_tab
-                            .and_then(|i| state.tabs.get(i))
+                            .active_tab()
+                            .and_then(|i| state.active_group_ref().tabs.get(i))
                             .map(|t| t.snippet_engine.current_tabstop().is_some())
                             .unwrap_or(false);
                         if modifiers.shift {
@@ -1264,39 +1264,42 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             // Forward to app to run the actual grep.
             false
         }
-
         // ── Tab navigation ────────────────────────────────────────────────────
         Action::NextTab => {
-            if let Some(idx) = state.active_tab {
-                if idx + 1 < state.tabs.len() {
-                    state.active_tab = Some(idx + 1);
+            let group = state.active_group_mut();
+            if let Some(idx) = group.active_tab {
+                if idx + 1 < group.tabs.len() {
+                    group.active_tab = Some(idx + 1);
                 }
             }
             true
         }
         Action::PreviousTab => {
-            if let Some(idx) = state.active_tab {
+            let group = state.active_group_mut();
+            if let Some(idx) = group.active_tab {
                 if idx > 0 {
-                    state.active_tab = Some(idx - 1);
+                    group.active_tab = Some(idx - 1);
                 }
             }
             true
         }
         Action::MoveTabRight => {
-            if let Some(idx) = state.active_tab {
-                let n = state.tabs.len();
+            let group = state.active_group_mut();
+            if let Some(idx) = group.active_tab {
+                let n = group.tabs.len();
                 if idx + 1 < n {
-                    state.tabs.swap(idx, idx + 1);
-                    state.active_tab = Some(idx + 1);
+                    group.tabs.swap(idx, idx + 1);
+                    group.active_tab = Some(idx + 1);
                 }
             }
             true
         }
         Action::MoveTabLeft => {
-            if let Some(idx) = state.active_tab {
+            let group = state.active_group_mut();
+            if let Some(idx) = group.active_tab {
                 if idx > 0 {
-                    state.tabs.swap(idx, idx - 1);
-                    state.active_tab = Some(idx - 1);
+                    group.tabs.swap(idx, idx - 1);
+                    group.active_tab = Some(idx - 1);
                 }
             }
             true
@@ -1465,8 +1468,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
 
         // ── Snippet tabstop cycling ───────────────────────────────────────────
         Action::NextTabstop => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     if let Some(ts) = tab.snippet_engine.next_tabstop() {
                         let pos = ts.range.start;
                         tab.cursors.set_single(pos);
@@ -1476,8 +1479,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
         Action::PreviousTabstop => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     if let Some(ts) = tab.snippet_engine.prev_tabstop() {
                         let pos = ts.range.start;
                         tab.cursors.set_single(pos);
@@ -1489,8 +1492,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
 
         // ── Select all ────────────────────────────────────────────────────────
         Action::SelectAll => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let last_line = tab.lines.len().saturating_sub(1);
                     let last_col = tab.lines.last().map(|l| l.chars().count()).unwrap_or(0) as u32;
                     use crabide_core::types::Selection;
@@ -1631,8 +1634,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
 
         // ── Select current line ───────────────────────────────────────────────
         Action::SelectLine => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     use crabide_core::types::Selection;
                     let line = tab.cursors.primary().pos().line;
                     let len = tab
@@ -1651,8 +1654,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
 
         // ── Add cursor above / below (Alt+Ctrl+Up/Down) ───────────────────────
         Action::AddCursorAbove => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
                     if pos.line > 0 {
                         let new_line = pos.line - 1;
@@ -1669,8 +1672,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
         Action::AddCursorBelow => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
                     let n_lines = tab.lines.len() as u32;
                     if pos.line + 1 < n_lines {
@@ -1690,8 +1693,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
 
         // ── Column select up / down ────────────────────────────────────────────
         Action::ColumnSelectUp => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
                     if pos.line > 0 {
                         let new_line = pos.line - 1;
@@ -1708,8 +1711,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
         Action::ColumnSelectDown => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
                     let n_lines = tab.lines.len() as u32;
                     if pos.line + 1 < n_lines {
@@ -1729,8 +1732,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
 
         // ── Expand/shrink selection ───────────────────────────────────────────
         Action::ExpandSelection => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
                     let line_str = tab
                         .lines
@@ -1764,8 +1767,8 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
         Action::ShrinkSelection => {
-            if let Some(idx) = state.active_tab {
-                if let Some(tab) = state.tabs.get_mut(idx) {
+            if let Some(idx) = state.active_tab() {
+                if let Some(tab) = state.tabs_mut().get_mut(idx) {
                     let pos = tab.cursors.primary().pos();
                     tab.cursors.primary_mut().collapse_to_end();
                     tab.cursors.primary_mut().move_to(pos);
@@ -1827,18 +1830,18 @@ enum MoveKind {
 }
 
 fn scroll_to_primary(state: &mut UiState) {
-    if let Some(idx) = state.active_tab {
-        if let Some(tab) = state.tabs.get(idx) {
+    if let Some(idx) = state.active_tab() {
+        if let Some(tab) = state.tabs().get(idx) {
             state.pending_scroll_line = Some(tab.cursors.primary().pos().line as usize);
         }
     }
 }
 
 fn move_cursors(state: &mut UiState, kind: MoveKind, extend: bool) {
-    let Some(active_idx) = state.active_tab else {
+    let Some(active_idx) = state.active_tab() else {
         return;
     };
-    let Some(tab) = state.tabs.get_mut(active_idx) else {
+    let Some(tab) = state.tabs_mut().get_mut(active_idx) else {
         return;
     };
 
@@ -2619,6 +2622,6 @@ mod tests {
 
     #[test]
     fn pane_kind_derives() {
-        assert_ne!(PaneKind::Editor, PaneKind::FileExplorer);
+        assert_ne!(PaneKind::EditorGroup(0), PaneKind::FileExplorer);
     }
 }
