@@ -734,15 +734,10 @@ impl crabideApp {
                 .cloned();
 
             if let Some(ext) = found {
-                match self.extension_host.install_registry(
-                    ext.id.clone(),
-                    ext.name.clone(),
-                    ext.version.clone(),
-                    ext.download_url.clone(),
-                ) {
-                    Ok(()) => self
+                match self.extension_host.install_registry(&ext, &self.registry) {
+                    Ok(name) => self
                         .ui_state
-                        .set_status(format!("Queued install: {}", ext.name)),
+                        .set_status(format!("Installed extension: {name}")),
                     Err(msg) => self.ui_state.set_status(format!("Install failed: {msg}")),
                 }
             }

@@ -150,6 +150,11 @@ toml = "1"
 # extension registry GET/POST no need for async hyper/h2/rustls chain.
 ureq = { version = "3", features = ["json"] }
 
+# Cryptography
+# SHA-256 for extension registry checksum verification.  We embed the hex digest
+# in registry metadata and verify after download.  Tiny, pure-Rust, well-audited.
+sha2 = "0.10"
+
 # Error Handling
 # thiserror 2.x (confirmed via egui-wgpu 0.34 dependency on thiserror ^2.0.17)
 thiserror = "2"

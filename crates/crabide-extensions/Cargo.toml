@@ -18,6 +18,9 @@ crabide-lsp.workspace     = true
 # Extension registry HTTP
 ureq.workspace = true
 
+# SHA-256 checksum verification for registry downloads
+sha2.workspace = true
+
 tokio.workspace      = true
 serde.workspace      = true
 serde_json.workspace = true

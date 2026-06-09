@@ -34,4 +34,4 @@ pub use host::{
     NavigateTarget, PanelLocation, PanelRegistration, RegisteredCommand, RowItem,
     SidebarPaneRegistration, StatusBarAlignment, TextEdit,
 };
-pub use registry::{RegistryClient, RegistryExtension};
+pub use registry::{DownloadResult, RegistryClient, RegistryExtension};

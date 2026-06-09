@@ -787,40 +787,100 @@ impl ExtensionHost {
         Ok(ext_name)
     }
 
-    /// Install a registry extension by its download URL (stub).
+    /// Install a registry extension by ID with checksum-verified download.
+    ///
+    /// Downloads the extension binary via `registry_client`, verifies its
+    /// SHA-256 checksum, saves it to the extensions directory, and attempts
+    /// to load it through the WASM engine.  Returns the installed extension
+    /// name on success.
     pub fn install_registry(
         &mut self,
-        id: String,
-        name: String,
-        version: String,
-        download_url: String,
-    ) -> Result<(), String> {
-        if self.installed.iter().any(|e| e.manifest.id == id) {
-            return Err(format!("Extension '{id}' is already installed"));
+        ext: &crate::RegistryExtension,
+        registry_client: &crate::RegistryClient,
+    ) -> Result<String, String> {
+        if self.installed.iter().any(|e| e.manifest.id == ext.id) {
+            return Err(format!("Extension '{}' is already installed", ext.id));
         }
 
+        // 1. Download with checksum verification.
+        let result = registry_client.download(ext)?;
+
+        // 2. Determine storage path.
+        let dir = self
+            .extensions_dir
+            .clone()
+            .ok_or_else(|| "Extensions directory not configured".to_string())?;
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| format!("Failed to create extensions dir: {e}"))?;
+        }
+        let file_name = format!("{}-{}.wasm", ext.id, ext.version);
+        let dest = dir.join(&file_name);
+
+        // 3. Write to disk (atomic: write to temp, rename).
+        let tmp = dir.join(format!(".{}.tmp", file_name));
+        std::fs::write(&tmp, &result.bytes)
+            .map_err(|e| format!("Failed to write extension file: {e}"))?;
+        std::fs::rename(&tmp, &dest)
+            .map_err(|e| format!("Failed to rename extension file: {e}"))?;
+
+        log::info!(
+            "install_registry: {} v{} saved to {}",
+            ext.id,
+            ext.version,
+            dest.display()
+        );
+
+        // 4. Build a proper manifest from registry metadata.
         let manifest = ExtensionManifest {
-            id: id.clone(),
-            name: name.clone(),
-            description: "Registry extension (WASM loading pending)".into(),
-            version,
-            author: "Registry".into(),
+            id: ext.id.clone(),
+            name: ext.name.clone(),
+            description: ext.description.clone(),
+            version: ext.version.clone(),
+            author: ext.author.clone(),
             categories: vec![ExtensionCategory::Other],
             is_builtin: false,
         };
 
-        // TODO: download from `download_url` via ureq, verify checksum, then
-        //       install_local(downloaded_path).
-        log::info!("install_registry: {id} @ {download_url} (stub)");
+        // 5. Try to load via WASM engine (feature-gated).
+        #[cfg(feature = "wasm-extensions")]
+        let instance: Option<Box<dyn NativeExtension>> = {
+            let empty_ctx = ExtensionContext {
+                active_text: None,
+                active_uri: None,
+                active_language: "",
+                workspace_roots: &[],
+                blame_lines: &[],
+                cursor_line: 0,
+                cursor_col: 0,
+                selection: None,
+                current_theme_id: "crabide-dark",
+            };
+            match crate::wasm_ext::WasmExtension::load(&dest) {
+                Ok(mut ext_inst) => {
+                    ext_inst.activate(&empty_ctx);
+                    Some(ext_inst)
+                }
+                Err(e) => {
+                    log::error!("Failed to load registry extension '{}': {e}", ext.id);
+                    None
+                }
+            }
+        };
+
+        #[cfg(not(feature = "wasm-extensions"))]
+        let instance: Option<Box<dyn NativeExtension>> = None;
 
         self.installed.push(InstalledExtension {
             manifest,
-            enabled: false,
-            source: ExtensionSource::Registry { download_url },
+            enabled: instance.is_some(),
+            source: ExtensionSource::Registry {
+                download_url: ext.download_url.clone(),
+            },
         });
-        self.instances.push(None);
+        self.instances.push(instance);
 
-        Ok(())
+        Ok(ext.id.clone())
     }
 
     /// Notify enabled extensions that a document was opened.
