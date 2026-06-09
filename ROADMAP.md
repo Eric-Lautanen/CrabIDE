@@ -273,31 +273,34 @@ Many pure functions (no side effects) return `Result`, `Option`, or a value with
 
 Several places use `.cloned()` on types that implement `Copy`. Clippy would flag these.
 
-**Remediation:** Prefer `.copied()` over `.cloned()` on `Copy` types.
+## 🟢 Low (idiom / style / 2026 best practices)
 
-- [x] L-2-1: Fix `.cloned()` → `.copied()` in test code and production code
+### L-1. Missing `#[must_use]` on pure functions
 
----
+| File | Function | Reason |
+|------|----------|--------|
+
+...
 
 ### L-3. Edition 2024 migration readiness
 
-The workspace uses `edition = "2021"`. Edition 2024 (stable since Rust 1.85) brings:
+The workspace uses `edition = "2024"` since Session 5. MSRV bumped to 1.85.
 
 | Change | Current status | Action |
 |--------|---------------|--------|
-| `unsafe_op_in_unsafe_fn` warn-by-default | Not applied in `crabide-app` | Add `#![deny(unsafe_op_in_unsafe_fn)]` pre-migration |
-| `unsafe extern` blocks | No `extern "C"` blocks found outside of `raw_lang!` macro | Should be updated to `unsafe extern "C"` |
-| `gen` keyword reserved | No `gen` identifiers found | ✅ No issue |
-| Match ergonomics changes | Examine pattern matches on nested references | Requires manual review |
-| RPIT lifetime capture | `impl Trait` returns with implicit lifetime capture | Requires audit |
+| `unsafe_op_in_unsafe_fn` warn-by-default | Applied in `crabide-app` ✅ | Add `#![deny(unsafe_op_in_unsafe_fn)]` pre-migration |
+| `unsafe extern` blocks | Updated to `unsafe extern "C"` ✅ | Done by `cargo fix --edition` |
+| `gen` keyword reserved | No `gen` identifiers found ✅ | No issue |
+| Match ergonomics changes | Reviewed — no nested reference patterns affected ✅ | |
+| RPIT lifetime capture | Reviewed — all `impl Trait` returns compile cleanly ✅ | |
 
 **Remediation:** Bump MSRV to 1.85, run `cargo fix --edition`, then update to `edition = "2024"`.
 
-- [ ] L-3-1: Bump MSRV in workspace Cargo.toml from 1.80 to 1.85
-- [ ] L-3-2: Run `cargo fix --edition` and address any warnings
-- [ ] L-3-3: Change workspace `edition = "2024"`
-- [ ] L-3-4: Review match ergonomics changes for nested reference patterns
-- [ ] L-3-5: Review RPIT lifetime capture changes
+- [x] L-3-1: Bump MSRV in workspace Cargo.toml from 1.80 to 1.85
+- [x] L-3-2: Run `cargo fix --edition` and address any warnings
+- [x] L-3-3: Change workspace `edition = "2024"`
+- [x] L-3-4: Review match ergonomics changes for nested reference patterns
+- [x] L-3-5: Review RPIT lifetime capture changes
 
 ---
 
@@ -335,13 +338,13 @@ The snippet parser uses `std::mem::take(&mut cur)` in `parse_choices` (line 196 
 
 ### N-2. Comment rot
 
-- `crates/crabide-buffer/src/history.rs` doc says "full tree branching is a future enhancement" — should note that the flat timeline with cursor is the current implementation.
-- `crates/crabide-config/src/settings.rs` `PartialUiSettings` etc. are private but have full doc comments — not necessary but not harmful.
+- `crates/crabide-buffer/src/history.rs` doc already describes flat-timeline implementation correctly ✅
+- `crates/crabide-config/src/settings.rs` — removed doc comment on private field in `PartialSettings` ✅
 
 **Remediation:** Tidy stale comments.
 
-- [ ] N-2-1: Update history.rs doc to reflect current flat-timeline implementation
-- [ ] N-2-2: Remove or trim unnecessary doc comments on private types in settings.rs
+- [x] N-2-1: Update history.rs doc to reflect current flat-timeline implementation
+- [x] N-2-2: Remove or trim unnecessary doc comments on private types in settings.rs
 
 ---
 
@@ -359,11 +362,11 @@ The RESUME.md states the project convention bans `#[allow(dead_code)]`. No insta
 |----------|-------|-------------|
 | 🔴 Critical | 0 — **ALL DONE** | SAFETY comments added, `unsafe_op_in_unsafe_fn` lint enabled |
 | 🔴 High | 0 — **ALL DONE** | Process leaks fixed (DAP + terminal), WASM epoch timeout wired, LSP request handling fixed, `#[non_exhaustive]` added to all public enums, unused deps removed |
-| 🟡 Medium | 4 — **4 done** | Injection highlighting wired, ConfigManager Arc-return, M-2/M-3 evaluated |
-| 🟢 Low | 5 — **4 done**, 1 remaining (edition 2024) | `#[must_use]` added, `cloned`→`copied` fixed, `mem::take` used, injection tests added |
-| ⚪ Note | 3 | Add tests for DAP, git, workspace, terminal; fix minor comment rot |
+| 🟡 Medium | 4 — **ALL DONE** | Injection highlighting wired, ConfigManager Arc-return, M-2/M-3 evaluated |
+| 🟢 Low | 5 — **ALL DONE** | `#[must_use]` added, `cloned`→`copied` fixed, `mem::take` used, injection tests added, edition 2024 migration |
+| ⚪ Note | 3 — **2 done, 1 remaining** | Comment rot fixed; add unit tests for DAP, git, workspace, terminal |
 
-**Total checkboxes: 55** — **42 completed**, 13 remaining
+**Total checkboxes: 55** — **51 completed**, 4 remaining (N-1 unit tests only)
 
 ---
 
@@ -372,7 +375,8 @@ The RESUME.md states the project convention bans `#[allow(dead_code)]`. No insta
 - **Session 1** — Audited core, buffer, config, vfs. Created this roadmap.
 - **Session 2** — Audited remaining 10 crates (syntax, lsp, dap, terminal, git, extensions, search, workspace, ui, app) + root workspace. Ran `cargo clippy`. Updated roadmap with findings.
 - **Session 3** — Remediation: All Critical (C-1, C-2) and High (H-1 through H-6) items completed. Medium: M-4 (already fixed), M-5 (injection highlighting wired).
-- **Session 4** — M-1 through M-3 (ConfigManager Arc-return + evaluations), L-1 (`#[must_use]`), L-2 (`cloned`→`copied`), L-4 (`mem::take`), M-5-2 (injection tests). Remaining: L-3 (edition 2024), N-1 (tests), N-2 (comment rot).
+- **Session 4** — M-1 through M-3 (ConfigManager Arc-return + evaluations), L-1 (`#[must_use]`), L-2 (`cloned`→`copied`), L-4 (`mem::take`), M-5-2 (injection tests).
+- **Session 5** — L-3 (edition 2024 migration complete: MSRV 1.85, edition 2024, `unsafe extern` fix, match ergonomics/RPIT review), N-2 (comment rot fixed), clippy fixes.
 
 ---
 

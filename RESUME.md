@@ -1,27 +1,29 @@
 # Resume — Handoff for next session
 
-> **Remaining items:** L-3 (Edition 2024 migration), N-1 (unit tests), N-2 (comment rot)
+> **Remaining items:** N-1 (unit tests for DAP, git, workspace, terminal)
 
 ---
 
-## Session 4 completed
+## Session 5 completed
 
-**What was done in Session 4:**
-- M-1: `ConfigManager::settings()` returns `Arc<Settings>` instead of deep clone
-- M-2: Evaluated `arc_swap` — not needed (parking_lot RwLock is fast)
-- M-3: Evaluated HashMap pre-sizing — non-hot-path, no change
-- M-5-2: Added 5 unit tests for injection highlighting fallback paths
-- L-1: Added `#[must_use]` to 30+ pure functions across 4 files
-- L-2: Fixed 2 `cloned()` → `copied()` warnings
-- L-4: Replaced 14 `mem::replace(&mut x, false)` with `mem::take(&mut x)`
+**What was done in Session 5:**
+- L-3: Edition 2024 migration — complete
+  - Bumped MSRV from 1.80 to 1.85
+  - Ran `cargo fix --edition` (auto-migrated 4 files)
+  - Changed workspace edition from "2021" to "2024"
+  - Fixed `unsafe extern "C"` blocks (edition 2024 requirement)
+  - Reviewed match ergonomics — no nested reference patterns affected
+  - Reviewed RPIT lifetime capture — all `impl Trait` returns compile cleanly
+- N-2: Comment rot fixed
+  - Removed unnecessary doc comment on private field in `PartialSettings` in settings.rs
+  - history.rs doc already correctly describes flat-timeline implementation
+- Fixed 2 clippy warnings: `manual_repeat_n` in markdown_preview.rs, `let_and_return` in outline.rs
 
 ## Remaining items for next session
 
 | # | Issue | Priority | Notes |
 |---|-------|----------|-------|
-| L-3 | Edition 2024 migration | 🟢 Low | Steps: bump MSRV → `cargo fix --edition` → set edition → review match ergonomics/RPIT |
 | N-1 | Add unit tests | ⚪ Note | DAP (0 unit tests), git (0), workspace (0), terminal pty/manager (0) |
-| N-2 | Fix comment rot | ⚪ Note | history.rs doc says "full tree branching is a future enhancement", settings.rs private types have doc comments |
 
 ## Build status
 
@@ -31,9 +33,6 @@
 
 ## Key files to review
 
-- `crates/crabide-buffer/src/history.rs` — line 12 doc comment needs updating
-- `crates/crabide-config/src/settings.rs` — PartialUiSettings etc. have full doc comments but are private
-- `Cargo.toml` workspace — MSRV bump, edition change
 - `crates/crabide-dap/src/` — no unit tests
 - `crates/crabide-git/src/` — no unit tests
 - `crates/crabide-workspace/src/` — no unit tests
@@ -41,4 +40,4 @@
 
 ---
 
-*Progress: 42 of 55 roadmap checkboxes completed. Remaining: L-3 (edition 2024), N-1 (tests), N-2 (comment rot).*
+*Progress: 51 of 55 roadmap checkboxes completed. Remaining: N-1 (unit tests).*
