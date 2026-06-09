@@ -91,9 +91,12 @@ impl TerminalManager {
         }
     }
 
-    /// Kill terminal `id` by dropping its PTY handle.
+    /// Kill terminal `id` by terminating its child process and removing the handle.
     pub fn kill(&mut self, id: u32) {
-        self.handles.retain(|h| h.id != id);
+        if let Some(pos) = self.handles.iter().position(|h| h.id == id) {
+            let mut handle = self.handles.swap_remove(pos);
+            handle.kill_child();
+        }
     }
 
     fn handle_for(&self, id: u32) -> Option<&PtyHandle> {

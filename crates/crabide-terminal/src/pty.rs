@@ -11,7 +11,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use portable_pty::{Child, CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
@@ -29,6 +29,16 @@ pub struct PtyHandle {
     pub input_tx: UnboundedSender<Vec<u8>>,
     /// Signal a PTY resize (cols, rows).
     pub resize_tx: UnboundedSender<(u16, u16)>,
+    /// The child process (kept alive to prevent zombie; killed on drop).
+    child: Option<Box<dyn Child + Send>>,
+}
+
+impl Drop for PtyHandle {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+        }
+    }
 }
 
 impl PtyHandle {
@@ -38,6 +48,13 @@ impl PtyHandle {
 
     pub fn resize(&self, cols: u16, rows: u16) {
         let _ = self.resize_tx.send((cols, rows));
+    }
+
+    /// Kill the child process.
+    pub fn kill_child(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+        }
     }
 }
 
@@ -73,7 +90,7 @@ pub fn spawn_pty(
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
 
-    let _child = pair
+    let child = pair
         .slave
         .spawn_command(cmd)
         .map_err(|e| log::error!("shell spawn failed ({shell}): {e}"))
@@ -107,6 +124,7 @@ pub fn spawn_pty(
         id,
         input_tx,
         resize_tx,
+        child: Some(child),
     })
 }
 
