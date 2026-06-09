@@ -27,7 +27,7 @@
 use egui::text::{LayoutJob, TextFormat};
 
 use crabide_config::Action;
-use crabide_core::event::{Diagnostic, DiagnosticSeverity, FoldingRange};
+use crabide_core::event::{Diagnostic, DiagnosticSeverity, DiffHunk, FoldingRange, HunkKind};
 use crabide_core::types::Position;
 use crabide_syntax::highlight::scope_to_vscode;
 
@@ -259,6 +259,8 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
         find_matches,
         current_match,
         cursor_sel_ranges,
+        diagnostics,
+        git_hunks,
         drag_active,
         last_click_time,
         last_click_pos,
@@ -281,6 +283,8 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             .filter(|c| c.has_selection())
             .map(|c| c.range())
             .collect::<Vec<_>>();
+        diagnostics = tab.diagnostics.clone();
+        git_hunks = tab.git_hunks.clone();
         drag_active = tab.drag_anchor.is_some();
         last_click_time = tab.last_click_time;
         last_click_pos = tab.last_click_pos;
@@ -334,7 +338,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 (target as f32 * line_height - viewport_h / 2.0 + line_height / 2.0).max(0.0);
             scroll_area = scroll_area.scroll_offset(egui::vec2(0.0, offset_y));
         }
-        scroll_area.show(ui, |ui| {
+        let scroll_resp = scroll_area.show(ui, |ui| {
             let tab = &state.active_group_ref().tabs[active_idx];
             let theme = &state.theme;
             let n_vis = tab.lines.len();
@@ -520,6 +524,14 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 }
             }
         });
+        paint_scrollbar_annotations(
+            ui,
+            scroll_resp.inner_rect,
+            n_lines,
+            &diagnostics,
+            &find_matches,
+            &git_hunks,
+        );
     } else {
         // ── Virtual-row mode: show_rows for O(visible) rendering ──────────────
         let mut scroll_area = egui::ScrollArea::both()
@@ -536,7 +548,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 (target as f32 * line_height - viewport_h / 2.0 + line_height / 2.0).max(0.0);
             scroll_area = scroll_area.scroll_offset(egui::vec2(0.0, offset_y));
         }
-        scroll_area.show_rows(ui, line_height, n_lines, |ui, visible_range| {
+        let scroll_resp = scroll_area.show_rows(ui, line_height, n_lines, |ui, visible_range| {
             let tab = &state.active_group_ref().tabs[active_idx];
             let theme = &state.theme;
             let first_vis = visible_range.start;
@@ -707,6 +719,14 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 }
             }
         });
+        paint_scrollbar_annotations(
+            ui,
+            scroll_resp.inner_rect,
+            n_lines,
+            &diagnostics,
+            &find_matches,
+            &git_hunks,
+        );
     }
 
     // ── Apply breakpoint gutter click → dap_panel ────────────────────────────
@@ -1141,6 +1161,94 @@ fn paint_tabstop_on_line(
         ],
         egui::Stroke::new(1.5, underline_color),
     );
+}
+
+/// Paint annotation markers on the vertical scrollbar track.
+///
+/// Draws small coloured bars for diagnostics (error=red, warning=yellow,
+/// info=blue, hint=grey), find matches (orange), and git hunks (green=added,
+/// red=removed, yellow=modified). The scrollbar track is painted as a ~12px
+/// strip to the right of `inner_rect` (the content rect).
+fn paint_scrollbar_annotations(
+    ui: &egui::Ui,
+    inner_rect: egui::Rect,
+    total_lines: usize,
+    diagnostics: &[Diagnostic],
+    find_matches: &[crabide_core::types::Range],
+    git_hunks: &[DiffHunk],
+) {
+    if total_lines == 0 {
+        return;
+    }
+    let scrollbar_width = 12.0;
+    let track = egui::Rect::from_min_max(
+        egui::pos2(inner_rect.right(), inner_rect.top()),
+        egui::pos2(inner_rect.right() + scrollbar_width, inner_rect.bottom()),
+    );
+    if track.height() <= 0.0 {
+        return;
+    }
+
+    let to_y = |line: usize| -> f32 {
+        let frac = (line as f32) / (total_lines as f32).max(1.0);
+        track.top() + frac * track.height()
+    };
+
+    let painter = ui.painter();
+
+    // ── Diagnostics ─────────────────────────────────────────────────────────
+    for diag in diagnostics {
+        let line = diag.range.start.line as usize;
+        let color = match diag.severity {
+            DiagnosticSeverity::Error => egui::Color32::from_rgb(0xf4, 0x43, 0x36),
+            DiagnosticSeverity::Warning => egui::Color32::from_rgb(0xff, 0xb3, 0x00),
+            DiagnosticSeverity::Information => egui::Color32::from_rgb(0x29, 0xb6, 0xf6),
+            DiagnosticSeverity::Hint => {
+                egui::Color32::from_rgba_unmultiplied(0x80, 0x80, 0x80, 0xa0)
+            }
+        };
+        let y = to_y(line);
+        // 2px tall marker
+        let marker = egui::Rect::from_min_size(
+            egui::pos2(track.left(), y - 1.0),
+            egui::vec2(scrollbar_width, 2.0),
+        );
+        painter.rect_filled(marker, 0.0, color);
+    }
+
+    // ── Find matches ────────────────────────────────────────────────────────
+    for m in find_matches {
+        let line = m.start.line as usize;
+        let y = to_y(line);
+        let marker = egui::Rect::from_min_size(
+            egui::pos2(track.left(), y - 1.0),
+            egui::vec2(scrollbar_width, 2.0),
+        );
+        painter.rect_filled(
+            marker,
+            0.0,
+            egui::Color32::from_rgba_unmultiplied(0xea, 0x5c, 0x00, 0x80),
+        );
+    }
+
+    // ── Git hunks ───────────────────────────────────────────────────────────
+    for hunk in git_hunks {
+        let start_line = hunk.new_start as usize;
+        let end_line = start_line + hunk.new_lines as usize;
+        let color = match hunk.kind {
+            HunkKind::Added => egui::Color32::from_rgba_unmultiplied(0x2e, 0xcc, 0x40, 0x80),
+            HunkKind::Removed => egui::Color32::from_rgba_unmultiplied(0xe7, 0x4c, 0x3c, 0x80),
+            HunkKind::Modified => egui::Color32::from_rgba_unmultiplied(0xdb, 0xa5, 0x0d, 0x80),
+        };
+        let y0 = to_y(start_line);
+        let y1 = to_y(end_line.min(total_lines - 1));
+        let height = (y1 - y0).max(2.0);
+        let marker = egui::Rect::from_min_max(
+            egui::pos2(track.left(), y0),
+            egui::pos2(track.right(), y0 + height),
+        );
+        painter.rect_filled(marker, 0.0, color);
+    }
 }
 
 /// Paint squiggly diagnostic underlines on `line_idx` for all diagnostics

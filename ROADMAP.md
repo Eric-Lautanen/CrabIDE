@@ -186,8 +186,8 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [x] **Minimap**: scrollable code overview in sidebar
 - [x] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
 - [x] **Split editor**: side-by-side file comparison / multi-pane layouts
-- [ ] **Drag-and-drop tab reordering** in tab bar
-- [ ] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
+- [x] **Drag-and-drop tab reordering** in tab bar
+- [x] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
 - [ ] **Peek view**: inline definition/reference preview (like VS Code peek)
 - [x] **Output panel**: wire `ToggleOutputPanel` to actual panel
 - [ ] **Settings UI panel**: visual editor for `settings.toml`

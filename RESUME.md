@@ -12,12 +12,12 @@
 
 ## Session summary
 
-**Phase 4 UI: output panel ✅**
-- Added `OutputPanelState` struct with channel selector, auto-scroll, line cap
-- Created `panels/output_panel.rs` with channel dropdown, clear button, auto-scroll toggle
-- Wired `ToggleOutputPanel` action to toggle the bottom panel (was a no-op)
-- Removed `ToggleOutputPanel` from the app's no-op handler list
-- All workspace builds clean, all ~1110+ tests pass
+**Phase 4 UI: scrollbar annotations ✅**
+- Added scrollbar annotations painting on the vertical scrollbar track: diagnostic markers (error=red, warning=yellow, info=blue, hint=grey), find match markers (orange), and git hunk markers (green=added, red=removed, yellow=modified)
+- Captured `diagnostics`, `git_hunks` from active tab before the scroll area closure to avoid borrow clashes
+- Both word-wrap and virtual-row (show_rows) modes now render annotations after the scroll area is drawn
+- New `paint_scrollbar_annotations()` function computes the scrollbar track position relative to `inner_rect` and draws small colored rects proportional to the line position
+- All workspace builds clean (pre-existing `resize_stable` warning only), all ~1110+ tests pass
 
 ## Build status
 - **GREEN** — `cargo check --workspace` zero warnings (pre-existing `resize_stable` dead_code warning only)

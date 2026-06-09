@@ -4793,14 +4793,14 @@ fn register_grammars() {
     );
     reg.register(
         Language::SCSS,
-        raw_lang!(tree_sitter_scss),
+        tree_sitter_scss::language(),
         queries::SCSS_HIGHLIGHTS,
         "",
         "",
     );
     reg.register(
         Language::LESS,
-        raw_lang!(tree_sitter_less),
+        tree_sitter_less::language(),
         queries::LESS_HIGHLIGHTS,
         "",
         "",
@@ -4847,6 +4847,8 @@ fn register_grammars() {
         "",
         "",
     );
+    // Force-link the tree_sitter_kotlin crate whose C symbols are needed by raw_lang!
+    let _ = &tree_sitter_kotlin::NODE_TYPES;
     reg.register(
         Language::RUBY,
         tree_sitter_ruby::LANGUAGE.into(),
@@ -4863,14 +4865,14 @@ fn register_grammars() {
     );
     reg.register(
         Language::TOML,
-        raw_lang!(tree_sitter_toml),
+        tree_sitter_toml::language(),
         queries::TOML_HIGHLIGHTS,
         "",
         "",
     );
     reg.register(
         Language::MARKDOWN,
-        raw_lang!(tree_sitter_markdown),
+        tree_sitter_markdown::language(),
         queries::MARKDOWN_HIGHLIGHTS,
         "",
         "",
