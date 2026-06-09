@@ -33,14 +33,16 @@ struct PendingRequest {
 /// Clone-friendly handle to the running DAP transport.
 ///
 /// Internally Arc-wrapped; cloning is cheap.  The transport runs two background
-/// Tokio tasks: a writer and a reader.
+/// Tokio tasks: a writer and a reader.  The writer uses a bounded channel (1024
+/// slots) with backpressure — if the adapter is slow to consume, the client will
+/// block rather than unboundedly buffering.
 #[derive(Clone)]
 pub struct DapTransport {
     inner: Arc<TransportInner>,
 }
 
 struct TransportInner {
-    tx: mpsc::UnboundedSender<Vec<u8>>,
+    tx: mpsc::Sender<Vec<u8>>,
     pending: Arc<DashMap<u32, PendingRequest>>,
     seq: AtomicU32,
 }
@@ -54,7 +56,8 @@ impl DapTransport {
         stdin: ChildStdin,
         stdout: ChildStdout,
     ) -> (Self, mpsc::UnboundedReceiver<DapMessage>) {
-        let (out_tx, out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        // Bounded channel with backpressure: 1024 messages max buffered.
+        let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>(1024);
         let (in_tx, in_rx) = mpsc::unbounded_channel::<DapMessage>();
 
         let inner = Arc::new(TransportInner {
@@ -127,14 +130,19 @@ impl DapTransport {
         frame.extend_from_slice(&json);
         self.inner
             .tx
-            .send(frame)
-            .map_err(|_| anyhow!("DAP writer task has shut down"))
+            .try_send(frame)
+            .map_err(|_| anyhow!("DAP writer channel full — adapter too slow"))
+    }
+
+    /// Send an arbitrary response to the adapter (used for reverse-request replies).
+    pub fn send_response(&self, msg: DapMessage) -> Result<()> {
+        self.send_raw(&msg)
     }
 }
 
 // ── Writer task ───────────────────────────────────────────────────────────────
 
-async fn run_writer(mut stdin: ChildStdin, mut rx: mpsc::UnboundedReceiver<Vec<u8>>) {
+async fn run_writer(mut stdin: ChildStdin, mut rx: mpsc::Receiver<Vec<u8>>) {
     while let Some(frame) = rx.recv().await {
         if let Err(e) = stdin.write_all(&frame).await {
             log::error!("DAP writer: failed to write: {e}");

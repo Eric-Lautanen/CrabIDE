@@ -344,6 +344,32 @@ pub struct BreakpointEventBody {
     pub breakpoint: Breakpoint,
 }
 
+// ── attach ────────────────────────────────────────────────────────────────────
+
+/// Arguments for the `attach` request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachRequestArguments {
+    /// Whether the adapter should pause at program entry.
+    #[serde(default)]
+    pub stop_on_entry: bool,
+    /// Path to the program being debugged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub program: Option<String>,
+    /// Process ID to attach to.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_id: Option<u64>,
+    /// Working directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Environment variables.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub env: HashMap<String, String>,
+    /// Pass-through extras (adapter-specific fields).
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
 // ── evaluate ───────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

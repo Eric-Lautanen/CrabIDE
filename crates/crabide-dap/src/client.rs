@@ -12,8 +12,8 @@ use crabide_core::event::{
 };
 
 use crate::types::{
-    DisconnectArguments, EvaluateArguments, InitializeRequestArguments, LaunchConfig,
-    LaunchRequestArguments, ScopesArguments, SetBreakpointsArguments,
+    AttachRequestArguments, DisconnectArguments, EvaluateArguments, InitializeRequestArguments,
+    LaunchConfig, LaunchRequestArguments, ScopesArguments, SetBreakpointsArguments,
     SetExceptionBreakpointsArguments, SetFunctionBreakpointsArguments, SetVariableArguments,
     Source, SourceBreakpoint, StackTraceArguments, VariablesArguments,
 };
@@ -76,10 +76,14 @@ impl DapClient {
 
         // Spawn the event-dispatch task.
         let event_tx_task = event_tx.clone();
+        let transport_clone = transport.clone();
         rt.spawn(async move {
             while let Some(msg) = in_rx.recv().await {
                 if let Some(event_name) = &msg.event {
                     dispatch_event(event_name, msg.body, &event_tx_task);
+                } else if msg.msg_type == "request" {
+                    // Handle reverse-requests from the adapter.
+                    handle_reverse_request(&msg, &transport_clone, &event_tx_task);
                 }
             }
             log::info!("DAP: event dispatch task exited");
@@ -150,6 +154,43 @@ impl DapClient {
                 Ok(_) => {
                     log::info!("DAP: launch OK");
                     // After successful launch send configurationDone.
+                    let _ = transport.notify("configurationDone", json!({}));
+                }
+                Err(e) => {
+                    let _ = event_tx.send(EditorEvent::Dap(DapEvent::Error {
+                        message: e.to_string(),
+                    }));
+                }
+            }
+        });
+    }
+
+    // ── Attach ─────────────────────────────────────────────────────────────────
+
+    /// Send `attach` with the given configuration (connect to a running process).
+    pub fn attach(&self, config: &LaunchConfig) {
+        let transport = self.transport.clone();
+        let event_tx = self.event_tx.clone();
+        let attach_args = AttachRequestArguments {
+            stop_on_entry: config.stop_on_entry,
+            program: config.program.clone(),
+            process_id: config.port.map(|p| p as u64),
+            cwd: config.cwd.as_ref().map(|p| p.display().to_string()),
+            env: config.env.clone(),
+            extra: config.extra.clone(),
+        };
+        let args_val = match serde_json::to_value(&attach_args) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("DAP attach serialise: {e}");
+                return;
+            }
+        };
+        self.rt.spawn(async move {
+            match transport.request("attach", args_val).await {
+                Ok(_) => {
+                    log::info!("DAP: attach OK");
+                    // After successful attach send configurationDone.
                     let _ = transport.notify("configurationDone", json!({}));
                 }
                 Err(e) => {
@@ -888,12 +929,91 @@ fn dispatch_event(
             }
         }
 
+        other => log::debug!("DAP: unhandled event {other:?}"),
+    }
+}
+
+/// Handle a reverse-request from the adapter (e.g. `runInTerminal`).
+/// Reverse-requests are messages with `type == "request"` sent by the adapter
+/// to ask the client to perform an action. The client must respond.
+fn handle_reverse_request(
+    msg: &crate::types::DapMessage,
+    transport: &crate::transport::DapTransport,
+    event_tx: &crossbeam_channel::Sender<EditorEvent>,
+) {
+    let command = match &msg.command {
+        Some(cmd) => cmd.as_str(),
+        None => return,
+    };
+
+    match command {
         "runInTerminal" => {
-            log::debug!("DAP: runInTerminal reverse-request received (not yet implemented)");
-            // TODO: Implement runInTerminal handler
+            log::debug!("DAP: runInTerminal reverse-request");
+            let body = msg.body.clone().unwrap_or(serde_json::Value::Null);
+            if let Ok(args) =
+                serde_json::from_value::<crate::types::RunInTerminalArguments>(body.clone())
+            {
+                let _ = event_tx.send(EditorEvent::Dap(DapEvent::Output {
+                    category: OutputCategory::Console,
+                    output: format!(
+                        "[Debug adapter requested terminal: {} {}]\n",
+                        args.title,
+                        args.args.join(" ")
+                    ),
+                }));
+                // Respond with success (empty body).
+                let response = serde_json::json!({
+                    "processId": 0,
+                    "shellProcessId": 0,
+                });
+                let resp_seq = msg.seq;
+                let response_msg = crate::types::DapMessage {
+                    seq: resp_seq,
+                    msg_type: "response".into(),
+                    command: None,
+                    arguments: None,
+                    request_seq: Some(resp_seq),
+                    success: Some(true),
+                    body: Some(response),
+                    message: None,
+                    event: None,
+                };
+                let _ = transport.send_response(response_msg);
+            } else {
+                // Respond with error.
+                let resp_seq = msg.seq;
+                let response_msg = crate::types::DapMessage {
+                    seq: resp_seq,
+                    msg_type: "response".into(),
+                    command: None,
+                    arguments: None,
+                    request_seq: Some(resp_seq),
+                    success: Some(false),
+                    body: None,
+                    message: Some("Failed to parse runInTerminal arguments".into()),
+                    event: None,
+                };
+                let _ = transport.send_response(response_msg);
+            }
         }
 
-        other => log::debug!("DAP: unhandled event {other:?}"),
+        other => {
+            log::debug!("DAP: unhandled reverse-request {other:?}");
+            // Respond with error for unknown commands.
+            let resp_seq = msg.seq;
+            let response_msg = crate::types::DapMessage {
+                seq: resp_seq,
+                msg_type: "response".into(),
+                command: None,
+                arguments: None,
+                request_seq: Some(resp_seq),
+                success: Some(false),
+                body: None,
+                message: Some(format!("Unknown reverse-request: {other}")),
+                event: None,
+            };
+            let _ = transport.send_response(response_msg);
+        }
     }
 }
 

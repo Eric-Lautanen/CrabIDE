@@ -287,7 +287,7 @@ All DAP types defined, Content-Length transport complete, DapClient with launch/
 - [x] Implement `InvalidatedEvent` handler
 - [x] Implement `completions` request (tab-completion in debug console)
 - [x] Implement cancellation support (`CancelParams`)
-- [ ] Add backpressure to writer (unbounded channel → bounded + semaphore)
+- [x] Add backpressure to writer (unbounded channel → bounded + semaphore)
 
 ---
 
