@@ -1,40 +1,50 @@
-# Resume — Crabide Codebase Audit (Phase 3 Complete)
+# Resume — Crabide Codebase Audit (Phase 4 Complete)
 
 ## Session Summary
-Completed **Phase 3 (Safety & Security)** of the ROADMAP.md audit. All tooling checks pass clean.
+Completed **Phase 4 (Memory & Performance)** of the ROADMAP.md audit. All tooling checks pass clean.
 
 ## Progress
 - **Phase 0** (Tooling Baseline): ✅ Complete
 - **Phase 1** (Lint & Format): ✅ Complete
 - **Phase 2** (Error Handling): ✅ Complete
 - **Phase 3** (Safety & Security): ✅ Complete
-- **Phases 4–9**: 🔲 Pending
+- **Phase 4** (Memory & Performance): ✅ Complete
+- **Phases 5–9**: 🔲 Pending
 
-## Phase 3 — Safety & Security ✅
+## Phase 4 — Memory & Performance ✅
 
-### Audit verification
+### Changes
 
 | Item | Status | Details |
 |------|--------|---------|
-| `CountingAlloc` SAFETY comments | ✅ Verified | All methods + `unsafe impl` have `// SAFETY:` docs. Delegates to `mimalloc::MiMalloc`. |
-| `Send`/`Sync` on `DapClient` | ✅ Verified | Fields are all `Send+Sync`. SAFETY comment explains invariants. |
-| `Send`/`Sync` on `TabDragState` | ✅ Verified | Only primitive types (usize, f32). SAFETY comment present. |
-| Tree-sitter FFI calls | ✅ Verified | `raw_lang!` macro (app.rs) and `load_from_disk` (grammar.rs) have SAFETY comments for lifetime guarantees. |
-| wasmtime sandbox | ✅ Verified | 64 MB memory cap, fuel metering (100k/call), epoch timeout (100ms ticker), capability-gated access (all denied by default). No `unsafe` in wasm_ext.rs. |
-| `panic="abort"` safety | ✅ Verified | Drop impls on `PtyHandle` (kill child) and `GitService` (send shutdown) are skipped on panic; OS cleanup acceptable. DAP/LSP use `kill_on_drop(true)`. |
-| All SAFETY comments present | ✅ Verified | 11 SAFETY comments across 6 files cover every unsafe block, fn, and impl. |
+| Hot-path `clone()` — `lines: Vec<String>` → `Arc<Vec<String>>` | ✅ Done | 10+ deep clones per keystroke become O(1) refcount bumps. |
+| Hot-path `clone()` — `diagnostics`, `git_hunks`, `inlay_hints` → `Arc<Vec<...>>` | ✅ Done | Frame-rendering clones become O(1). |
+| Hot-path `clone()` — `breakpoints`, `extension_gutter_markers` → `Arc<Vec<...>>` | ✅ Done | Gutter/clone sites optimized. |
+| Hot-path `clone()` — `match_ranges: Vec<Range>` → `Arc<Vec<Range>>` | ✅ Done | Frame-rendering clone optimized. |
+| DashMap audit | ✅ Done | All 10 uses are appropriate for concurrent read-heavy workloads (sharded DashMap v6). No contention issues. |
+| crossbeam channel capacities | ✅ Done | All bounded channels have reasonable capacities (64–4096). Unbounded channels acceptably used for fire-and-forget patterns. |
+| tokio channel backpressure | ✅ Done | LSP/DAP transports use unbounded channels between tokio tasks; backpressure provided by bounded crossbeam channel (4096) at UI boundary. |
+| Arc ref-counting review | ✅ Done | All Sender/Handle/Arc clones are legitimate. `ActionRegistry::clone` called once per frame but is small. |
+| Vec return optimization | ✅ Deferred | Most `-> Vec<T>` returns are small or infrequent. Can revisit in later pass. |
+| `embedded-io` 0.4.0 → 0.6.1 | ✅ Done (not needed) | Dependency no longer exists in the project. |
 
 ### Files modified (this session)
-- `crates/crabide-app/src/main.rs` — added `// SAFETY:` before `unsafe impl GlobalAlloc`
-- `ROADMAP.md` — updated baseline, Phase 3 status, verification block
+- `crates/crabide-ui/src/state.rs` — Changed `EditorTab` fields to `Arc<Vec<T>>`, updated `FindReplaceState.match_ranges`
+- `crates/crabide-app/src/app.rs` — Updated all assignment/clone sites for Arc fields
+- `crates/crabide-ui/src/lib.rs` — Fixed `.clear()` → `Arc::new(Vec::new())` for match_ranges
+- `crates/crabide-ui/src/panels/editor.rs` — Fixed breakpoints mutation to use `to_vec()`
+- `crates/crabide-ui/src/panels/find_replace.rs` — Updated for match_ranges Arc type
+- `crates/crabide-ui/src/panels/peek_view.rs` — Removed explicit `Vec<String>` type annotation
+- `crates/crabide-ui/src/panels/problems_panel.rs` — Changed `.flat_map(|t| &t.diagnostics)` to `.flat_map(|t| t.diagnostics.iter())`
+- `ROADMAP.md` — Updated baseline, Phase 4 status
 
 ## Current Verification State
 ```
 cargo check --workspace --all-targets          → ✅ ZERO errors
 cargo clippy --workspace --all-targets -- -D warnings → ✅ ZERO warnings
 cargo fmt --all --check                        → ✅ ZERO diffs
-cargo test --workspace                         → ✅ 469 pass, 0 fail
+cargo test --workspace                         → ✅ 1005 pass, 0 fail
 ```
 
 ## Next Steps
-Continue with **Phase 4 (Memory & Performance)**: Profile hot-path `clone()` calls in buffer/editor rendering, audit `DashMap` usage, audit crossbeam/tokio channel capacities, review `Arc` ref-counting, update `embedded-io` 0.4.0 → 0.6.1.
+Continue with **Phase 5 (Idiomatic Rust 2024/2026)**: Use `impl Trait` in argument position, migrate closures to `impl Fn`, replace manual `Default` impls, use `let...else`, `format_args_capture`, `&Option<T>` → `Option<&T>`, `bool::then()`.
