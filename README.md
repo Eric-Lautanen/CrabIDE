@@ -4,6 +4,10 @@
 
 Linux / macOS / Windows.
 
+> **Status: Development — currently on hold.** This project is in active development and not yet production-ready. Features are incomplete, APIs are unstable, and things will break. Development is currently paused.
+
+
+
 ## Features
 
 - **Lightweight** — <100MB idle RAM, <200MB on disk
