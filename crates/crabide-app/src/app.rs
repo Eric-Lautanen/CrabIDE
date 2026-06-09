@@ -1275,6 +1275,14 @@ impl crabideApp {
                     self.ui_state.set_status("No signature help available");
                 }
             }
+            LatencyRecord {
+                method: _,
+                duration_us,
+            } => {
+                self.ui_state
+                    .lsp_latency
+                    .record(std::time::Duration::from_micros(duration_us));
+            }
         }
     }
 
@@ -4057,6 +4065,19 @@ impl eframe::App for crabideApp {
             if flag.load(std::sync::atomic::Ordering::Relaxed) {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 return;
+            }
+        }
+
+        // ── Frame profiler ─────────────────────────────────────────────────────
+        self.ui_state.profiler.record_frame();
+
+        // Sample heap usage every ~60 frames (1 Hz at 60 fps).
+        {
+            use std::sync::atomic::{AtomicU32, Ordering};
+            static FRAME_COUNTER: AtomicU32 = AtomicU32::new(0);
+            let counter = FRAME_COUNTER.fetch_add(1, Ordering::Relaxed);
+            if counter % 60 == 0 {
+                self.ui_state.heap_used_bytes = crate::ALLOCATED.load(Ordering::Relaxed);
             }
         }
 

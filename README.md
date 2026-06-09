@@ -6,7 +6,7 @@ Linux / macOS / Windows.
 
 ## Features
 
-- **Lightweight** — <60MB idle RAM, <200MB on disk
+- **Lightweight** — <100MB idle RAM, <200MB on disk
 - **LSP client** — code completion, hover, go-to-definition, references, rename, diagnostics, code actions, signature help, inlay hints, semantic tokens, code lens, folding, document symbols, formatting
 - **DAP debugger** — launch/attach, breakpoints (function, exception, data), step, stack, variables, debug console, threads, run-to-cursor, cancellation
 - **Integrated terminal** — full VT100/VT220 grid emulation with PTY support, scrollback, alt screen, bracketed paste, mouse reporting, hyperlinks (OSC 8), shell integration (OSC 133)

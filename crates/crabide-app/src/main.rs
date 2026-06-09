@@ -37,11 +37,47 @@ use anyhow::Result;
 use eframe::NativeOptions;
 use env_logger::Env;
 
-// Global allocator
+// Global allocator — wraps mimalloc with allocation counting for profiling.
 // mimalloc aggressively returns idle pages to the OS on Windows, which
 // dramatically reduces idle RSS compared to the default CRT heap.
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+struct CountingAlloc;
+
+unsafe impl std::alloc::GlobalAlloc for CountingAlloc {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        let ptr = mimalloc::MiMalloc.alloc(layout);
+        if !ptr.is_null() {
+            ALLOCATED.fetch_add(layout.size() as u64, Ordering::Relaxed);
+        }
+        ptr
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        ALLOCATED.fetch_sub(layout.size() as u64, Ordering::Relaxed);
+        mimalloc::MiMalloc.dealloc(ptr, layout);
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
+        let old_size = layout.size();
+        let new_ptr = mimalloc::MiMalloc.realloc(ptr, layout, new_size);
+        if !new_ptr.is_null() {
+            if new_size > old_size {
+                ALLOCATED.fetch_add((new_size - old_size) as u64, Ordering::Relaxed);
+            } else {
+                ALLOCATED.fetch_sub((old_size - new_size) as u64, Ordering::Relaxed);
+            }
+        }
+        new_ptr
+    }
+}
+
+/// Total bytes currently allocated via the global allocator.
+pub(crate) static ALLOCATED: AtomicU64 = AtomicU64::new(0);
+
 #[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL: CountingAlloc = CountingAlloc;
 
 /// Parsed CLI arguments.
 struct CliArgs {

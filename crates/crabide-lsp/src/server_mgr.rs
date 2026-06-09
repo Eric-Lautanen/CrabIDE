@@ -190,10 +190,29 @@ fn spawn_server_process(
     let stdin = child.stdin.take().expect("stdin piped");
     let stdout = child.stdout.take().expect("stdout piped");
 
-    let (transport, notification_rx) = LspTransport::spawn(stdin, stdout);
+    // Create a channel for LSP latency events.
+    let (latency_tx, latency_rx) = crossbeam_channel::bounded::<(u64, String)>(128);
+    let (transport, notification_rx) = LspTransport::spawn(stdin, stdout, Some(latency_tx));
 
     let primary_lang = config.language_ids[0].clone();
-    let client = LspClient::new(transport, primary_lang, event_tx);
+    let client = LspClient::new(transport, primary_lang, event_tx.clone());
+
+    // Forward latency events to the app's event bus.
+    let fwd_tx = event_tx.clone();
+    std::thread::Builder::new()
+        .name("lsp-latency-bridge".into())
+        .spawn(move || {
+            for (dur_us, _method) in latency_rx {
+                let evt: LspEvent = LspEvent::LatencyRecord {
+                    method: String::new(),
+                    duration_us: dur_us,
+                };
+                if fwd_tx.send(evt.into()).is_err() {
+                    break;
+                }
+            }
+        })
+        .expect("failed to spawn LSP latency bridge thread");
 
     Ok((client, notification_rx, child))
 }

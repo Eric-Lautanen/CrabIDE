@@ -224,6 +224,10 @@ mod tests {
 /// Tracks an in-flight request, waiting for a response.
 struct PendingRequest {
     respond: oneshot::Sender<Result<Value>>,
+    /// The LSP method name (e.g. "textDocument/completion").
+    method: String,
+    /// Timestamp when the request was sent (for latency tracking).
+    sent_at: std::time::Instant,
 }
 
 /// Handle to the running transport.
@@ -253,9 +257,13 @@ impl LspTransport {
     ///
     /// Returns the `LspTransport` handle and an mpsc receiver that will
     /// deliver incoming server→client notifications and requests.
+    ///
+    /// If `latency_tx` is provided, each completed request's round-trip
+    /// latency (in microseconds) plus the method name will be sent there.
     pub fn spawn(
         stdin: ChildStdin,
         stdout: ChildStdout,
+        latency_tx: Option<crossbeam_channel::Sender<(u64, String)>>,
     ) -> (Self, mpsc::UnboundedReceiver<JsonRpcMessage>) {
         let (out_tx, out_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (in_tx, in_rx) = mpsc::unbounded_channel::<JsonRpcMessage>();
@@ -275,7 +283,7 @@ impl LspTransport {
         // Clone the Arc<DashMap> — both tasks now share the same map.
         let reader_pending = Arc::clone(&inner.pending);
         tokio::spawn(async move {
-            run_reader(stdout, reader_pending, in_tx).await;
+            run_reader(stdout, reader_pending, in_tx, latency_tx).await;
         });
 
         (Self { inner }, in_rx)
@@ -303,10 +311,13 @@ impl LspTransport {
         let msg = JsonRpcMessage::request(id, method, params);
 
         let (respond_tx, respond_rx) = oneshot::channel();
+        let sent_at = std::time::Instant::now();
         self.inner.pending.insert(
             id,
             PendingRequest {
                 respond: respond_tx,
+                method: method.to_owned(),
+                sent_at,
             },
         );
 
@@ -368,6 +379,7 @@ async fn run_reader(
     stdout: ChildStdout,
     pending: Arc<dashmap::DashMap<u32, PendingRequest>>,
     in_tx: mpsc::UnboundedSender<JsonRpcMessage>,
+    latency_tx: Option<crossbeam_channel::Sender<(u64, String)>>,
 ) {
     let mut reader = BufReader::new(stdout);
 
@@ -440,11 +452,24 @@ async fn run_reader(
             };
 
             if let Some((_, req)) = pending.remove(&id) {
+                let elapsed = req.sent_at.elapsed();
+                let dur_us = elapsed.as_micros() as u64;
                 let outcome = if let Some(err) = msg.error {
                     Err(anyhow!("LSP error {}: {}", err.code, err.message))
                 } else {
                     Ok(msg.result.unwrap_or(Value::Null))
                 };
+                if elapsed > std::time::Duration::from_millis(100) {
+                    log::debug!(
+                        "LSP request completed in {:.1} ms (id={})",
+                        elapsed.as_secs_f64() * 1000.0,
+                        id
+                    );
+                }
+                // Emit latency event if a channel was provided (best-effort).
+                if let Some(ref tx) = latency_tx {
+                    let _ = tx.send((dur_us, req.method.clone()));
+                }
                 let _ = req.respond.send(outcome);
             } else {
                 log::warn!("LSP reader: response for unknown request id {id}");

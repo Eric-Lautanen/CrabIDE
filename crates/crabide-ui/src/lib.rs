@@ -23,11 +23,11 @@ pub use layout::PaneKind;
 pub use state::{
     cfg_to_egui, BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem,
     ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
-    ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
-    GitPanelState, KeybindingsEditorState, LspStatus, OutputPanelState, PeekKind, PeekState,
-    SettingsField, SettingsFieldType, SettingsPanelState, SidebarPaneUiState, SidebarTab,
-    SymbolOutlineEntry, SymbolOutlineState, TerminalInstance, TerminalPanelState, ThemePickerState,
-    UiState,
+    ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, FrameProfiler,
+    GitDecoration, GitPanelState, KeybindingsEditorState, LspLatencyTracker, LspStatus,
+    OutputPanelState, PeekKind, PeekState, SettingsField, SettingsFieldType, SettingsPanelState,
+    SidebarPaneUiState, SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance,
+    TerminalPanelState, ThemePickerState, UiState,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -326,6 +326,11 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
 
     // ── Settings panel overlay ───────────────────────────────────────────
     panels::settings_panel::show(ui, state);
+
+    // ── Performance profiler overlay (Ctrl+Shift+`) toggle ──────────────
+    if state.profiler.visible {
+        show_profiler_overlay(ui, state);
+    }
 
     actions
 }
@@ -1402,6 +1407,12 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
             true
         }
 
+        // ── Performance profiler toggle (Ctrl+Shift+`) ──────────────────────
+        Action::ToggleProfiler => {
+            state.profiler.visible = !state.profiler.visible;
+            true
+        }
+
         // ── Output panel toggle ────────────────────────────────────────────────
         Action::ToggleOutputPanel => {
             state.output_panel.visible = !state.output_panel.visible;
@@ -2348,6 +2359,103 @@ pub(crate) fn render_extension_panel(
 
 fn line_char_count(lines: &[String], line_idx: usize) -> usize {
     lines.get(line_idx).map(|l| l.chars().count()).unwrap_or(0)
+}
+
+// ── Performance profiler overlay ────────────────────────────────────────────────
+
+/// Render the frame time / LSP latency / heap usage overlay window.
+fn show_profiler_overlay(ui: &mut egui::Ui, state: &mut UiState) {
+    let ctx = ui.ctx();
+    let bg = cfg_to_egui(state.theme.ui_or(
+        "editor.background",
+        crabide_config::Color::rgb(0x1e, 0x1e, 0x1e),
+    ));
+    let fg = cfg_to_egui(state.theme.ui_or(
+        "editor.foreground",
+        crabide_config::Color::rgb(0xcc, 0xcc, 0xcc),
+    ));
+
+    let screen = ctx.content_rect();
+    let win_w = 320.0_f32.min(screen.width() - 20.0);
+    let right = screen.right() - 10.0;
+    let top = screen.top() + 50.0;
+
+    egui::Window::new("Performance")
+        .id(egui::Id::new("profiler_window"))
+        .resizable(false)
+        .movable(true)
+        .title_bar(true)
+        .collapsible(true)
+        .fixed_pos(egui::pos2(right - win_w, top))
+        .fixed_size(egui::vec2(win_w, 0.0))
+        .frame(
+            egui::Frame::default()
+                .fill(bg)
+                .corner_radius(egui::CornerRadius::same(6)),
+        )
+        .show(ctx, |ui| {
+            ui.set_width(win_w - 12.0);
+            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+            ui.style_mut().override_font_id = Some(egui::FontId::monospace(12.0));
+
+            // Frame timing section
+            ui.label(egui::RichText::new("Frame Timing").color(fg).strong());
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(format!("FPS:  {:.1}", state.profiler.fps)).color(fg));
+            });
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("Avg:  {:.2} ms", state.profiler.avg_ms)).color(fg),
+                );
+                ui.label(
+                    egui::RichText::new(format!("P95:  {:.2} ms", state.profiler.p95_ms)).color(fg),
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("Min:  {:.2} ms", state.profiler.min_ms)).color(fg),
+                );
+                ui.label(
+                    egui::RichText::new(format!("Max:  {:.2} ms", state.profiler.max_ms)).color(fg),
+                );
+            });
+
+            ui.add_space(8.0);
+
+            // LSP latency section
+            ui.label(egui::RichText::new("LSP Latency").color(fg).strong());
+            ui.separator();
+            let cnt = state.lsp_latency.count;
+            if cnt > 0 {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "Avg: {:.2} ms  Max: {:.2} ms  Samples: {cnt}",
+                            state.lsp_latency.avg_ms, state.lsp_latency.max_ms
+                        ))
+                        .color(fg),
+                    );
+                });
+            } else {
+                ui.label(egui::RichText::new("No LSP requests yet").color(fg));
+            }
+
+            ui.add_space(8.0);
+
+            // Heap usage section
+            ui.label(egui::RichText::new("Heap").color(fg).strong());
+            ui.separator();
+            let heap_mb = state.heap_used_bytes as f64 / (1024.0 * 1024.0);
+            ui.label(egui::RichText::new(format!("Used: {:.1} MB", heap_mb)).color(fg));
+
+            ui.add_space(8.0);
+
+            // Reset button
+            if ui.button("Reset LSP stats").clicked() {
+                state.lsp_latency = LspLatencyTracker::default();
+            }
+        });
 }
 
 #[cfg(test)]

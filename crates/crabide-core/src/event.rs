@@ -116,6 +116,14 @@ pub enum LspEvent {
 
     /// Log message from the language server (shows in Output panel).
     LogMessage { language: Language, message: String },
+
+    /// Round-trip latency for an LSP request (for profiler display).
+    LatencyRecord {
+        /// The LSP method name that was invoked.
+        method: String,
+        /// Duration of the round-trip in microseconds.
+        duration_us: u64,
+    },
 }
 
 // ── DAP Events ───────────────────────────────────────────────────────────────
@@ -1217,6 +1225,16 @@ impl fmt::Display for LspEvent {
                     } else {
                         "empty"
                     }
+                )
+            }
+            LspEvent::LatencyRecord {
+                method,
+                duration_us,
+            } => {
+                write!(
+                    f,
+                    "LSP latency {method}: {:.1} ms",
+                    *duration_us as f64 / 1000.0
                 )
             }
         }

@@ -2031,6 +2031,138 @@ pub enum SettingsFieldType {
     Enum(Vec<String>),
 }
 
+// ── FrameProfiler ───────────────────────────────────────────────────────────────
+
+/// Tracks frame timestamps and computes FPS / frame time statistics.
+///
+/// Maintains a ring buffer of the last N frame durations for smooth reporting.
+#[derive(Clone)]
+pub struct FrameProfiler {
+    /// Ring buffer of frame durations in seconds (most recent last).
+    durations: Vec<f64>,
+    /// Maximum number of samples to retain.
+    capacity: usize,
+    /// Timestamp of the last frame (monotonic Instant).
+    last_frame: Option<std::time::Instant>,
+    /// Rolling FPS (computed from the ring buffer average).
+    pub fps: f64,
+    /// Minimum frame time in the buffer (ms).
+    pub min_ms: f64,
+    /// Maximum frame time in the buffer (ms).
+    pub max_ms: f64,
+    /// Average frame time in the buffer (ms).
+    pub avg_ms: f64,
+    /// 95th percentile frame time (ms).
+    pub p95_ms: f64,
+    /// Whether the profiler overlay is visible.
+    pub visible: bool,
+    /// Whether LSP latency tracking is visible.
+    pub show_lsp: bool,
+}
+
+impl Default for FrameProfiler {
+    fn default() -> Self {
+        Self {
+            durations: Vec::with_capacity(120),
+            capacity: 120,
+            last_frame: None,
+            fps: 0.0,
+            min_ms: 0.0,
+            max_ms: 0.0,
+            avg_ms: 0.0,
+            p95_ms: 0.0,
+            visible: false,
+            show_lsp: false,
+        }
+    }
+}
+
+impl FrameProfiler {
+    /// Called at the start of each frame to record the frame end-to-end time.
+    pub fn record_frame(&mut self) {
+        let now = std::time::Instant::now();
+        if let Some(last) = self.last_frame {
+            let dt = now.duration_since(last).as_secs_f64();
+            if self.durations.len() >= self.capacity {
+                self.durations.remove(0);
+            }
+            self.durations.push(dt);
+            self.recompute();
+        }
+        self.last_frame = Some(now);
+    }
+
+    fn recompute(&mut self) {
+        let n = self.durations.len();
+        if n == 0 {
+            return;
+        }
+        let sum: f64 = self.durations.iter().sum();
+        let avg = sum / n as f64;
+        self.fps = if avg > 0.0 { 1.0 / avg } else { 0.0 };
+        self.avg_ms = avg * 1000.0;
+        self.min_ms = self.durations.iter().copied().fold(f64::MAX, f64::min) * 1000.0;
+        self.max_ms = self.durations.iter().copied().fold(f64::MIN, f64::max) * 1000.0;
+
+        // P95: sort and pick index at 95%
+        let mut sorted = self.durations.clone();
+        sorted.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let p95_idx = ((n as f64) * 0.95).ceil() as usize - 1;
+        self.p95_ms = sorted.get(p95_idx.min(n - 1)).copied().unwrap_or(0.0) * 1000.0;
+    }
+}
+
+// ── LspLatencyTracker ──────────────────────────────────────────────────────────
+
+/// Tracks LSP request round-trip latencies.
+#[derive(Clone)]
+pub struct LspLatencyTracker {
+    /// Ring buffer of recent latencies in seconds.
+    latencies: Vec<f64>,
+    capacity: usize,
+    /// Average latency in ms.
+    pub avg_ms: f64,
+    /// Max latency in ms.
+    pub max_ms: f64,
+    /// Sample count since last reset.
+    pub count: u64,
+}
+
+impl Default for LspLatencyTracker {
+    fn default() -> Self {
+        Self {
+            latencies: Vec::with_capacity(60),
+            capacity: 60,
+            avg_ms: 0.0,
+            max_ms: 0.0,
+            count: 0,
+        }
+    }
+}
+
+impl LspLatencyTracker {
+    /// Record a completed LSP request round-trip.
+    pub fn record(&mut self, elapsed: std::time::Duration) {
+        let secs = elapsed.as_secs_f64();
+        if self.latencies.len() >= self.capacity {
+            self.latencies.remove(0);
+        }
+        self.latencies.push(secs);
+        self.count += 1;
+        self.recompute();
+    }
+
+    fn recompute(&mut self) {
+        let n = self.latencies.len();
+        if n == 0 {
+            return;
+        }
+        let sum: f64 = self.latencies.iter().sum();
+        self.avg_ms = (sum / n as f64) * 1000.0;
+        self.max_ms = self.latencies.iter().copied().fold(f64::MIN, f64::max) * 1000.0;
+    }
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -2198,6 +2330,14 @@ pub struct UiState {
     // ── Update check state ───────────────────────────────────────────────
     /// When `Some`, contains the latest available version string.
     pub update_available: Option<String>,
+
+    // ── Performance profiling ────────────────────────────────────────────
+    /// Frame time profiler (FPS, frame min/max/avg/p95).
+    pub profiler: FrameProfiler,
+    /// LSP round-trip latency tracker.
+    pub lsp_latency: LspLatencyTracker,
+    /// Heap memory usage in bytes (last sampled).
+    pub heap_used_bytes: u64,
 }
 
 impl UiState {
@@ -2258,6 +2398,9 @@ impl UiState {
             keybindings_editor: KeybindingsEditorState::default(),
             settings_panel: SettingsPanelState::default(),
             update_available: None,
+            profiler: FrameProfiler::default(),
+            lsp_latency: LspLatencyTracker::default(),
+            heap_used_bytes: 0,
         }
     }
 

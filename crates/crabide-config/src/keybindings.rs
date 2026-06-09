@@ -154,6 +154,7 @@ pub enum Action {
     ToggleSettingsPanel,
     ToggleWordWrap,
     ToggleProblemsPanel,
+    ToggleProfiler,
     ZoomIn,
     ZoomOut,
     ZoomReset,
@@ -1312,6 +1313,7 @@ impl KeybindingEngine {
         self.bind("ctrl+shift+d", Action::ToggleDebugPanel);
         self.bind("ctrl+shift+x", Action::ToggleExtensionsPanel);
         self.bind("ctrl+shift+m", Action::ToggleProblemsPanel);
+        self.bind("ctrl+shift+`", Action::ToggleProfiler);
         // ── Cursor movement ───────────────────────────────────────────────────
         self.bind("up", Action::CursorUp);
         self.bind("down", Action::CursorDown);
@@ -1438,6 +1440,7 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     );
     m.insert(Action::ToggleSettingsPanel, "Preferences: Open Settings");
     m.insert(Action::ToggleProblemsPanel, "View: Toggle Problems Panel");
+    m.insert(Action::ToggleProfiler, "Developer: Toggle Profiler");
     m.insert(Action::ToggleMinimap, "View: Toggle Minimap");
     m.insert(Action::ToggleWordWrap, "View: Toggle Word Wrap");
     m.insert(Action::ZoomIn, "View: Zoom In");
