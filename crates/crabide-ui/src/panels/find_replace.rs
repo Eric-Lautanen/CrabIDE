@@ -16,6 +16,8 @@
 //! Enter / Shift+Enter navigate matches.  The Enter key is *consumed* via
 //! `consume_key` so it never leaks to the editor buffer.
 
+use std::sync::Arc;
+
 use crabide_config::{Action, Color};
 use crabide_core::types::{Position, Range};
 use regex::Regex;
@@ -271,7 +273,7 @@ pub fn show(ctx: &egui::Context, state: &mut UiState, actions: &mut Vec<Action>)
                         .clicked()
                     {
                         state.find_replace.visible = false;
-                        state.find_replace.match_ranges.clear();
+                        state.find_replace.match_ranges = Arc::new(Vec::new());
                         ctx.memory_mut(|m| {
                             if let Some(id) = m.focused() {
                                 m.surrender_focus(id);
@@ -382,7 +384,6 @@ pub fn recompute_matches(state: &mut UiState) {
     let whole_word = state.find_replace.whole_word;
 
     state.find_replace.last_computed_query = query.clone();
-    state.find_replace.match_ranges.clear();
     state.find_replace.current_match_idx = 0;
 
     if query.is_empty() {
@@ -414,7 +415,7 @@ pub fn recompute_matches(state: &mut UiState) {
             }
         }
     }
-    state.find_replace.match_ranges = new_ranges;
+    state.find_replace.match_ranges = Arc::new(new_ranges);
 }
 
 /// Build a regex pattern string from query + flags.

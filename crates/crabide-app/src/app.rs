@@ -891,16 +891,18 @@ impl crabideApp {
                         if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &doc_uri) {
                             // Extension diagnostics are additive with LSP diagnostics;
                             // replace only the entries with source == extension.
-                            tab.diagnostics.retain(|d| {
-                                d.source.as_deref()
-                                    != Some(
-                                        diags
-                                            .first()
-                                            .and_then(|d| d.source.as_deref())
-                                            .unwrap_or(""),
-                                    )
-                            });
-                            tab.diagnostics.extend(diags);
+                            let source = diags
+                                .first()
+                                .and_then(|d| d.source.as_deref())
+                                .unwrap_or("");
+                            let mut new_diags: Vec<Diagnostic> = tab
+                                .diagnostics
+                                .iter()
+                                .filter(|d| d.source.as_deref() != Some(source))
+                                .cloned()
+                                .collect();
+                            new_diags.extend(diags);
+                            tab.diagnostics = Arc::new(new_diags);
                         }
                     }
                 }
@@ -966,7 +968,7 @@ impl crabideApp {
                 } => {
                     if let Ok(doc_uri) = DocumentUri::parse(&uri) {
                         if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &doc_uri) {
-                            tab.extension_gutter_markers = markers;
+                            tab.extension_gutter_markers = markers.into();
                         }
                     }
                 }
@@ -1134,7 +1136,7 @@ impl crabideApp {
             }
             DiagnosticsPublished { uri, diagnostics } => {
                 if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                    tab.diagnostics = diagnostics;
+                    tab.diagnostics = diagnostics.into();
                 }
             }
             LocationsReady {
@@ -1250,7 +1252,7 @@ impl crabideApp {
             }
             InlayHintsUpdated { uri, hints } => {
                 if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                    tab.inlay_hints = hints;
+                    tab.inlay_hints = hints.into();
                 }
             }
             SemanticTokensUpdated { uri, tokens } => {
@@ -1299,14 +1301,14 @@ impl crabideApp {
 
             DiffHunksUpdated { uri, hunks } => {
                 if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                    tab.git_hunks = hunks;
+                    tab.git_hunks = hunks.into();
                 }
             }
 
             DiffStagedUpdated { uri, hunks } => {
                 // Staged diff data can be stored similarly for review UI.
                 if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                    tab.git_staged_hunks = hunks;
+                    tab.git_staged_hunks = hunks.into();
                 }
             }
 
@@ -1799,7 +1801,7 @@ impl crabideApp {
                 diagnostics,
             } => {
                 if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, &uri) {
-                    tab.diagnostics = diagnostics;
+                    tab.diagnostics = diagnostics.into();
                 }
             }
             CommandRegistered { id, command } => {
@@ -1894,9 +1896,9 @@ impl crabideApp {
                     .unwrap_or_else(|_| vec![String::new()]);
                 let mut tab = EditorTab::new(id, title, uri, Language::PLAIN_TEXT);
                 tab.lines = if lines.is_empty() {
-                    vec![String::new()]
+                    Arc::new(vec![String::new()])
                 } else {
-                    lines
+                    Arc::new(lines)
                 };
                 self.ui_state.open_tab(tab);
                 // Nothing to parse for a blank untitled document, but still
@@ -2215,7 +2217,7 @@ impl crabideApp {
                 let cs = self.ui_state.workspace_search.case_sensitive;
 
                 // Collect open buffer data for in-memory grep.
-                let buffers: Vec<(PathBuf, Vec<String>)> = self
+                let buffers: Vec<(PathBuf, Arc<Vec<String>>)> = self
                     .ui_state
                     .tabs()
                     .iter()
@@ -2505,14 +2507,16 @@ impl crabideApp {
                         .ok();
                     // Toggle the line in/out of the tab's breakpoint list.
                     let tab = &mut self.ui_state.tabs_mut()[idx];
-                    if tab.breakpoints.contains(&line) {
-                        tab.breakpoints.retain(|&l| l != line);
+                    let mut bps: Vec<u32> = tab.breakpoints.to_vec();
+                    if bps.contains(&line) {
+                        bps.retain(|&l| l != line);
                     } else {
-                        tab.breakpoints.push(line);
+                        bps.push(line);
                     }
+                    tab.breakpoints = Arc::new(bps);
                     // Sync with adapter if a session is active.
                     if let Some(path) = tab_path {
-                        let new_bps = self.ui_state.tabs_mut()[idx].breakpoints.clone();
+                        let new_bps = tab.breakpoints.clone();
                         self.ui_state
                             .dap_panel
                             .pending_set_breakpoints
@@ -2520,7 +2524,7 @@ impl crabideApp {
                         self.ui_state
                             .dap_panel
                             .pending_set_breakpoints
-                            .push((path, new_bps));
+                            .push((path, new_bps.to_vec()));
                     }
                 }
             }
@@ -2556,7 +2560,7 @@ impl crabideApp {
                     self.ui_state.git_panel.blame_lines.clear();
                     self.ui_state.git_panel.visible = false;
                     for tab in self.ui_state.tabs_mut() {
-                        tab.git_hunks.clear();
+                        tab.git_hunks = Arc::new(Vec::new());
                     }
                     clear_explorer_git_status(&mut self.ui_state);
                     self.ui_state.set_status("Git disabled");
@@ -3664,7 +3668,7 @@ impl crabideApp {
         let id = tab.buffer_id;
         if let Ok(lines) = self.workspace.get_lines(id) {
             if let Some(tab) = self.ui_state.tabs_mut().get_mut(tab_idx) {
-                tab.lines = lines;
+                tab.lines = Arc::new(lines);
                 tab.is_dirty = self.workspace.is_dirty(id);
                 // After a buffer change (undo, redo, external edit) lines may be
                 // shorter or fewer than before.  Clamp every cursor so that
@@ -3962,7 +3966,7 @@ impl crabideApp {
             return;
         };
         let req_id = self.lsp_request_id.fetch_add(1, AtomicOrdering::Relaxed);
-        client.code_actions(uri, range, diagnostics, req_id);
+        client.code_actions(uri, range, diagnostics.to_vec(), req_id);
         self.ui_state.set_status("Requesting code actions…");
     }
 
@@ -4063,7 +4067,7 @@ impl crabideApp {
         if let Some(tab) = tab_for_uri_mut(&mut self.ui_state, uri) {
             let id = tab.buffer_id;
             if let Ok(lines) = self.workspace.get_lines(id) {
-                tab.lines = lines;
+                tab.lines = Arc::new(lines);
                 tab.is_dirty = self.workspace.is_dirty(id);
             }
         }
@@ -4463,9 +4467,9 @@ fn open_path_as_tab(state: &mut UiState, workspace: &Arc<Workspace>, path: PathB
     let buffer_id = workspace.register_document(document);
     let mut tab = EditorTab::new(buffer_id, title, uri, language);
     tab.lines = if lines.is_empty() {
-        vec![String::new()]
+        Arc::new(vec![String::new()])
     } else {
-        lines
+        Arc::new(lines)
     };
 
     state.open_tab(tab);
@@ -5480,7 +5484,7 @@ mod tests {
             .expect("hardcoded test path is always valid"),
             Language::RUST,
         );
-        tab.lines = lines;
+        tab.lines = Arc::new(lines);
         tab.cursors.set_single(Position::new(line, col));
         tab
     }

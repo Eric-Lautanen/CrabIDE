@@ -50,13 +50,13 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
     let total_errors: usize = state
         .tabs()
         .iter()
-        .flat_map(|t| &t.diagnostics)
+        .flat_map(|t| t.diagnostics.iter())
         .filter(|d| d.severity == DiagnosticSeverity::Error)
         .count();
     let total_warnings: usize = state
         .tabs()
         .iter()
-        .flat_map(|t| &t.diagnostics)
+        .flat_map(|t| t.diagnostics.iter())
         .filter(|d| d.severity == DiagnosticSeverity::Warning)
         .count();
 
@@ -152,7 +152,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
                         });
 
                     // Diagnostic rows.
-                    for diag in &tab.diagnostics {
+                    for diag in tab.diagnostics.iter() {
                         let (sev_icon, sev_color) = match diag.severity {
                             DiagnosticSeverity::Error => ("✗", error_color),
                             DiagnosticSeverity::Warning => ("⚠", warn_color),

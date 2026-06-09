@@ -399,20 +399,19 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                     // Collect per-tab data before the gutter call so there is no
                     // overlapping borrow of `state` when we later touch `state.dap_panel`.
                     let tab_bp_path = tab.uri.as_url().to_file_path().ok();
-                    let tab_bps_snap = tab.breakpoints.clone();
+                    let mut tab_bps_snap: Vec<u32> = tab.breakpoints.to_vec();
                     match gutter::show_line(ui, tab, state, line_idx) {
                         gutter::GutterAction::ToggleBreakpoint => {
                             let bp_line = line_idx as u32;
                             actions.push(Action::ToggleBreakpoint);
                             if let Some(path) = tab_bp_path {
-                                let mut lines = tab_bps_snap;
-                                if let Some(pos) = lines.iter().position(|&l| l == bp_line) {
-                                    lines.remove(pos);
+                                if let Some(pos) = tab_bps_snap.iter().position(|&l| l == bp_line) {
+                                    tab_bps_snap.remove(pos);
                                 } else {
-                                    lines.push(bp_line);
-                                    lines.sort_unstable();
+                                    tab_bps_snap.push(bp_line);
+                                    tab_bps_snap.sort_unstable();
                                 }
-                                bp_gutter_click = Some((path, lines));
+                                bp_gutter_click = Some((path, tab_bps_snap));
                             }
                         }
                         gutter::GutterAction::ToggleFold(idx) => {
@@ -592,20 +591,19 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                     // Collect per-tab data before the gutter call so there is no
                     // overlapping borrow of `state` when we later touch `state.dap_panel`.
                     let tab_bp_path = tab.uri.as_url().to_file_path().ok();
-                    let tab_bps_snap = tab.breakpoints.clone();
+                    let mut tab_bps_snap: Vec<u32> = tab.breakpoints.to_vec();
                     match gutter::show_line(ui, tab, state, line_idx) {
                         gutter::GutterAction::ToggleBreakpoint => {
                             let bp_line = line_idx as u32;
                             actions.push(Action::ToggleBreakpoint);
                             if let Some(path) = tab_bp_path {
-                                let mut lines = tab_bps_snap;
-                                if let Some(pos) = lines.iter().position(|&l| l == bp_line) {
-                                    lines.remove(pos);
+                                if let Some(pos) = tab_bps_snap.iter().position(|&l| l == bp_line) {
+                                    tab_bps_snap.remove(pos);
                                 } else {
-                                    lines.push(bp_line);
-                                    lines.sort_unstable();
+                                    tab_bps_snap.push(bp_line);
+                                    tab_bps_snap.sort_unstable();
                                 }
-                                bp_gutter_click = Some((path, lines));
+                                bp_gutter_click = Some((path, tab_bps_snap));
                             }
                         }
                         gutter::GutterAction::ToggleFold(idx) => {

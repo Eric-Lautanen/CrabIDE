@@ -243,7 +243,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<crabide_co
         );
 
         // Try to get the lines from the open tab, or just show a message.
-        let preview_lines: Vec<String> = state
+        let preview_lines = state
             .tabs()
             .iter()
             .find(|t| t.uri == loc.uri)

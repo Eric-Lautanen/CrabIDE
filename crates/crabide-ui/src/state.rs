@@ -8,6 +8,7 @@
 //! Background-event integration happens in `crabide-app`.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 use crabide_buffer::{CursorSet, SnippetEngine, SnippetTabstop};
@@ -58,7 +59,8 @@ pub struct FindReplaceState {
     /// Match whole words only.
     pub whole_word: bool,
     /// All match ranges in the current document (recomputed on query change).
-    pub match_ranges: Vec<Range>,
+    /// Wrapped in `Arc` to avoid deep cloning every render frame.
+    pub match_ranges: Arc<Vec<Range>>,
     /// Index of the currently selected match within `match_ranges`.
     pub current_match_idx: usize,
     /// The query that was used to compute `match_ranges` (to detect changes).
@@ -123,7 +125,7 @@ mod tests {
     fn find_replace_has_matches_empty_query() {
         let state = FindReplaceState {
             query: String::new(),
-            match_ranges: vec![Range::new(Position::ZERO, Position::new(0, 1))],
+            match_ranges: Arc::new(vec![Range::new(Position::ZERO, Position::new(0, 1))]),
             ..Default::default()
         };
         assert!(!state.has_matches());
@@ -133,7 +135,7 @@ mod tests {
     fn find_replace_has_matches_empty_ranges() {
         let state = FindReplaceState {
             query: "test".into(),
-            match_ranges: vec![],
+            match_ranges: Arc::new(vec![]),
             ..Default::default()
         };
         assert!(!state.has_matches());
@@ -143,7 +145,7 @@ mod tests {
     fn find_replace_has_matches_ok() {
         let state = FindReplaceState {
             query: "test".into(),
-            match_ranges: vec![Range::new(Position::ZERO, Position::new(0, 4))],
+            match_ranges: Arc::new(vec![Range::new(Position::ZERO, Position::new(0, 4))]),
             ..Default::default()
         };
         assert!(state.has_matches());
@@ -153,26 +155,25 @@ mod tests {
     fn find_replace_next_match_wraps() {
         let mut state = FindReplaceState {
             query: "a".into(),
-            match_ranges: vec![
+            match_ranges: Arc::new(vec![
                 Range::new(Position::ZERO, Position::new(0, 1)),
                 Range::new(Position::new(0, 2), Position::new(0, 3)),
                 Range::new(Position::new(0, 5), Position::new(0, 6)),
-            ],
+            ]),
             current_match_idx: 2,
             ..Default::default()
         };
         state.next_match();
         assert_eq!(state.current_match_idx, 0);
     }
-
     #[test]
     fn find_replace_prev_match_wraps() {
         let mut state = FindReplaceState {
             query: "a".into(),
-            match_ranges: vec![
+            match_ranges: Arc::new(vec![
                 Range::new(Position::ZERO, Position::new(0, 1)),
                 Range::new(Position::new(0, 2), Position::new(0, 3)),
-            ],
+            ]),
             current_match_idx: 0,
             ..Default::default()
         };
@@ -191,7 +192,7 @@ mod tests {
     fn find_replace_current_match() {
         let state = FindReplaceState {
             query: "a".into(),
-            match_ranges: vec![Range::new(Position::ZERO, Position::new(0, 1))],
+            match_ranges: Arc::new(vec![Range::new(Position::ZERO, Position::new(0, 1))]),
             ..Default::default()
         };
         assert_eq!(
@@ -1217,19 +1218,24 @@ pub struct EditorTab {
     pub language: Language,
     pub is_dirty: bool,
     /// Snapshot of document lines — updated by the app on every edit.
-    pub lines: Vec<String>,
+    /// Wrapped in `Arc` so that read-only snapshot clones are O(1) refcount bumps
+    /// instead of deep-copying the entire line vector on every keystroke/action.
+    pub lines: Arc<Vec<String>>,
     /// Syntax highlight spans for the current snapshot, sorted by start.
     pub highlight_spans: Vec<HighlightSpan>,
     /// LSP diagnostics for this file.
-    pub diagnostics: Vec<Diagnostic>,
+    /// Wrapped in `Arc` to avoid deep cloning every render frame.
+    pub diagnostics: Arc<Vec<Diagnostic>>,
     /// Git diff hunks for gutter markers.
-    pub git_hunks: Vec<DiffHunk>,
+    /// Wrapped in `Arc` to avoid deep cloning every render frame.
+    pub git_hunks: Arc<Vec<DiffHunk>>,
     /// Git staged diff hunks (index vs HEAD) for the staged review view.
-    pub git_staged_hunks: Vec<DiffHunk>,
+    pub git_staged_hunks: Arc<Vec<DiffHunk>>,
     /// Breakpoints set in this file (0-based line numbers).
-    pub breakpoints: Vec<u32>,
+    /// Wrapped in `Arc` to avoid cloning on every gutter render.
+    pub breakpoints: Arc<Vec<u32>>,
     /// Gutter markers contributed by extensions for this document.
-    pub extension_gutter_markers: Vec<GutterMarker>,
+    pub extension_gutter_markers: Arc<Vec<GutterMarker>>,
     /// Per-tab cursor / selection state (owned by UI).
     pub cursors: CursorSet,
     /// Snippet engine for tabstop cycling (owned by UI).
@@ -1251,7 +1257,8 @@ pub struct EditorTab {
     /// Consecutive click count at the same position (1 = single, 2 = double, 3+ = triple).
     pub click_count: u32,
     /// LSP inlay hints (parameter names, type hints) rendered inline.
-    pub inlay_hints: Vec<crabide_core::event::InlayHint>,
+    /// Wrapped in `Arc` to avoid deep cloning every render frame.
+    pub inlay_hints: Arc<Vec<crabide_core::event::InlayHint>>,
     /// LSP semantic tokens for syntax highlighting.
     pub semantic_tokens: Vec<crabide_core::event::SemanticToken>,
     /// LSP code lens items (clickable links above functions).
@@ -1273,13 +1280,13 @@ impl EditorTab {
             uri,
             language,
             is_dirty: false,
-            lines: Vec::new(),
+            lines: Arc::new(Vec::new()),
             highlight_spans: Vec::new(),
-            diagnostics: Vec::new(),
-            git_hunks: Vec::new(),
-            git_staged_hunks: Vec::new(),
-            breakpoints: Vec::new(),
-            extension_gutter_markers: Vec::new(),
+            diagnostics: Arc::new(Vec::new()),
+            git_hunks: Arc::new(Vec::new()),
+            git_staged_hunks: Arc::new(Vec::new()),
+            breakpoints: Arc::new(Vec::new()),
+            extension_gutter_markers: Arc::new(Vec::new()),
             cursors: CursorSet::new(),
             snippet_engine: SnippetEngine::new(),
             bracket_match: None,
@@ -1289,7 +1296,7 @@ impl EditorTab {
             last_click_time: 0.0,
             last_click_pos: None,
             click_count: 0,
-            inlay_hints: Vec::new(),
+            inlay_hints: Arc::new(Vec::new()),
             semantic_tokens: Vec::new(),
             code_lens: Vec::new(),
             folding_ranges: Vec::new(),

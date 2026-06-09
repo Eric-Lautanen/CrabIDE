@@ -30,6 +30,8 @@ pub use state::{
     UiState, cfg_to_egui,
 };
 
+use std::sync::Arc;
+
 use crabide_config::{Action, Key, KeyChord, Modifiers};
 use crabide_core::types::Position;
 
@@ -1077,7 +1079,7 @@ fn process_keyboard(ctx: &egui::Context, state: &mut UiState) -> Vec<Action> {
                     if should_process {
                         if *key == egui::Key::Escape && state.find_replace.visible {
                             state.find_replace.visible = false;
-                            state.find_replace.match_ranges.clear();
+                            state.find_replace.match_ranges = Arc::new(Vec::new());
                             surrender_focus = true;
                         } else if *key == egui::Key::Escape && state.workspace_search.visible {
                             state.workspace_search.visible = false;
@@ -2021,8 +2023,8 @@ fn move_cursors(state: &mut UiState, kind: MoveKind, extend: bool) {
         return;
     };
 
-    // Clone lines to avoid borrow conflict between `tab.lines` and `tab.cursors`.
-    let lines: Vec<String> = tab.lines.clone();
+    // Clone lines (cheap Arc bump) to avoid borrow conflict between tab.lines and tab.cursors.
+    let lines = tab.lines.clone();
     let n_lines = lines.len().max(1);
 
     tab.cursors.map_cursors(|cursor| {
