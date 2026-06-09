@@ -111,9 +111,8 @@ impl IndentEngine {
         source: &str,
         tree: &tree_sitter::Tree,
     ) -> Vec<LineIndent> {
-        let query = match self.get_query(language, entry) {
-            Some(q) => q,
-            None => return Vec::new(),
+        let Some(query) = self.get_query(language, entry) else {
+            return Vec::new();
         };
 
         let source_bytes = source.as_bytes();

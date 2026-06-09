@@ -113,9 +113,8 @@ impl LocalsEngine {
         ref_start_byte: usize,
         ref_end_byte: usize,
     ) -> ResolvedScope {
-        let query = match self.get_query(language, entry) {
-            Some(q) => q,
-            None => return ResolvedScope::Unresolved,
+        let Some(query) = self.get_query(language, entry) else {
+            return ResolvedScope::Unresolved;
         };
 
         let source_bytes = source.as_bytes();
@@ -187,9 +186,8 @@ impl LocalsEngine {
         source: &str,
         tree: &tree_sitter::Tree,
     ) -> Vec<LocalScopeInfo> {
-        let query = match self.get_query(language, entry) {
-            Some(q) => q,
-            None => return Vec::new(),
+        let Some(query) = self.get_query(language, entry) else {
+            return Vec::new();
         };
 
         let source_bytes = source.as_bytes();
