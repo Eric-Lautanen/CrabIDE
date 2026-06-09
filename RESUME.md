@@ -6,14 +6,14 @@
 
 ## Session summary
 
-**Git submodule support added ✅**
-- Added `SubmoduleInfo` core type with path, url, branch, commit, status fields
-- Added `GitEvent` variants: `SubmodulesListed`, `SubmoduleAdded`, `SubmoduleUpdated`, `SubmoduleSynced`
-- Added `GitCommand` variants: `ListSubmodules`, `SubmoduleAdd`, `SubmoduleUpdate`, `SubmoduleSync`
-- Added `GitService` methods: `list_submodules()`, `submodule_add()`, `submodule_update()`, `submodule_sync()`
-- Implemented git2 submodule operations: list (with status flags), add (setup + clone + finalize), update (init + fetch), sync
-- Added `submodules` field to `GitPanelState` with UI listing showing status icons and commit hashes
-- Wired all new events in app.rs event handler
+**Git conflict resolution added ✅**
+- Added `ConflictInfo` core type with path, ancestor_oid, ours_oid, theirs_oid fields
+- Added `GitEvent` variants: `ConflictsDetected`, `ConflictResolved`
+- Added `GitCommand` variants: `ListConflicts`, `ResolveOurs`, `ResolveTheirs`, `MarkResolved`
+- Added `GitService` methods: `list_conflicts()`, `resolve_ours()`, `resolve_theirs()`, `mark_resolved()`
+- Implemented git2 conflict resolution: list conflicts from index, resolve using ours/theirs blob checkout, mark resolved by removing conflict entries and staging
+- Added `conflicts` field to `GitPanelState`
+- Wired new events in app.rs handler
 - All workspace tests pass, zero warnings (clippy + check)
 
 ## Mandatory Policy (read every session)
@@ -37,7 +37,7 @@
 ### Phase 6 (Git):
 - [x] tag management, remote management
 - [x] submodule support
-- [ ] conflict resolution
+- [x] conflict resolution
 
 ### Phase 9 (Extensions):
 - [ ] WASM editor/workspace/commands host implementations

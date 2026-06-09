@@ -235,7 +235,7 @@ Status, diff hunks, blame, stage/unstage, commit, branch, discard.
 - [x] Add remote management (add, remove, list)
 - [x] Add submodule support
 - [x] Add diff for staged changes (index vs HEAD)
-- [ ] Add conflict resolution helpers
+- [x] Add conflict resolution helpers
 - [x] Remove dead `tokio`, `rayon`, `thiserror`, `anyhow` dependencies (unused)
 
 ---
