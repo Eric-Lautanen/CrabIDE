@@ -216,8 +216,9 @@ impl<'a> egui_tiles::Behavior<PaneKind> for UiBehavior<'a> {
 
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut PaneKind) -> UiResponse {
         match pane {
-            PaneKind::EditorGroup(_idx) => {
-                panels::editor::show(ui, self.state, self.actions);
+            PaneKind::EditorGroup(idx) => {
+                // Render the editor for this specific group.
+                panels::editor::show_for_group(*idx, ui, self.state, self.actions);
             }
             PaneKind::FileExplorer => {
                 // Fill sidebar background before rendering anything.

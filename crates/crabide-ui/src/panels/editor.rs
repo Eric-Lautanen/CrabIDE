@@ -58,6 +58,29 @@ fn is_line_folded(
 /// Render the full editor pane (tab bar + find bar + scrollable content).
 /// Appends any backend actions to `actions`.
 pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
+    show_for_group(state.active_group, ui, state, actions);
+}
+
+/// Render the editor pane for a specific editor group index.
+/// This allows multiple editor panes (split view) to show different content.
+pub fn show_for_group(
+    group_idx: usize,
+    ui: &mut egui::Ui,
+    state: &mut UiState,
+    actions: &mut Vec<Action>,
+) {
+    // Temporarily switch the active group to render the correct tabs,
+    // then restore it. Each pane in the layout calls this sequentially,
+    // so the final active_group will be the last rendered pane.
+    let prev_group = state.active_group;
+    state.active_group = group_idx;
+    show_impl(ui, state, actions);
+    state.active_group = prev_group;
+}
+
+/// Internal implementation shared by `show` and `show_for_group`.
+/// Uses `state.active_group_ref()` to determine which group's tabs to render.
+fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     // ── Tab bar ───────────────────────────────────────────────────────────────
     let tab_action = tab_bar::show(ui, state);
     match tab_action {
