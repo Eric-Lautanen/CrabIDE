@@ -183,9 +183,9 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [x] **Code folding gutter UI**: fold markers + expand/collapse controls
 - [x] **Breadcrumbs**: path bar above editor showing symbol hierarchy
 - [x] **Inlay hints**: render LSP inlay hints (parameter names, type hints) inline
-- [ ] **Minimap**: scrollable code overview in sidebar
+- [x] **Minimap**: scrollable code overview in sidebar
+- [x] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
 - [ ] **Split editor**: side-by-side file comparison / multi-pane layouts
-- [ ] **Context menu**: right-click with editor/file-explorer/tab actions + extension contributions
 - [ ] **Drag-and-drop tab reordering** in tab bar
 - [ ] **Scrollbar annotations**: diagnostic markers, search result highlights, git diff markers
 - [ ] **Peek view**: inline definition/reference preview (like VS Code peek)

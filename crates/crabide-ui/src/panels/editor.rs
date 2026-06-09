@@ -75,11 +75,11 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) {
 
     // ── No open document — show welcome screen ────────────────────────────────
     let Some(active_idx) = state.active_tab else {
-        show_welcome(ui, state);
+        show_welcome(ui, state, actions);
         return;
     };
     if active_idx >= state.tabs.len() {
-        show_welcome(ui, state);
+        show_welcome(ui, state, actions);
         return;
     }
 
@@ -1471,7 +1471,7 @@ fn build_line_job(
 
 // ── Welcome screen ────────────────────────────────────────────────────────────
 
-fn show_welcome(ui: &mut egui::Ui, state: &UiState) {
+fn show_welcome(ui: &mut egui::Ui, state: &UiState, actions: &mut Vec<Action>) {
     let t = &state.theme;
     let accent = cfg_to_egui(t.ui_or(
         "statusBar.background",
@@ -1551,6 +1551,7 @@ fn show_welcome(ui: &mut egui::Ui, state: &UiState) {
                             ("Open Recent...", "Ctrl+P"),
                             ("Command Palette", "Ctrl+Shift+P"),
                         ],
+                        actions,
                     );
                     welcome_card(
                         ui,
@@ -1563,6 +1564,7 @@ fn show_welcome(ui: &mut egui::Ui, state: &UiState) {
                             ("Source Control", "Ctrl+Shift+G"),
                             ("Toggle Theme", "Ctrl+K T"),
                         ],
+                        actions,
                     );
                 });
 
@@ -1592,12 +1594,14 @@ struct WelcomeCardTheme {
 }
 
 /// Render one welcome-screen card.
+/// Returns the label of the clicked row, or empty string if none clicked.
 fn welcome_card(
     ui: &mut egui::Ui,
     width: f32,
     theme: WelcomeCardTheme,
     title: &str,
     rows: &[(&str, &str)],
+    actions: &mut Vec<Action>,
 ) {
     let WelcomeCardTheme {
         card_bg,
@@ -1648,10 +1652,15 @@ fn welcome_card(
                     g.rect.width() + 10.0
                 };
 
-                let (rect, _) =
-                    ui.allocate_exact_size(egui::vec2(inner_w, row_h), egui::Sense::hover());
+                let (rect, resp) =
+                    ui.allocate_exact_size(egui::vec2(inner_w, row_h), egui::Sense::click());
                 if !ui.is_rect_visible(rect) {
                     continue;
+                }
+
+                // Hover highlight.
+                if resp.hovered() {
+                    ui.painter().rect_filled(rect, 2.0, key_bg);
                 }
 
                 // Label clipped to avoid overlapping the key pill.
@@ -1692,6 +1701,22 @@ fn welcome_card(
                         key_font.clone(),
                         dim,
                     );
+                }
+
+                // Handle click — map label to action.
+                if resp.clicked() {
+                    let action = match label {
+                        "New File" => Action::NewFile,
+                        "Open File..." => Action::OpenFile,
+                        "Open Recent..." => Action::FuzzyFindFile,
+                        "Command Palette" => Action::CommandPalette,
+                        "Find in Files" => Action::FindInFiles,
+                        "Toggle Terminal" => Action::ToggleTerminal,
+                        "Source Control" => Action::ToggleGitPanel,
+                        "Toggle Theme" => Action::ToggleExtensionsPanel,
+                        _ => continue,
+                    };
+                    actions.push(action);
                 }
             }
         });
