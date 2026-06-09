@@ -24,9 +24,9 @@ pub use state::{
     cfg_to_egui, BreadcrumbSegment, ContextMenuAction, ContextMenuContext, ContextMenuItem,
     ContextMenuState, DapPanelState, DisplayCell, EditorTab, ExtensionPanelUiState,
     ExtensionsPanelState, ExtensionsPanelTab, FileExplorerState, FileNode, GitDecoration,
-    GitPanelState, LspStatus, OutputPanelState, PeekKind, PeekState, SidebarPaneUiState,
-    SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance, TerminalPanelState,
-    ThemePickerState, UiState,
+    GitPanelState, KeybindingsEditorState, LspStatus, OutputPanelState, PeekKind, PeekState,
+    SidebarPaneUiState, SidebarTab, SymbolOutlineEntry, SymbolOutlineState, TerminalInstance,
+    TerminalPanelState, ThemePickerState, UiState,
 };
 
 use crabide_config::{Action, Key, KeyChord, Modifiers};
@@ -319,6 +319,9 @@ pub fn render(ui: &mut egui::Ui, state: &mut UiState) -> Vec<Action> {
 
     // ── Theme picker overlay ─────────────────────────────────────────────
     panels::theme_picker::show(ui, state);
+
+    // ── Keybindings editor overlay ───────────────────────────────────────
+    panels::keybindings_editor::show(ui, state);
 
     actions
 }
@@ -1404,6 +1407,12 @@ pub(crate) fn handle_ui_action(action: Action, state: &mut UiState) -> bool {
         // ── Theme picker ──────────────────────────────────────────────────────
         Action::ToggleThemePicker => {
             state.theme_picker.visible = !state.theme_picker.visible;
+            true
+        }
+
+        // ── Keybindings editor ─────────────────────────────────────────────────
+        Action::ToggleKeybindingsEditor => {
+            state.keybindings_editor.visible = !state.keybindings_editor.visible;
             true
         }
 

@@ -12,15 +12,15 @@
 
 ## Session summary
 
-**Phase 4 UI: theme picker ✅**
-- Theme picker overlay with searchable list of all available themes (Ctrl+K Ctrl+T)
-- New `Action::ToggleThemePicker` action variant with keybinding `Ctrl+K Ctrl+T`
-- New `ThemePickerState` struct in `UiState` with visible flag, themes list, selected index, pending theme change
-- New `theme_picker` panel rendering a centered modal window with search + scrollable list
-- Hover highlighting, current-theme checkmark indicator, click-to-select
-- App layer populates theme list from `ConfigManager::themes()` and applies selection (persists to settings.toml, updates egui style)
+**Phase 4 UI: keybindings editor ✅**
+- Keybindings editor overlay showing all keyboard shortcuts in a searchable table (Ctrl+K Ctrl+S)
+- New `Action::ToggleKeybindingsEditor` action variant with keybinding `Ctrl+K Ctrl+S`
+- New `KeybindingsEditorState` struct with visible flag, bindings list, and search query
+- New `keybindings_editor` panel rendering a centered modal window with search + scrollable table
+- App layer populates bindings list from `KeybindingEngine::bindings()` + `all_actions()` labels
+- Case-insensitive search across both command name and key combo
 
-**Previous session: Phase 4 UI: column select mode ✅**
+**Previous session: Phase 4 UI: theme picker ✅**
 - Implemented column/box selection via `Shift+Alt+drag` (like VS Code column select)
 - New `column_select` flag on `PointerEvent::Press` detected when both Shift+Alt are held
 - `column_select_anchor` field on `EditorTab` stores the press position for column selection

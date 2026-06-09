@@ -14,6 +14,7 @@ pub mod find_replace;
 pub mod fuzzy_finder;
 pub mod git_panel;
 pub mod gutter;
+pub mod keybindings_editor;
 pub mod minimap;
 pub mod output_panel;
 pub mod peek_view;

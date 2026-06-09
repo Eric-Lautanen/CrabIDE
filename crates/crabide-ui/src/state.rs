@@ -1988,6 +1988,19 @@ pub struct ThemePickerState {
     pub pending_theme_id: Option<String>,
 }
 
+// ── KeybindingsEditorState ──────────────────────────────────────────────────────
+
+/// State for the keybindings editor panel.
+#[derive(Default)]
+pub struct KeybindingsEditorState {
+    /// Whether the keybindings editor is visible.
+    pub visible: bool,
+    /// All keybindings as (action_label, key_combo).
+    pub bindings: Vec<(String, String)>,
+    /// Search query to filter the list.
+    pub query: String,
+}
+
 // ── UiState ───────────────────────────────────────────────────────────────────
 
 /// Complete mutable UI state for the editor, owned by the application.
@@ -2148,6 +2161,8 @@ pub struct UiState {
 
     // ── Theme picker state ───────────────────────────────────────────────
     pub theme_picker: ThemePickerState,
+    // ── Keybindings editor state ─────────────────────────────────────────
+    pub keybindings_editor: KeybindingsEditorState,
 }
 
 impl UiState {
@@ -2205,6 +2220,7 @@ impl UiState {
             peek: PeekState::default(),
             pending_peek_method: None,
             theme_picker: ThemePickerState::default(),
+            keybindings_editor: KeybindingsEditorState::default(),
         }
     }
 

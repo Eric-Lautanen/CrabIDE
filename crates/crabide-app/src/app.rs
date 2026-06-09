@@ -4076,6 +4076,28 @@ impl eframe::App for crabideApp {
                 themes.into_iter().map(|(id, t)| (id, t.name)).collect();
         }
 
+        // Populate keybindings list for the keybindings editor.
+        if self.ui_state.keybindings_editor.bindings.is_empty() {
+            use crabide_config::all_actions;
+            let action_labels = all_actions();
+            let bindings = self.ui_state.keybindings.bindings();
+            let mut key_map: Vec<(String, String)> = bindings
+                .iter()
+                .filter_map(|b| {
+                    let label = action_labels.get(&b.action)?;
+                    let key = b
+                        .chords
+                        .iter()
+                        .map(|c| c.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    Some((label.to_string(), key))
+                })
+                .collect();
+            key_map.sort_by_key(|a| a.0.to_lowercase());
+            self.ui_state.keybindings_editor.bindings = key_map;
+        }
+
         let actions = crabide_ui::render(ui, &mut self.ui_state);
         self.dispatch_actions(actions, &ctx);
 

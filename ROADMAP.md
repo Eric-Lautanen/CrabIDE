@@ -191,7 +191,7 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [x] **Peek view**: inline definition/reference preview (like VS Code peek)
 - [x] **Output panel**: wire `ToggleOutputPanel` to actual panel
 - [ ] **Settings UI panel**: visual editor for `settings.toml`
-- [ ] **Keybindings editor UI**
+- [x] **Keybindings editor UI** (Ctrl+K Ctrl+S overlay with searchable table)
 - [x] **Theme picker UI** (Ctrl+K Ctrl+T overlay with searchable list)
 - [x] **Welcome screen**: interactive cards (not just decorative)
 - [x] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)

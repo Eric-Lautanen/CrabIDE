@@ -150,6 +150,7 @@ pub enum Action {
     ToggleOutputPanel,
     ToggleMinimap,
     ToggleThemePicker,
+    ToggleKeybindingsEditor,
     ToggleWordWrap,
     ToggleProblemsPanel,
     ZoomIn,
@@ -1351,6 +1352,7 @@ impl KeybindingEngine {
         // ── View ──────────────────────────────────────────────────────────────
         self.bind("alt+z", Action::ToggleWordWrap);
         self.bind("ctrl+k ctrl+t", Action::ToggleThemePicker);
+        self.bind("ctrl+k ctrl+s", Action::ToggleKeybindingsEditor);
         self.bind("ctrl+=", Action::ZoomIn);
         self.bind("ctrl+-", Action::ZoomOut);
         self.bind("ctrl+0", Action::ZoomReset);
@@ -1428,6 +1430,10 @@ pub fn all_actions() -> IndexMap<Action, &'static str> {
     );
     m.insert(Action::ToggleOutputPanel, "View: Toggle Output Panel");
     m.insert(Action::ToggleThemePicker, "Preferences: Theme Picker");
+    m.insert(
+        Action::ToggleKeybindingsEditor,
+        "Preferences: Open Keyboard Shortcuts",
+    );
     m.insert(Action::ToggleProblemsPanel, "View: Toggle Problems Panel");
     m.insert(Action::ToggleMinimap, "View: Toggle Minimap");
     m.insert(Action::ToggleWordWrap, "View: Toggle Word Wrap");
