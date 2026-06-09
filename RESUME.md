@@ -44,7 +44,8 @@
 - [x] All DAP roadmap items completed (evaluate, threads, setVariable, gotoTargets, exceptionInfo, function/exception breakpoints, progress events, invalidated, runInTerminal, completions types, cancel types, modules, attach, backpressure)
 
 ### Phase 6 (Git):
-- [ ] tag management, remote management, submodule support, conflict resolution
+- [x] tag management, remote management
+- [ ] submodule support, conflict resolution
 
 ### Phase 9 (Extensions):
 - [ ] WASM editor/workspace/commands host implementations

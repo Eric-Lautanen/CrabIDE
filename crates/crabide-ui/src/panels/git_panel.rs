@@ -205,6 +205,58 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
                 });
             }
 
+            // ── Submodules ──────────────────────────────────────────────────
+            let submodule_count = state.git_panel.submodules.len();
+            if submodule_count > 0 {
+                ui.add_space(2.0);
+                section_header(ui, header_bg, header_fg, "Submodules", submodule_count);
+
+                let sms: Vec<crabide_core::event::SubmoduleInfo> =
+                    state.git_panel.submodules.clone();
+                for sm in &sms {
+                    ui.horizontal(|ui| {
+                        ui.add_space(12.0);
+
+                        // Status icon
+                        let icon = if sm.cloned {
+                            if sm.has_changes {
+                                "✱"
+                            } else {
+                                "✓"
+                            }
+                        } else if sm.initialized {
+                            "◌"
+                        } else {
+                            "○"
+                        };
+                        let icon_color = if sm.has_changes {
+                            egui::Color32::from_rgb(0xe4, 0x43, 0x43)
+                        } else if sm.cloned {
+                            egui::Color32::from_rgb(0x73, 0xc9, 0x91)
+                        } else {
+                            dim_fg
+                        };
+                        ui.label(egui::RichText::new(icon).size(11.0).color(icon_color));
+                        ui.add_space(4.0);
+
+                        // Submodule path
+                        ui.label(egui::RichText::new(&sm.path).size(12.0).color(fg));
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add_space(8.0);
+                            // Short commit hash
+                            let short = if sm.commit.len() >= 7 {
+                                &sm.commit[..7]
+                            } else {
+                                &sm.commit
+                            };
+                            ui.label(egui::RichText::new(short).size(10.0).color(dim_fg));
+                        });
+                    });
+                }
+                ui.add_space(4.0);
+            }
+
             ui.add_space(8.0);
         });
 }

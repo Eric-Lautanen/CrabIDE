@@ -1331,6 +1331,32 @@ impl crabideApp {
                     svc.list_remotes();
                 }
             }
+
+            SubmodulesListed { submodules } => {
+                self.ui_state.git_panel.submodules = submodules;
+                self.ui_state.set_status("Git submodules listed");
+            }
+            SubmoduleAdded { path } => {
+                self.ui_state
+                    .set_status(format!("Git submodule added: {path}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_submodules();
+                }
+            }
+            SubmoduleUpdated { path } => {
+                self.ui_state
+                    .set_status(format!("Git submodule updated: {path}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_submodules();
+                }
+            }
+            SubmoduleSynced { path } => {
+                self.ui_state
+                    .set_status(format!("Git submodule synced: {path}"));
+                if let Some(svc) = &self.git_service {
+                    svc.list_submodules();
+                }
+            }
         }
     }
 

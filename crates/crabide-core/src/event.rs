@@ -557,6 +557,18 @@ pub enum GitEvent {
 
     /// Remote removed.
     RemoteRemoved { name: String },
+
+    /// Submodules list returned (in response to list_submodules).
+    SubmodulesListed { submodules: Vec<SubmoduleInfo> },
+
+    /// Submodule added.
+    SubmoduleAdded { path: String },
+
+    /// Submodule updated (init/update operation completed).
+    SubmoduleUpdated { path: String },
+
+    /// Submodule URLs synced.
+    SubmoduleSynced { path: String },
 }
 
 // ── VFS / File Events ─────────────────────────────────────────────────────────
@@ -1037,6 +1049,25 @@ pub struct RemoteInfo {
     pub push_url: Option<String>,
 }
 
+/// Information about a git submodule.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmoduleInfo {
+    /// Path relative to repository root.
+    pub path: String,
+    /// Submodule URL.
+    pub url: String,
+    /// Branch to follow (if any).
+    pub branch: Option<String>,
+    /// Current HEAD commit of the submodule.
+    pub commit: String,
+    /// Whether the submodule is initialized.
+    pub initialized: bool,
+    /// Whether the submodule has local changes (modified content).
+    pub has_changes: bool,
+    /// Whether the submodule is cloned (workdir exists).
+    pub cloned: bool,
+}
+
 // ── Top-level event enum ─────────────────────────────────────────────────────
 
 /// All events that can be sent from background services to the UI.
@@ -1363,6 +1394,12 @@ impl fmt::Display for GitEvent {
             }
             GitEvent::RemoteAdded { name, url } => write!(f, "git remote added: {name} -> {url}"),
             GitEvent::RemoteRemoved { name } => write!(f, "git remote removed: {name}"),
+            GitEvent::SubmodulesListed { submodules } => {
+                write!(f, "git submodules: {} listed", submodules.len())
+            }
+            GitEvent::SubmoduleAdded { path } => write!(f, "git submodule added: {path}"),
+            GitEvent::SubmoduleUpdated { path } => write!(f, "git submodule updated: {path}"),
+            GitEvent::SubmoduleSynced { path } => write!(f, "git submodule synced: {path}"),
         }
     }
 }

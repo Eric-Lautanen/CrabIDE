@@ -295,6 +295,44 @@ impl GitService {
         #[cfg(not(feature = "git-support"))]
         let _ = name;
     }
+
+    /// List all submodules and their status.
+    pub fn list_submodules(&self) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::ListSubmodules);
+    }
+
+    /// Add a submodule at the given URL and path.
+    pub fn submodule_add(&self, url: String, path: String, branch: Option<String>) {
+        #[cfg(feature = "git-support")]
+        let _ = self
+            .cmd_tx
+            .send(GitCommand::SubmoduleAdd { url, path, branch });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (url, path, branch);
+    }
+
+    /// Update/init submodule(s). If `path` is None, update all submodules.
+    /// `init` controls whether uninitialized submodules are initialized first.
+    /// `recursive` controls whether nested submodules are also updated.
+    pub fn submodule_update(&self, path: Option<String>, init: bool, recursive: bool) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::SubmoduleUpdate {
+            path,
+            init,
+            recursive,
+        });
+        #[cfg(not(feature = "git-support"))]
+        let _ = (path, init, recursive);
+    }
+
+    /// Sync submodule URL(s). If `path` is None, sync all submodules.
+    pub fn submodule_sync(&self, path: Option<String>) {
+        #[cfg(feature = "git-support")]
+        let _ = self.cmd_tx.send(GitCommand::SubmoduleSync { path });
+        #[cfg(not(feature = "git-support"))]
+        let _ = path;
+    }
 }
 
 #[cfg(feature = "git-support")]
@@ -422,6 +460,24 @@ enum GitCommand {
     /// Remove a remote.
     RemoveRemote {
         name: String,
+    },
+    /// List all submodules.
+    ListSubmodules,
+    /// Add a submodule.
+    SubmoduleAdd {
+        url: String,
+        path: String,
+        branch: Option<String>,
+    },
+    /// Update/init submodule(s).
+    SubmoduleUpdate {
+        path: Option<String>,
+        init: bool,
+        recursive: bool,
+    },
+    /// Sync submodule URL(s).
+    SubmoduleSync {
+        path: Option<String>,
     },
 }
 
@@ -747,6 +803,71 @@ mod git_support {
                     run_op(&event_tx, format!("remove remote {name}"), || {
                         remove_remote_impl(&repo, &name)
                     });
+                }
+
+                GitCommand::ListSubmodules => {
+                    send_submodule_list(&repo, &event_tx);
+                }
+
+                GitCommand::SubmoduleAdd { url, path, branch } => {
+                    use crabide_core::event::GitEvent;
+                    match submodule_add_impl(&mut repo, &url, &path, branch.as_deref()) {
+                        Ok(()) => {
+                            let _ =
+                                event_tx.send(EditorEvent::Git(GitEvent::SubmoduleAdded { path }));
+                            send_status(&repo, &event_tx);
+                        }
+                        Err(e) => {
+                            warn!("submodule add: {}", e.message());
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                operation: format!("submodule add {path}"),
+                                error: e.message().to_owned(),
+                            }));
+                        }
+                    }
+                }
+
+                GitCommand::SubmoduleUpdate {
+                    path,
+                    init,
+                    recursive,
+                } => {
+                    use crabide_core::event::GitEvent;
+                    match submodule_update_impl(&repo, path.as_deref(), init, recursive) {
+                        Ok(paths) => {
+                            for p in paths {
+                                let _ = event_tx
+                                    .send(EditorEvent::Git(GitEvent::SubmoduleUpdated { path: p }));
+                            }
+                            send_status(&repo, &event_tx);
+                        }
+                        Err(e) => {
+                            warn!("submodule update: {}", e.message());
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                operation: "submodule update".into(),
+                                error: e.message().to_owned(),
+                            }));
+                        }
+                    }
+                }
+
+                GitCommand::SubmoduleSync { path } => {
+                    use crabide_core::event::GitEvent;
+                    match submodule_sync_impl(&repo, path.as_deref()) {
+                        Ok(paths) => {
+                            for p in paths {
+                                let _ = event_tx
+                                    .send(EditorEvent::Git(GitEvent::SubmoduleSynced { path: p }));
+                            }
+                        }
+                        Err(e) => {
+                            warn!("submodule sync: {}", e.message());
+                            let _ = event_tx.send(EditorEvent::Git(GitEvent::OperationFailed {
+                                operation: "submodule sync".into(),
+                                error: e.message().to_owned(),
+                            }));
+                        }
+                    }
                 }
 
                 GitCommand::Shutdown => break,
@@ -1924,5 +2045,132 @@ mod git_support {
     ) -> std::result::Result<(), git2::Error> {
         repo.remote_delete(name)?;
         Ok(())
+    }
+
+    // ── Submodule operations ───────────────────────────────────────────
+
+    fn send_submodule_list(repo: &git2::Repository, event_tx: &Sender<EditorEvent>) {
+        use crabide_core::event::{GitEvent, SubmoduleInfo};
+        use git2::SubmoduleIgnore;
+        let sms: Vec<SubmoduleInfo> = match repo.submodules() {
+            Ok(subs) => subs
+                .iter()
+                .filter_map(|sm| {
+                    let path = sm.path().to_str()?.to_owned();
+                    let name = sm.name().ok()?.to_owned();
+                    let url = sm.url().ok()?.unwrap_or("").to_owned();
+                    let branch = sm.branch().ok()?.map(|s| s.to_owned());
+                    let commit = sm.head_id().map(|oid| oid.to_string()).unwrap_or_default();
+                    // Get status via repo
+                    let status = repo
+                        .submodule_status(&name, SubmoduleIgnore::Unspecified)
+                        .ok()
+                        .unwrap_or(git2::SubmoduleStatus::empty());
+                    let initialized = status.contains(git2::SubmoduleStatus::IN_HEAD)
+                        || status.contains(git2::SubmoduleStatus::IN_INDEX)
+                        || status.contains(git2::SubmoduleStatus::IN_CONFIG);
+                    let has_changes = status.contains(git2::SubmoduleStatus::WD_MODIFIED)
+                        || status.contains(git2::SubmoduleStatus::WD_INDEX_MODIFIED);
+                    let cloned = status.contains(git2::SubmoduleStatus::IN_WD);
+                    Some(SubmoduleInfo {
+                        path,
+                        url,
+                        branch,
+                        commit,
+                        initialized,
+                        has_changes,
+                        cloned,
+                    })
+                })
+                .collect(),
+            Err(e) => {
+                warn!("list submodules: {}", e.message());
+                Vec::new()
+            }
+        };
+        let _ = event_tx.send(EditorEvent::Git(GitEvent::SubmodulesListed {
+            submodules: sms,
+        }));
+    }
+
+    fn submodule_add_impl(
+        repo: &mut git2::Repository,
+        url: &str,
+        path_str: &str,
+        branch: Option<&str>,
+    ) -> std::result::Result<(), git2::Error> {
+        let mut sm = repo.submodule(url, path_str.as_ref(), false)?;
+        if let Some(b) = branch {
+            // Get the submodule name before mutating repo
+            let sm_name = sm.name()?.to_owned();
+            drop(sm); // release immutable borrow
+            repo.submodule_set_branch(&sm_name, b)?;
+            // Re-acquire the submodule
+            let mut tmp = repo.find_submodule(&sm_name)?;
+            let mut opts = git2::SubmoduleUpdateOptions::new();
+            opts.allow_fetch(true);
+            tmp.update(true, Some(&mut opts))?;
+            tmp.add_to_index(true)?;
+            tmp.add_finalize()?;
+        } else {
+            let mut opts = git2::SubmoduleUpdateOptions::new();
+            opts.allow_fetch(true);
+            sm.update(true, Some(&mut opts))?;
+            sm.add_to_index(true)?;
+            sm.add_finalize()?;
+        }
+        Ok(())
+    }
+    fn submodule_update_impl(
+        repo: &git2::Repository,
+        path: Option<&str>,
+        init: bool,
+        _recursive: bool,
+    ) -> std::result::Result<Vec<String>, git2::Error> {
+        let mut updated = Vec::new();
+        if let Some(p) = path {
+            let mut sm = repo.find_submodule(p)?;
+            if init {
+                sm.init(false)?;
+            }
+            let mut opts = git2::SubmoduleUpdateOptions::new();
+            opts.allow_fetch(true);
+            sm.update(false, Some(&mut opts))?;
+            updated.push(p.to_owned());
+        } else {
+            // Update all submodules
+            for sm_result in repo.submodules()? {
+                let sm_path = sm_result.path().to_str().unwrap_or("").to_owned();
+                let mut sm = repo.find_submodule(&sm_path)?;
+                if init {
+                    sm.init(false)?;
+                }
+                let mut opts = git2::SubmoduleUpdateOptions::new();
+                opts.allow_fetch(true);
+                sm.update(false, Some(&mut opts))?;
+                updated.push(sm_path);
+            }
+        }
+        Ok(updated)
+    }
+
+    fn submodule_sync_impl(
+        repo: &git2::Repository,
+        path: Option<&str>,
+    ) -> std::result::Result<Vec<String>, git2::Error> {
+        let mut synced = Vec::new();
+        if let Some(p) = path {
+            let mut sm = repo.find_submodule(p)?;
+            sm.sync()?;
+            synced.push(p.to_owned());
+        } else {
+            for sm_result in repo.submodules()? {
+                let sm_path = sm_result.path().to_str().unwrap_or("").to_owned();
+                let mut sm = repo.find_submodule(&sm_path)?;
+                sm.sync()?;
+                synced.push(sm_path);
+            }
+        }
+        Ok(synced)
     }
 }
