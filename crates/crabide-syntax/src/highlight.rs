@@ -143,9 +143,8 @@ impl HighlightEngine {
         source: &str,
         tree: &tree_sitter::Tree,
     ) -> Vec<HighlightSpan> {
-        let query = match self.get_query(language, entry) {
-            Some(q) => q,
-            None => return Vec::new(),
+        let Some(query) = self.get_query(language, entry) else {
+            return Vec::new();
         };
 
         let source_bytes = source.as_bytes();
@@ -199,9 +198,8 @@ impl HighlightEngine {
         let mut spans = self.compute_highlights(language, entry, source, tree);
 
         // If no injection query, return as-is.
-        let injection_query = match self.get_injection_query(language, entry) {
-            Some(q) => q,
-            None => return spans,
+        let Some(injection_query) = self.get_injection_query(language, entry) else {
+            return spans;
         };
 
         let source_bytes = source.as_bytes();

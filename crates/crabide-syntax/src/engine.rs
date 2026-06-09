@@ -334,13 +334,11 @@ impl SyntaxEngine {
     /// Compute highlight spans for a document, including injection highlights.
     /// Returns `[]` if not parsed.
     pub fn highlights(&self, id: BufferId) -> Vec<HighlightSpan> {
-        let cached = match self.cache.get(&id) {
-            Some(c) => c,
-            None => return Vec::new(),
+        let Some(cached) = self.cache.get(&id) else {
+            return Vec::new();
         };
-        let entry = match self.registry.get(&cached.language) {
-            Some(e) => e,
-            None => return Vec::new(),
+        let Some(entry) = self.registry.get(&cached.language) else {
+            return Vec::new();
         };
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
         self.highlighter.compute_highlights_with_injections(
@@ -354,9 +352,8 @@ impl SyntaxEngine {
 
     /// Extract folding ranges for a document. Returns `[]` if not parsed.
     pub fn folding_ranges(&self, id: BufferId) -> Vec<FoldingRange> {
-        let cached = match self.cache.get(&id) {
-            Some(c) => c,
-            None => return Vec::new(),
+        let Some(cached) = self.cache.get(&id) else {
+            return Vec::new();
         };
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
         fold::extract_folding_ranges(&cached.tree, source, &cached.language)
@@ -364,9 +361,8 @@ impl SyntaxEngine {
 
     /// Extract the symbol outline for a document. Returns `[]` if not parsed.
     pub fn outline(&self, id: BufferId) -> Vec<SymbolOutline> {
-        let cached = match self.cache.get(&id) {
-            Some(c) => c,
-            None => return Vec::new(),
+        let Some(cached) = self.cache.get(&id) else {
+            return Vec::new();
         };
         outline::extract_outline(&cached.tree, &cached.source, &cached.language)
     }
@@ -374,13 +370,11 @@ impl SyntaxEngine {
     /// Compute indentation advice for every line in a document. Returns `[]`
     /// if not parsed or no indent query is registered for the language.
     pub fn indents(&self, id: BufferId) -> Vec<LineIndent> {
-        let cached = match self.cache.get(&id) {
-            Some(c) => c,
-            None => return Vec::new(),
+        let Some(cached) = self.cache.get(&id) else {
+            return Vec::new();
         };
-        let entry = match self.registry.get(&cached.language) {
-            Some(e) => e,
-            None => return Vec::new(),
+        let Some(entry) = self.registry.get(&cached.language) else {
+            return Vec::new();
         };
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
         self.indenter
@@ -390,18 +384,17 @@ impl SyntaxEngine {
     /// Compute scope-aware local variable information for a document.
     /// Returns `[]` if not parsed or no locals query is registered.
     pub fn local_scopes(&self, id: BufferId) -> Vec<LocalScopeInfo> {
-        let cached = match self.cache.get(&id) {
-            Some(c) => c,
-            None => return Vec::new(),
+        let Some(cached) = self.cache.get(&id) else {
+            return Vec::new();
         };
-        let entry = match self.registry.get(&cached.language) {
-            Some(e) => e,
-            None => return Vec::new(),
+        let Some(entry) = self.registry.get(&cached.language) else {
+            return Vec::new();
         };
         let source = std::str::from_utf8(&cached.source).unwrap_or("");
         self.locals
             .compute_local_scopes(&cached.language, &entry, source, &cached.tree)
     }
+
 
     /// Return the current parse version for a document, or `None` if not parsed.
     pub fn version(&self, id: BufferId) -> Option<u32> {

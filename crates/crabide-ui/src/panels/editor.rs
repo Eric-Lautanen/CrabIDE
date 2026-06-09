@@ -787,7 +787,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 _ => {
                     // Single click: place cursor and begin potential drag.
                     tab.drag_anchor = Some(pos);
-                    tab.column_select_anchor = if column_select { Some(pos) } else { None };
+                    tab.column_select_anchor = column_select.then_some(pos);
                     if add_cursor {
                         tab.cursors.add(pos);
                     } else {
