@@ -14,6 +14,7 @@ use crate::state::{cfg_to_egui, SidebarTab, UiState};
 
 /// The identity of a renderable pane in the tile layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PaneKind {
     /// An editor group: tab bar + gutter + syntax-highlighted content.
     /// The `usize` is the index into `UiState.editor_groups`.

@@ -34,6 +34,7 @@ pub struct Document {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LineEnding {
     Lf,   // Unix
     CrLf, // Windows
@@ -66,6 +67,7 @@ impl LineEnding {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Encoding {
     Utf8,
     Utf8Bom,

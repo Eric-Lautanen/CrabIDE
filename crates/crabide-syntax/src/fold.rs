@@ -19,6 +19,7 @@ use crabide_core::types::Language;
 
 /// The semantic kind of a folding range (matches LSP `FoldingRangeKind`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FoldKind {
     /// A general code block (function body, struct, etc.).
     Region,

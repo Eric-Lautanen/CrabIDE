@@ -1087,6 +1087,7 @@ impl crabideApp {
             EditorEvent::GrepResults { query, results } => {
                 self.apply_grep_results(query, results);
             }
+            _ => {}
         }
     }
 
@@ -1213,11 +1214,9 @@ impl crabideApp {
                 request_id: _,
                 items,
                 is_incomplete: _,
-            } => {
-                if !items.is_empty() {
-                    self.ui_state.completion_items = items;
-                    self.ui_state.completion_visible = true;
-                }
+            } if !items.is_empty() => {
+                self.ui_state.completion_items = items;
+                self.ui_state.completion_visible = true;
             }
             FormattingReady {
                 request_id: _,
@@ -1283,6 +1282,7 @@ impl crabideApp {
                     .lsp_latency
                     .record(std::time::Duration::from_micros(duration_us));
             }
+            _ => {}
         }
     }
 
@@ -1483,6 +1483,7 @@ impl crabideApp {
                     svc.refresh();
                 }
             }
+            _ => {}
         }
     }
 
@@ -1506,6 +1507,7 @@ impl crabideApp {
                 self.ui_state.fuzzy_finder.index_stale = true;
             }
             WatchError(e) => log::warn!("file watch error: {e}"),
+            _ => {}
         }
     }
 
@@ -1760,6 +1762,7 @@ impl crabideApp {
                     }
                 }
             }
+            _ => {}
         }
     }
 
@@ -1803,6 +1806,7 @@ impl crabideApp {
             CommandRegistered { id, command } => {
                 log::debug!("extension {id} registered command: {command}");
             }
+            _ => {}
         }
     }
 
@@ -1833,6 +1837,7 @@ impl crabideApp {
                 log::info!("terminal {terminal_id} exited");
             }
             CommandStarted { .. } | CommandFinished { .. } | LinkDetected { .. } => {}
+            _ => {}
         }
     }
 
@@ -2697,6 +2702,7 @@ impl crabideApp {
                 match self.extension_host.execute_command(&cmd, &[]) {
                     CommandResult::Ok => {}
                     CommandResult::Error(msg) => self.ui_state.set_status(msg),
+                    _ => {}
                 }
             }
 

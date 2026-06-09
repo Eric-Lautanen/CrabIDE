@@ -29,6 +29,7 @@ use std::path::Path;
 /// All commands that can be bound to keys or executed via the command palette.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Action {
     // File
     NewFile,

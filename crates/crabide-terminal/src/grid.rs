@@ -72,6 +72,7 @@ pub enum Color {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum NamedColor {
     Black,
     Red,
@@ -1130,6 +1131,7 @@ fn cell_attrs_to_event(a: Attrs) -> CellAttrs {
 
 /// Mouse button for terminal mouse reporting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MouseButton {
     Left,
     Middle,
@@ -1140,6 +1142,7 @@ pub enum MouseButton {
 
 /// Scroll direction for mouse wheel events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ScrollDirection {
     Up,
     Down,

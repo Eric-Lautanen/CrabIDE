@@ -36,6 +36,7 @@ use std::path::PathBuf;
 
 /// Events sent from the LSP client to the UI.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum LspEvent {
     /// Server has started and is ready to accept requests.
     ServerReady { language: Language },
@@ -130,6 +131,7 @@ pub enum LspEvent {
 
 /// Events sent from the DAP client to the UI.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DapEvent {
     /// Debugger has started and is initialised.
     Initialized,
@@ -252,6 +254,7 @@ pub enum DapEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum StopReason {
     Breakpoint,
     Step,
@@ -264,6 +267,7 @@ pub enum StopReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum OutputCategory {
     Console,
     Stdout,
@@ -276,6 +280,7 @@ pub enum OutputCategory {
 
 /// Events sent from the terminal subsystem to the UI.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum TerminalEvent {
     /// Raw bytes from the PTY (already VT-parsed into grid delta by terminal crate).
     /// The UI applies this delta to its copy of the terminal grid.
@@ -491,6 +496,7 @@ pub struct TerminalRange {
 
 /// Events from the git subsystem.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum GitEvent {
     /// Repository status (file tree decorations) refreshed.
     StatusRefreshed { statuses: Vec<FileStatus> },
@@ -589,6 +595,7 @@ pub enum GitEvent {
 
 /// Events from the virtual filesystem and file watcher.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum VfsEvent {
     FileCreated(PathBuf),
     FileModified(PathBuf),
@@ -601,6 +608,7 @@ pub enum VfsEvent {
 
 /// Events from the extension host.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ExtensionEvent {
     /// Extension loaded successfully.
     Loaded(ExtensionId),
@@ -643,6 +651,7 @@ pub struct Diagnostic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DiagnosticSeverity {
     Error = 1,
     Warning = 2,
@@ -651,6 +660,7 @@ pub enum DiagnosticSeverity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DiagnosticTag {
     Unnecessary,
     Deprecated,
@@ -682,6 +692,7 @@ pub struct CompletionItem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CompletionKind {
     Text,
     Method,
@@ -721,6 +732,7 @@ pub struct InlayHint {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum InlayHintKind {
     Type,
     Parameter,
@@ -838,6 +850,7 @@ pub struct FoldingRange {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FoldingRangeKind {
     Comment,
     Imports,
@@ -969,6 +982,7 @@ pub struct BranchInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum StatusKind {
     Untracked,
     Added,
@@ -991,6 +1005,7 @@ pub struct DiffHunk {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum HunkKind {
     Added,
     Removed,
@@ -1100,6 +1115,7 @@ pub struct ConflictInfo {
 /// All events that can be sent from background services to the UI.
 /// Used when a single fan-in channel is preferred over per-service channels.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum EditorEvent {
     Lsp(LspEvent),
     Dap(DapEvent),

@@ -12,6 +12,7 @@ use crabide_core::types::{Language, Range};
 
 /// The semantic kind of a symbol, matching the LSP `SymbolKind` enum values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SymbolKind {
     File,
     Module,

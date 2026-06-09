@@ -246,6 +246,7 @@ fn diag_icon(sev: Option<DiagnosticSeverity>) -> Option<(&'static str, egui::Col
         DiagnosticSeverity::Warning => Some(("W", egui::Color32::from_rgb(0xcc, 0xa7, 0x00))),
         DiagnosticSeverity::Information => Some(("I", egui::Color32::from_rgb(0x75, 0xbe, 0xff))),
         DiagnosticSeverity::Hint => Some((".", egui::Color32::from_rgb(0xaa, 0xaa, 0xaa))),
+        _ => None,
     }
 }
 
@@ -259,6 +260,7 @@ fn git_marker_on_line(hunks: &[DiffHunk], line_idx: usize) -> Option<egui::Color
             HunkKind::Added => egui::Color32::from_rgb(0x58, 0x7c, 0x0c),
             HunkKind::Modified => egui::Color32::from_rgb(0x0c, 0x7d, 0x9d),
             HunkKind::Removed => egui::Color32::from_rgb(0x94, 0x15, 0x1b),
+            _ => egui::Color32::GRAY,
         })
 }
 

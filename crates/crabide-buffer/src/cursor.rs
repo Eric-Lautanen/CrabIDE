@@ -9,6 +9,7 @@ use std::cmp::Ordering;
 
 /// How the cursor was placed (affects delete/word behaviour).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SelectionMode {
     /// Normal cursor/selection.
     Normal,

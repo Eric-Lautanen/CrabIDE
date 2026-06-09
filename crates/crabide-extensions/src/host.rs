@@ -52,6 +52,7 @@ pub struct CompletionItem {
 
 /// Completion item kind (mirrors LSP CompletionItemKind).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CompletionKind {
     Text,
     Method,
@@ -100,6 +101,7 @@ pub struct ExtensionManifest {
 
 /// Functional category for grouping extensions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ExtensionCategory {
     Git,
     Languages,
@@ -142,6 +144,7 @@ impl ExtensionCategory {
 
 /// Where an installed extension comes from.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ExtensionSource {
     /// Compiled into the editor binary.
     Builtin,
@@ -185,6 +188,7 @@ pub struct ExtensionContext<'a> {
 
 /// Result from `execute_command`.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum CommandResult {
     Ok,
     Error(String),
@@ -437,6 +441,7 @@ pub struct SidebarPaneRegistration {
 
 /// Which UI area a context-menu contribution attaches to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ContextMenuContext {
     /// Right-click inside the code editor.
     Editor,

@@ -158,6 +158,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
                             DiagnosticSeverity::Warning => ("⚠", warn_color),
                             DiagnosticSeverity::Information => ("ℹ", info_color),
                             DiagnosticSeverity::Hint => ("·", hint_color),
+                            _ => ("·", hint_color),
                         };
                         let line = diag.range.start.line + 1; // 1-based
                         let col = diag.range.start.character + 1;

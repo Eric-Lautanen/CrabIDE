@@ -1242,6 +1242,7 @@ fn paint_scrollbar_annotations(
             DiagnosticSeverity::Hint => {
                 egui::Color32::from_rgba_unmultiplied(0x80, 0x80, 0x80, 0xa0)
             }
+            _ => egui::Color32::GRAY,
         };
         let y = to_y(line);
         // 2px tall marker
@@ -1275,6 +1276,7 @@ fn paint_scrollbar_annotations(
             HunkKind::Added => egui::Color32::from_rgba_unmultiplied(0x2e, 0xcc, 0x40, 0x80),
             HunkKind::Removed => egui::Color32::from_rgba_unmultiplied(0xe7, 0x4c, 0x3c, 0x80),
             HunkKind::Modified => egui::Color32::from_rgba_unmultiplied(0xdb, 0xa5, 0x0d, 0x80),
+            _ => egui::Color32::GRAY,
         };
         let y0 = to_y(start_line);
         let y1 = to_y(end_line.min(total_lines - 1));
@@ -1337,6 +1339,7 @@ fn paint_diagnostic_underlines(
             DiagnosticSeverity::Hint => {
                 egui::Color32::from_rgba_unmultiplied(0x80, 0x80, 0x80, 0xa0)
             }
+            _ => egui::Color32::GRAY,
         };
 
         // Zigzag: alternate between y and y+amp every `step` pixels.
@@ -1449,12 +1452,14 @@ fn paint_inlay_hints_on_line(
                 format!("{}:", hint.label)
             }
             None => hint.label.clone(),
+            Some(_) => hint.label.clone(),
         };
 
         let fg = match hint.kind {
             Some(crabide_core::event::InlayHintKind::Type) => type_fg,
             Some(crabide_core::event::InlayHintKind::Parameter) => param_fg,
             None => type_fg,
+            Some(_) => type_fg,
         };
 
         let col = hint.position.character;
@@ -2531,5 +2536,6 @@ fn completion_kind_icon(kind: Option<crabide_core::event::CompletionKind>) -> &'
         Some(CompletionKind::Event) => "⚡",
         Some(CompletionKind::Operator) => "⊕",
         Some(CompletionKind::TypeParameter) => "τ",
+        Some(_) => "",
     }
 }

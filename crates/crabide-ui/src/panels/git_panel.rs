@@ -393,6 +393,7 @@ fn kind_char(kind: StatusKind) -> &'static str {
         StatusKind::Conflicted => "!",
         StatusKind::Unmodified => " ",
         StatusKind::Ignored => "I",
+        _ => "?",
     }
 }
 
