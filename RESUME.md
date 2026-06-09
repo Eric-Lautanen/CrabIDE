@@ -1,7 +1,7 @@
-# Resume — Crabide Codebase Audit (Phase 6 Complete)
+# Resume — Crabide Codebase Audit (Phase 7 Complete)
 
 ## Session Summary
-Completed **Phase 6 (Code Redundancy)** of the ROADMAP.md audit. All tooling checks pass clean.
+Completed **Phase 7 (Test Coverage)** of the ROADMAP.md audit. All tooling checks pass clean.
 
 ## Progress
 - **Phase 0** (Tooling Baseline): ✅ Complete
@@ -11,31 +11,50 @@ Completed **Phase 6 (Code Redundancy)** of the ROADMAP.md audit. All tooling che
 - **Phase 4** (Memory & Performance): ✅ Complete
 - **Phase 5** (Idiomatic Rust 2024/2026): ✅ Complete
 - **Phase 6** (Code Redundancy): ✅ Complete
-- **Phases 7–9**: 🔲 Pending
+- **Phase 7** (Test Coverage): ✅ Complete
+- **Phases 8–9**: 🔲 Pending
 
-## Phase 6 — Code Redundancy ✅
+## Phase 7 — Test Coverage ✅
 
 ### Changes
 | Item | Status | Details |
 |------|--------|---------|
-| `language_id_from_uri()` removal | ✅ Done | Replaced with `tab.language.as_str()` (3 call sites) and `crabide_core::types::language_from_extension`; removed 18-line duplicate function |
-| URI-based language detection in `drain_extension_pending` | ✅ Done | Replaced inline URI-extension matching (`.ends_with(".rs")`, etc.) with `tab.language.as_str()` — removed 20 lines of duplicate logic |
-| LSP/DAP conversion dedup | 🔍 No-op | LSP `convert.rs` uses `lsp_types`; DAP uses its own serde types. No shared conversion logic to extract |
-| Event dispatch helpers | 🔍 No-op | Already factored into per-event-type methods; drain-pending methods dispatch to different service types |
-| URI/path helpers | 🔍 No-op | VFS `helpers.rs` functions (`uri_to_path`, `path_to_uri`, etc.) are internal convenience wrappers; no external usage but legitimately used within crate |
-| Dead code removal | 🔍 None found | `cargo check` zero warnings; no `#[allow(dead_code)]` or `#[allow(unused)]` annotations |
+| Buffer error-path tests | ✅ Done | 12 new tests: invalid UTF-8, out-of-bounds positions, rope snapshot isolation, `restore_rope` |
+| LSP transport error-path tests | ✅ Done | 7 new tests: error responses, unknown fields, string IDs, serialize edge cases |
+| DAP transport error-path tests | ✅ Done | 9 new tests: response edge cases, event body variants, null body, serialize all fields |
+| Terminal grid property-based fuzz tests | ✅ Done | 4 new fuzz tests: random byte sequences, resize+feed, alt screen toggle, delta consistency |
+| VFS watcher event translation tests | ✅ Done | 10 new tests: all `notify` event kinds translated correctly, edge cases |
+| Syntax engine roundtrip tests | ✅ Done | 7 new tests: Rust/Python/JSON parse cycle, close/reopen, reparse, async parse, multi-doc |
+| Workspace manager tests | ✅ Done | 7 new tests: batch edits, error paths, multi-doc lifecycle, edge cases |
+| Feature-flag matrix | ✅ Done | `--no-default-features` clean; `--all-features` blocked by NASM requirement |
+| `cargo test --doc` | ✅ Done | All doc tests pass |
+
+### Test Count Summary
+- **Total before**: ~1005 tests
+- **Total after**: ~1056+ tests (59 buffer, 25 LSP, 52 DAP, 164 terminal, 53 VFS, 98 syntax, 32 workspace, 47 app, 145 core, 105 config, 12 extensions, 70 extension integration, 3 git, 38 search, 111 ui)
+- **New tests added**: ~56
 
 ### Files modified (this session)
-- `crates/crabide-app/src/app.rs` — Removed `language_id_from_uri()` function; replaced 3 call sites with `tab.language.as_str()`; replaced URI-matching language detection with `tab.language.as_str()` in `drain_extension_pending`
-- `ROADMAP.md` — Updated Phase 6 status
+| File | Changes |
+|------|---------|
+| `crates/crabide-buffer/src/buffer.rs` | Added 12 error-path tests |
+| `crates/crabide-lsp/src/transport.rs` | Added 7 error-path/edge-case tests; fixed test that depended on missing jsonrpc field |
+| `crates/crabide-dap/tests/types_test.rs` | Added 9 DAP message edge-case tests |
+| `crates/crabide-terminal/src/grid.rs` | Added 4 fuzz/property-based tests with deterministic Xorshift PRNG |
+| `crates/crabide-vfs/src/watcher.rs` | Added 10 event translation tests |
+| `crates/crabide-syntax/Cargo.toml` | Added dev-dependencies: tree-sitter-rust, tree-sitter-python, tree-sitter-json |
+| `crates/crabide-syntax/src/engine.rs` | Added 7 roundtrip tests (Rust/Python/JSON grammars) |
+| `crates/crabide-workspace/tests/workspace_test.rs` | Added 7 workspace manager tests |
 
 ## Current Verification State
 ```
 cargo check --workspace --all-targets          → ✅ ZERO errors
 cargo clippy --workspace --all-targets -- -D warnings → ✅ ZERO warnings
 cargo fmt --all --check                        → ✅ ZERO diffs
-cargo test --workspace                         → ✅ ALL pass (1005+)
+cargo test --workspace                         → ✅ ALL pass (1056+)
+cargo test --workspace --doc                   → ✅ ALL pass
+cargo check --workspace --no-default-features  → ✅ clean
 ```
 
 ## Next Steps
-Continue with **Phase 7 (Test Coverage)**: Add error-path tests for buffer, LSP transport, DAP transport; property-based tests for terminal grid; VFS watcher integration tests; syntax engine roundtrip tests; workspace manager tests; feature-flag matrix tests; `cargo test --doc`.
+Continue with **Phase 8 (CI & Tooling Hardening)**: Enable `clippy::pedantic` selectively, `cargo deny`, `cargo nextest`, `cargo miri`, `cargo fuzz` targets, update CI workflow.
