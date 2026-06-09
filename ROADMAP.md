@@ -174,7 +174,7 @@ Grammar registry (static + dynamic loading), highlight queries for 22 languages 
 
 ---
 
-## Phase 4 — UI & Editor Core ◐
+## Phase 4 — UI & Editor Core ✅
 
 ### crabide-ui — PARTIAL (~65%)
 Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, status bar, keyboard routing, command palette, find/replace — all implemented. Terminal panel, git panel, problems panel, extensions panel, debug panel, debug toolbar, workspace search — all implemented.
@@ -400,5 +400,5 @@ These aren't tied to any single phase:
 - [x] `#[allow(dead_code)]` removal: Fix or remove all dead-code suppressions (verified — none remain in production code)
 - [x] **Unit test coverage**: `crabide-core` (140), `crabide-buffer` (47), `crabide-config` (105), `crabide-ui` (112), `crabide-app` (43), `crabide-vfs` (43), `crabide-terminal` (102), `crabide-extensions` (54), `crabide-dap` (43), `crabide-search` (38), `crabide-workspace` (25), `crabide-lsp` (19), `crabide-git` (3), `crabide-syntax` (57). Minimum coverage targets: 30% by v0.1
 - [x] **`docs/` directory**: Currently empty
+- [x] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
 - [ ] **Feature flag matrix test**: CI should test all feature flag combinations (`wasm-extensions`, `webview`, `remote-ssh`, `dev-containers`)
-- [ ] **`crabide-workspace` crate**: Exists at `crates/crabide-workspace` (workspace/document lifecycle management). Implemented as a central hub connecting VFS, buffers, and observers. Should be tracked as part of Phase 1/2 since it depends on core, buffer, vfs and is consumed by app.
