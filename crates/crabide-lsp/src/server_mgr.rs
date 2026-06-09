@@ -289,9 +289,8 @@ async fn restart_loop(
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 
 async fn graceful_shutdown(transport: Option<LspTransport>) {
-    let transport = match transport {
-        Some(t) => t,
-        None => return,
+    let Some(transport) = transport else {
+        return;
     };
     // Send shutdown request (server must respond before exit notification).
     let _ = tokio::time::timeout(

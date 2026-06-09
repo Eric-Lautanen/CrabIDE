@@ -1076,15 +1076,11 @@ impl ExtensionHost {
         &self.registry_client
     }
 
-    /// Scan the extensions directory for `.wasm` files and load any that are
-    /// not already installed.
-    ///
-    /// Returns the ids of newly loaded extensions.
     pub fn scan_extensions_dir(&mut self) -> Vec<String> {
-        let dir = match &self.extensions_dir {
-            Some(d) => d.clone(),
-            None => return Vec::new(),
+        let Some(dir) = &self.extensions_dir else {
+            return Vec::new();
         };
+        let dir = dir.clone();
 
         if !dir.exists() {
             if let Err(e) = std::fs::create_dir_all(&dir) {

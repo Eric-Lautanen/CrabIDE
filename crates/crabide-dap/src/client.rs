@@ -966,9 +966,8 @@ fn handle_reverse_request(
     transport: &crate::transport::DapTransport,
     event_tx: &crossbeam_channel::Sender<EditorEvent>,
 ) {
-    let command = match &msg.command {
-        Some(cmd) => cmd.as_str(),
-        None => return,
+    let Some(command) = msg.command.as_deref() else {
+        return;
     };
 
     match command {
