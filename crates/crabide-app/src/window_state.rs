@@ -47,7 +47,7 @@ pub fn load_window_state() -> WindowState {
 
 /// Save window state to disk. Creates parent directories if needed.
 pub fn save_window_state(state: &WindowState) {
-    with_json_file(&window_state_path(), state, "window state");
+    with_json_file(window_state_path().as_ref(), state, "window state");
 }
 
 // ── Session (open files) ────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ pub fn load_session() -> SessionState {
 
 /// Save session state (list of open file paths).
 pub fn save_session(state: &SessionState) {
-    with_json_file(&session_state_path(), state, "session");
+    with_json_file(session_state_path().as_ref(), state, "session");
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ fn home_dir() -> Option<PathBuf> {
     }
 }
 
-fn with_json_file<T: Serialize>(path: &Option<PathBuf>, value: &T, label: &str) {
+fn with_json_file<T: Serialize>(path: Option<&PathBuf>, value: &T, label: &str) {
     let Some(path) = path else {
         return;
     };
