@@ -193,7 +193,7 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [ ] **Settings UI panel**: visual editor for `settings.toml`
 - [ ] **Keybindings editor UI**
 - [ ] **Theme picker UI**
-- [ ] **Welcome screen**: interactive cards (not just decorative)
+- [x] **Welcome screen**: interactive cards (not just decorative)
 - [ ] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)
 - [ ] **Column select mode**: wire Shift+Alt+drag
 
