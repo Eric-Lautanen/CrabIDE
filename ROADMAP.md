@@ -339,7 +339,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [ ] Keybindings editor UI
 - [ ] Theme picker UI
 - [ ] Welcome / splash screen (interactive)
-- [ ] Update checker (ureq → GitHub releases)
+- [x] **Update checker** (background thread → GitHub releases → status message)
 - [x] **Crash reporter** (panic hook → file `~/.crabide/crash.log`)
 - [ ] Windows installer (NSIS or WiX)
 - [ ] macOS `.app` bundle + code signing + notarization

@@ -2195,6 +2195,9 @@ pub struct UiState {
     pub keybindings_editor: KeybindingsEditorState,
     // ── Settings panel state ─────────────────────────────────────────────
     pub settings_panel: SettingsPanelState,
+    // ── Update check state ───────────────────────────────────────────────
+    /// When `Some`, contains the latest available version string.
+    pub update_available: Option<String>,
 }
 
 impl UiState {
@@ -2254,6 +2257,7 @@ impl UiState {
             theme_picker: ThemePickerState::default(),
             keybindings_editor: KeybindingsEditorState::default(),
             settings_panel: SettingsPanelState::default(),
+            update_available: None,
         }
     }
 

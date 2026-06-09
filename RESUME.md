@@ -12,6 +12,13 @@
 
 ## Session summary
 
+**Phase 12: update checker ✅**
+- Background thread checks GitHub releases API on startup using `ureq`
+- New `update_available: Option<String>` field on `UiState`
+- `update_rx` channel delivers result to UI thread
+- Status bar message shown when a newer version is available
+- No new dependencies (ureq already declared at workspace level)
+
 **Phase 12: crash reporter ✅**
 - Panic hook writes crash details (timestamp, panic message, backtrace) to `~/.crabide/crash.log`
 - Installed early in main() before any services start

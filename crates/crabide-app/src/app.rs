@@ -148,6 +148,9 @@ pub struct crabideApp {
     /// Config change notifications (hot-reload of settings, keybindings, themes).
     config_rx: crossbeam_channel::Receiver<crabide_config::ConfigEvent>,
 
+    /// Background update check result (version string).
+    update_rx: crossbeam_channel::Receiver<String>,
+
     /// All mutable UI display state.
     ui_state: UiState,
 
@@ -264,12 +267,42 @@ impl crabideApp {
             }
         }
 
+        // ── Background update check ─────────────────────────────────────────────
+        // Spawn a background thread to check GitHub releases without blocking UI.
+        let (update_tx, update_rx) = crossbeam_channel::bounded::<String>(1);
+        let _update_thread = std::thread::Builder::new()
+            .name("crabide-update-check".into())
+            .spawn(move || {
+                let current_ver = env!("CARGO_PKG_VERSION");
+                let url = "https://api.github.com/repos/crabide/crabide/releases/latest";
+                match ureq::get(url).call() {
+                    Ok(mut resp) => {
+                        if let Ok(body) = resp.body_mut().read_to_string() {
+                            if let Some(tag) = body
+                                .split("\"tag_name\":\"")
+                                .nth(1)
+                                .and_then(|s| s.split('\"').next())
+                            {
+                                let latest = tag.trim_start_matches('v');
+                                if latest != current_ver {
+                                    let _ = update_tx.send(latest.to_owned());
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::debug!("Update check failed: {e}");
+                    }
+                }
+            });
+
         let mut app = Self {
             rt,
             event_rx,
             event_tx,
             config,
             config_rx,
+            update_rx,
             ui_state,
             workspace,
             clipboard: String::new(),
@@ -1034,6 +1067,12 @@ impl crabideApp {
         }
         while let Ok(event) = self.config_rx.try_recv() {
             self.apply_config_event(event);
+        }
+        // Drain update check result.
+        if let Ok(version) = self.update_rx.try_recv() {
+            self.ui_state.update_available = Some(version.clone());
+            self.ui_state
+                .set_status(format!("Update available: v{version}"));
         }
     }
 

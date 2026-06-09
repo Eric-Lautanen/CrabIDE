@@ -54,6 +54,9 @@ crossbeam-channel.workspace = true
 # Ctrl+C signal handling
 ctrlc.workspace = true
 
+# HTTP client for update checker
+ureq.workspace = true
+
 # Native file dialogs
 rfd.workspace = true
 
