@@ -293,7 +293,6 @@ impl RegistryClient {
     }
 }
 
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 /// Minimal URL-encoding for search query parameters.

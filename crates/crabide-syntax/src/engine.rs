@@ -395,7 +395,6 @@ impl SyntaxEngine {
             .compute_local_scopes(&cached.language, &entry, source, &cached.tree)
     }
 
-
     /// Return the current parse version for a document, or `None` if not parsed.
     pub fn version(&self, id: BufferId) -> Option<u32> {
         self.cache.get(&id).map(|c| c.version)

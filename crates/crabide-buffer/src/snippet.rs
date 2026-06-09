@@ -827,5 +827,3 @@ impl SnippetEngine {
         }
     }
 }
-
-

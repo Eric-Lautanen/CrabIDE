@@ -451,8 +451,6 @@ impl ActionRegistry {
     }
 }
 
-
-
 // ── When condition evaluation ─────────────────────────────────────────────────
 
 /// A pre-parsed `when` condition expression.
