@@ -345,7 +345,7 @@ NativeExtension trait, ExtensionHost, 5 built-in extensions, registry client, ho
 - [x] macOS `.app` bundle + code signing + notarization — see `tools/package-macos.sh`
 - [x] Linux `.AppImage` + `.deb` / `.rpm` — see `tools/package-linux.sh`
 - [x] CI release artifacts — see `.github/workflows/release.yml`
-- [ ] Performance pass: egui frame time, LSP round-trip latency, heap profiling
+- [x] **Performance pass**: egui frame time, LSP round-trip latency, heap profiling
 - [x] README, docs site
 
 ---
