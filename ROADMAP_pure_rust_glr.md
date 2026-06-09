@@ -647,6 +647,7 @@ All benchmarks run on a reference machine (GitHub Actions `ubuntu-24.04-arm`,
 ## Why this is hard
 
 1. **GLR ambiguity handling** — The merge logic on the graph-structured stack is
+   subtle. Tree-sitter gets away with a simplified GLR (fork stacks, limited
    merging) that exploits properties of practical grammars. The Rust version
    must replicate exactly those heuristics or users get spurious parse errors.
 

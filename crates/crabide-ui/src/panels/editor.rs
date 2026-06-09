@@ -758,6 +758,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             pos,
             add_cursor,
             click_count,
+            column_select,
         }) => {
             // Clicking in the editor clears any stale widget focus (e.g. from a
             // previously-open find bar) so plain-key bindings work immediately.
@@ -788,6 +789,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
                 _ => {
                     // Single click: place cursor and begin potential drag.
                     tab.drag_anchor = Some(pos);
+                    tab.column_select_anchor = if column_select { Some(pos) } else { None };
                     if add_cursor {
                         tab.cursors.add(pos);
                     } else {
@@ -806,8 +808,34 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
         }
         Some(PointerEvent::Drag { pos }) => {
             let tab = &mut state.tabs_mut()[active_idx];
-            if let Some(anchor) = tab.drag_anchor {
-                // Extend the primary cursor's selection from anchor to pos.
+            // Check if column select (Shift+Alt) is active during drag.
+            let (alt, shift) = ui.input(|i| (i.modifiers.alt, i.modifiers.shift));
+            if alt && shift && tab.column_select_anchor.is_some() {
+                // ── Column / box selection ──────────────────────────────────────
+                if let Some(anchor) = tab.column_select_anchor {
+                    let n_lines = tab.lines.len() as u32;
+                    let line_min = anchor.line.min(pos.line).min(n_lines.saturating_sub(1));
+                    let line_max = pos.line.max(anchor.line).min(n_lines.saturating_sub(1));
+                    let col_min = anchor.character.min(pos.character);
+                    let col_max = pos.character.max(anchor.character);
+                    let mut ranges = Vec::new();
+                    for line in line_min..=line_max {
+                        let line_len = tab
+                            .lines
+                            .get(line as usize)
+                            .map(|l| l.chars().count() as u32)
+                            .unwrap_or(0);
+                        let anchor_col = col_min.min(line_len);
+                        let active_col = col_max.min(line_len);
+                        ranges.push(crabide_core::types::Range {
+                            start: Position::new(line, anchor_col),
+                            end: Position::new(line, active_col),
+                        });
+                    }
+                    tab.cursors.set_multi_selection(&ranges);
+                }
+            } else if let Some(anchor) = tab.drag_anchor {
+                // ── Normal drag selection ───────────────────────────────────────
                 let c = tab.cursors.primary_mut();
                 c.selection.anchor = anchor;
                 c.selection.active = pos;
@@ -847,6 +875,7 @@ fn show_impl(ui: &mut egui::Ui, state: &mut UiState, actions: &mut Vec<Action>) 
             let released = ui.input(|i| i.pointer.primary_released());
             if released {
                 state.tabs_mut()[active_idx].drag_anchor = None;
+                state.tabs_mut()[active_idx].column_select_anchor = None;
             }
         }
     }
@@ -947,6 +976,8 @@ enum PointerEvent {
         pos: Position,
         add_cursor: bool,
         click_count: u32,
+        /// True when Shift+Alt are held (column/box selection start).
+        column_select: bool,
     },
     /// Mouse held and dragged beyond the click threshold.  Extends selection.
     Drag { pos: Position },
@@ -1002,12 +1033,13 @@ fn detect_row_pointer(
         prev_click_count,
         pointer_blocked,
     } = *ctx;
-    let (pressed, down, dragging, alt, hover_pos, now) = ui.input(|i| {
+    let (pressed, down, dragging, alt, shift, hover_pos, now) = ui.input(|i| {
         (
             i.pointer.primary_pressed(),
             i.pointer.primary_down(),
             i.pointer.is_decidedly_dragging(),
             i.modifiers.alt,
+            i.modifiers.shift,
             i.pointer.hover_pos(),
             i.time,
         )
@@ -1083,6 +1115,7 @@ fn detect_row_pointer(
             pos,
             add_cursor: alt,
             click_count,
+            column_select: alt && shift,
         });
     } else if down && dragging && drag_active && (row_hit || drag_top || drag_bot) {
         *pointer_event = Some(PointerEvent::Drag { pos });

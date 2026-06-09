@@ -1239,6 +1239,9 @@ pub struct EditorTab {
     /// Anchor position when the user is drag-selecting with the mouse.
     /// `None` when no drag is in progress.
     pub drag_anchor: Option<Position>,
+    /// Anchor position when the user is performing a column (box) selection
+    /// with Shift+Alt+drag.  Set on press; cleared on release.
+    pub column_select_anchor: Option<Position>,
     /// Timestamp (egui time) of the most recent primary-button press in this tab.
     pub last_click_time: f64,
     /// Document position of the most recent primary-button press.
@@ -1280,6 +1283,7 @@ impl EditorTab {
             bracket_match: None,
             scroll_id,
             drag_anchor: None,
+            column_select_anchor: None,
             last_click_time: 0.0,
             last_click_pos: None,
             click_count: 0,

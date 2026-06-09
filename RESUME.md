@@ -12,7 +12,15 @@
 
 ## Session summary
 
-**Phase 4 UI: peek view ✅**
+**Phase 4 UI: column select mode ✅**
+- Implemented column/box selection via `Shift+Alt+drag` (like VS Code column select)
+- New `column_select` flag on `PointerEvent::Press` detected when both Shift+Alt are held
+- `column_select_anchor` field on `EditorTab` stores the press position for column selection
+- On drag with Shift+Alt held, creates a rectangular block of cursors spanning all lines in the vertical range, each with a selection covering the horizontal column range
+- Reuses existing `CursorSet::set_multi_selection()` to apply the box selection
+- Column select anchor is cleared on mouse release alongside `drag_anchor`
+
+**Previous session: Phase 4 UI: peek view ✅**
 - Added peek view overlay (like VS Code Peek) for inline definition/reference preview
 - New `PeekState` / `PeekKind` types in `UiState` with open/close/next/prev/selected_location
 - New `peek_view` panel rendering a split overlay: location list (left) + code preview (right)

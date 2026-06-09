@@ -195,7 +195,7 @@ Editor view, cursor, gutter, scrolling, panel layout, file explorer, tab bar, st
 - [ ] **Theme picker UI**
 - [x] **Welcome screen**: interactive cards (not just decorative)
 - [x] **Multi-cursor Alt+Click**: wire Alt+Click to add cursor (currently only keyboard Ctrl+D)
-- [ ] **Column select mode**: wire Shift+Alt+drag
+- [x] **Column select mode**: wire Shift+Alt+drag (box selection with multi-cursors)
 
 ### crabide-buffer → crabide-ui wiring
 - [x] Wire `SnippetEngine` tabstop UI: active tabstop highlight, Tab/Shift+Tab cycling
