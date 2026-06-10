@@ -260,7 +260,7 @@ impl ConfigManager {
 
         let result = new_debouncer(
             Duration::from_millis(300),
-            None,
+            Some(Duration::from_millis(0)),
             move |result: notify_debouncer_full::DebounceEventResult| {
                 let events = match result {
                     Ok(evs) => evs,
