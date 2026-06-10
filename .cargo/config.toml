@@ -8,13 +8,9 @@
 rustflags = []
 
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+rustflags = []
 
 [target.aarch64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
-
-# Miri (Rust nightly) — disable custom linker / rustflags that conflict with Miri's compilation
-[target.'cfg(miri)']
 rustflags = []
 
 # macOS: system linker is already fast enough
@@ -34,9 +30,4 @@ xtask   = "run --package xtask --"
 check-all = "check --workspace --all-targets --all-features"
 test-all  = "test --workspace --all-features"
 clippy-all = "clippy --workspace --all-targets --all-features -- -D warnings"
-
-[env]
-# Ensure tree-sitter grammar compilation finds the right C compiler
-# CC is set per-platform in CI; this is just a sensible default
-TREE_SITTER_DIR = { value = "grammars", relative = true }
 
