@@ -5,14 +5,14 @@ use std::time::Duration;
 
 use notify::RecommendedWatcher;
 use notify::RecursiveMode;
-use notify_debouncer_full::{DebounceEventResult, Debouncer, FileIdMap, new_debouncer};
+use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 
 use crabide_core::error::{Result, crabideError};
 use crabide_core::event::VfsEvent;
 
 /// A debounced file watcher that sends [`VfsEvent`]s to a channel.
 pub struct VfsWatcher {
-    debouncer: Debouncer<RecommendedWatcher, FileIdMap>,
+    debouncer: Debouncer<RecommendedWatcher, RecommendedCache>,
 }
 
 impl VfsWatcher {

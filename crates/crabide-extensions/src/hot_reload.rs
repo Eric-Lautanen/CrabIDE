@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender, bounded};
 use notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_full::{DebounceEventResult, Debouncer, FileIdMap, new_debouncer};
+use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 
 /// Starts a debounced file-system watcher on `dir`.
 ///
@@ -25,7 +25,7 @@ use notify_debouncer_full::{DebounceEventResult, Debouncer, FileIdMap, new_debou
 pub fn start_hot_reload_watcher(dir: &Path) -> Result<Receiver<PathBuf>, String> {
     let (tx, rx): (Sender<PathBuf>, Receiver<PathBuf>) = bounded(64);
 
-    let mut debouncer: Debouncer<RecommendedWatcher, FileIdMap> = new_debouncer(
+    let mut debouncer: Debouncer<RecommendedWatcher, RecommendedCache> = new_debouncer(
         Duration::from_millis(500),
         None,
         move |result: DebounceEventResult| match result {
