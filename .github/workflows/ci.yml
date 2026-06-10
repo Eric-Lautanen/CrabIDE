@@ -9,6 +9,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Opt into Node.js 24 early (default June 16, 2026) to silence deprecation warnings
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Cache key — bump to force fresh cache
   CACHE_VERSION: v3
 
@@ -20,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-2025]
 
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-2025]
 
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +117,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-2025]
 
     steps:
       - uses: actions/checkout@v4
@@ -201,11 +203,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
         with:
-          command: check
-          arguments: --all-features
-          log-level: error
+          tool: cargo-deny
+      - name: cargo-deny check
+        run: cargo deny check --all-features
 
   # ── Release builds ──────────────────────────────────────────────────────────
   build:
@@ -224,7 +227,7 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact: crabide-macos-x86_64
-          - os: windows-latest
+          - os: windows-2025
             target: x86_64-pc-windows-msvc
             artifact: crabide-windows-x86_64.exe
 
@@ -314,7 +317,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ env.CACHE_VERSION }}-feature-matrix-${{ matrix.features }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ env.CACHE_VERSION }}-feature-matrix-${{ replace(matrix.features, ',', '_') }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo check
         run: cargo check --workspace ${{ matrix.features }}
@@ -360,6 +363,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rustsec/audit-check@v2
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tool: cargo-audit
+      - name: cargo audit
+        run: cargo audit

@@ -5059,28 +5059,6 @@ fn is_word_char(c: char) -> bool {
 fn register_grammars() {
     let reg = grammar_registry();
 
-    // Helper for older grammars that expose `language()` returning a
-    // tree-sitter version incompatible with our 0.26.x.  We call the raw C
-    // FFI function directly to obtain a pointer and wrap it with our version
-    // of `Language::from_raw`.
-    macro_rules! raw_lang {
-        ($fn_name:ident) => {{
-            // SAFETY: The `$fn_name` symbol is resolved from a dynamically loaded
-            // grammar shared library via `tree-sitter`'s language function.  The
-            // function pointer returned is guaranteed to be a valid `TSLanguage`
-            // pointer that outlives the `Language` handle.  `from_raw` wraps it
-            // without taking ownership, so the shared library must remain loaded
-            // for the lifetime of the returned `Language`.  We ensure this by
-            // keeping the `Library` handle alive in `GrammarRegistry`.
-            unsafe {
-                unsafe extern "C" {
-                    fn $fn_name() -> *const tree_sitter::ffi::TSLanguage;
-                }
-                tree_sitter::Language::from_raw($fn_name())
-            }
-        }};
-    }
-
     reg.register(
         Language::RUST,
         tree_sitter_rust::LANGUAGE.into(),
@@ -5202,13 +5180,11 @@ fn register_grammars() {
     );
     reg.register(
         Language::KOTLIN,
-        raw_lang!(tree_sitter_kotlin),
+        tree_sitter_kotlin::LANGUAGE.into(),
         queries::KOTLIN_HIGHLIGHTS,
         "",
         "",
     );
-    // Force-link the tree_sitter_kotlin crate whose C symbols are needed by raw_lang!
-    let _ = &tree_sitter_kotlin::NODE_TYPES;
     reg.register(
         Language::RUBY,
         tree_sitter_ruby::LANGUAGE.into(),

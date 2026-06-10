@@ -87,7 +87,7 @@ tree-sitter-yaml = "0.7"
 tree-sitter-bash = "0.25"
 tree-sitter-java = "0.23"
 tree-sitter-c-sharp = "0.23"
-tree-sitter-kotlin = "0.3"
+tree-sitter-kotlin = { version = "0.4", package = "tree-sitter-kotlin-sg" }
 tree-sitter-ruby = "0.23"
 tree-sitter-php = "0.24"
 # Renamed crates (package key differs from import name)

@@ -11,6 +11,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ── Build & Package ───────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ jobs:
             target: x86_64-apple-darwin
             artifact: crabide-macos-x86_64
             script: package-macos.sh
-          - os: windows-latest
+          - os: windows-2025
             target: x86_64-pc-windows-msvc
             artifact: crabide-windows-x86_64
             script: package-windows.ps1

@@ -15,12 +15,11 @@ rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 linker    = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
-# macOS: use lld via zld for faster linking
+# macOS: system linker is already fast enough
 [target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/zld"]
+rustflags = []
 
 [target.aarch64-apple-darwin]
-# Apple Silicon — system linker is already fast enough
 rustflags = []
 
 # Windows: default linker is fine; optionally use lld-link for speed
