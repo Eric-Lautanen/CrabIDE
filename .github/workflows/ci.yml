@@ -189,12 +189,14 @@ jobs:
       - name: cargo miri setup
         run: cargo miri setup
 
-      - name: cargo miri test (crates with unsafe code)
+      - name: cargo miri test (crates with unsafe Rust, excluding tree-sitter FFI)
         run: |
-          cargo miri test --package crabide-app
+          # crabide-dap: pure Rust unsafe code (serialization), no FFI
           cargo miri test --package crabide-dap
-          cargo miri test --package crabide-syntax
-          cargo miri test --package crabide-ui
+          # crabide-core: low-level types with unsafe, no FFI
+          cargo miri test --package crabide-core
+          # crabide-buffer: unsafe buffer operations, no FFI
+          cargo miri test --package crabide-buffer
 
   # ── cargo-deny ──────────────────────────────────────────────────────────────
   deny:
