@@ -317,7 +317,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ env.CACHE_VERSION }}-feature-matrix-${{ replace(matrix.features, ',', '_') }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ env.CACHE_VERSION }}-feature-matrix-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo check
         run: cargo check --workspace ${{ matrix.features }}
