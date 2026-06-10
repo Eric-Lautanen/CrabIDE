@@ -76,6 +76,11 @@ pub use theme::{
 use indexmap::IndexMap;
 use notify::RecursiveMode;
 use notify_debouncer_full::new_debouncer;
+
+#[cfg(windows)]
+type DebouncerCache = notify_debouncer_full::FileIdMap;
+#[cfg(not(windows))]
+type DebouncerCache = notify_debouncer_full::NoCache;
 use parking_lot::RwLock;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -99,7 +104,7 @@ pub struct ConfigManager {
     _debouncer: Option<
         notify_debouncer_full::Debouncer<
             notify::RecommendedWatcher,
-            notify_debouncer_full::FileIdMap,
+            DebouncerCache,
         >,
     >,
 }
@@ -251,7 +256,7 @@ impl ConfigManager {
     ) -> Option<
         notify_debouncer_full::Debouncer<
             notify::RecommendedWatcher,
-            notify_debouncer_full::FileIdMap,
+            DebouncerCache,
         >,
     > {
         let user_dir = SettingsLoader::user_config_dir()?;
