@@ -6,12 +6,15 @@ no-default-features = false
 feature-depth = 1
 
 [advisories]
+vulnerability = "deny"
+unmaintained = "deny"
+unsound = "deny"
 yanked = "deny"
-unmaintained = "all"
-unsound = "all"
+notice = "deny"
 ignore = []
 
 [licenses]
+unlicensed = "deny"
 confidence-threshold = 0.8
 allow = [
     "Apache-2.0",
@@ -29,6 +32,14 @@ allow = [
     "Zlib",
 ]
 exceptions = [
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "wasmtime" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "wasmtime-cranelift" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "cranelift-entity" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "cranelift-bforest" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "cranelift-codegen" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "cranelift-isle" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "cranelift-frontend" },
+    { allow = ["Apache-2.0 WITH LLVM-exception"], crate = "cranelift-native" },
     { allow = ["ISC", "OpenSSL"], crate = "ring" },
 ]
 
