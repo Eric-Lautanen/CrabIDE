@@ -56,7 +56,7 @@ crabide-ui = { path = "crates/crabide-ui" }
 # - Single lightweight OpenGL context instead of full wgpu instance
 # - Sufficient for 2D text+UI; no 3D workloads in a code editor
 egui = { version = "0.34", features = ["default_fonts"] }
-eframe = { version = "0.34", default-features = false, features = ["glow", "default_fonts"] }
+eframe = { version = "0.34", default-features = false, features = ["glow", "default_fonts", "x11"] }
 egui_tiles = "0.15" # 0.15.0 verified crates.io (requires egui 0.34)
 
 # Text Buffer
